@@ -52,6 +52,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::patch('returns/{return}', [ParcelReturnController::class, 'update'])->middleware('role:seller,rider')->name('returns.update');
         Route::get('support', [Data::class, 'support'])->name('support.index');
         Route::post('support', [SupportCaseController::class, 'store'])->middleware('throttle:10,1')->name('support.store');
+        Route::get('support/report-options', [SupportCaseController::class, 'reportOptions'])->name('support.report-options');
         Route::get('support/{case}', [Data::class, 'conversation'])->name('support.show');
         Route::post('support/{case}/messages', [SupportCaseController::class, 'message'])->middleware('throttle:30,1')->name('support.message');
         Route::get('support/{case}/evidence/{message}', [SupportCaseController::class, 'evidence'])->name('support.evidence');

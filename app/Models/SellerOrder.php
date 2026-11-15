@@ -64,6 +64,11 @@ class SellerOrder extends Model
         return $this->hasOne(SellerPayout::class);
     }
 
+    public function logisticsRemittance(): HasOne
+    {
+        return $this->hasOne(LogisticsRemittance::class);
+    }
+
     public function parcelReturn(): HasOne
     {
         return $this->hasOne(ParcelReturn::class);

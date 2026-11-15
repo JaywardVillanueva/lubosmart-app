@@ -27,6 +27,22 @@ class Delivery extends Model
         return $this->tracking_reference;
     }
 
+    protected $appends = ['fulfillment_status'];
+
+    public function getFulfillmentStatusAttribute(): string
+    {
+        return match (true) {
+            (bool) $this->exception_status => $this->exception_status,
+            $this->status === 'delivered' => 'delivered',
+            $this->status === 'out_for_delivery' => 'out_for_delivery',
+            (bool) $this->dispatch_accepted_at => 'handover_confirmed',
+            (bool) $this->dispatch_prepared_at => 'delivery_rider_assigned',
+            (bool) $this->sorted_at => 'sorted',
+            (bool) $this->received_at => 'received_at_hub',
+            default => $this->status,
+        };
+    }
+
     protected $fillable = [
         'seller_order_id',
         'rider_id',

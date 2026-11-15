@@ -14,7 +14,9 @@ use App\Models\ProductVariant;
 use App\Models\SellerOrder;
 use App\Models\Store;
 use App\Models\User;
+use App\Observers\WorkflowNotificationObserver;
 use App\Services\Logistics\ShippingQuotes;
+use App\Services\ParcelFinance;
 use App\Services\StoreDiscount;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
@@ -264,24 +266,22 @@ class CreateOrderFromCart
 
             CartItem::query()->whereKey($cartItems->modelKeys())->delete();
 
+            foreach ($products as $product) {
+                $before = $product->stock;
+                app(WorkflowNotificationObserver::class)->stock($product->fresh(), $before, 'checkout:'.$order->id.':'.$product->id);
+            }
+
             return $order->load('sellerOrders.items', 'sellerOrders.delivery');
         }, 3);
     }
 
     private function toCents(string|int|float $amount): int
     {
-        $amount = (string) $amount;
-        $negative = str_starts_with($amount, '-');
-        $amount = ltrim($amount, '+-');
-        [$whole, $fraction] = array_pad(explode('.', $amount, 2), 2, '0');
-
-        $cents = ((int) $whole * 100) + (int) str_pad(substr($fraction, 0, 2), 2, '0');
-
-        return $negative ? -$cents : $cents;
+        return ParcelFinance::cents((string) $amount);
     }
 
     private function fromCents(int $cents): string
     {
-        return intdiv($cents, 100).'.'.str_pad((string) ($cents % 100), 2, '0', STR_PAD_LEFT);
+        return ParcelFinance::decimal($cents);
     }
 }

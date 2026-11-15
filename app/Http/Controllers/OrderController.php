@@ -9,8 +9,10 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\ProductReview;
 use App\Models\SellerOrder;
+use App\Services\Admin\AuditLogger;
 use App\Services\RestorePurchasedStock;
 use App\Services\Seller\SellerWorkspace;
+use App\Services\SellerBuyerPrivacy;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -27,7 +29,9 @@ class OrderController extends Controller
             abort_unless($order->status === 'pending' && $parcels->every(fn ($parcel) => $parcel->status === 'pending'), 409, 'Preparation has already started. Contact your seller through the order conversation.');
             $items = OrderItem::query()->whereIn('seller_order_id', $parcels->pluck('id'))->get();
             app(RestorePurchasedStock::class)->handle($items);
-            SellerOrder::query()->whereIn('id', $parcels->pluck('id'))->update(['status' => 'cancelled']);
+            foreach ($parcels as $parcel) {
+                $parcel->update(['status' => 'cancelled']);
+            }
             $order->update(['status' => 'cancelled']);
         }, 3);
 
@@ -38,15 +42,18 @@ class OrderController extends Controller
         return back()->with('status', 'Order cancelled. Stock has been restored.');
     }
 
-    public function waybill(Request $request, SellerOrder $sellerOrder)
+    public function waybill(Request $request, SellerOrder $sellerOrder, AuditLogger $audit)
     {
         $user = $request->user();
         abort_unless($user->role === 'admin' || ($user->role === 'seller' && $sellerOrder->store_id === $user->store?->id), 403);
 
         $sellerOrder->load(['order', 'items', 'store:id,name', 'delivery']);
         $sellerOrder->delivery?->ensureTrackingReference();
+        SellerBuyerPrivacy::waybill($sellerOrder->order);
+        $audit->record(['actor_id' => $user->id, 'subject_type' => 'waybill', 'subject_id' => $sellerOrder->id,
+            'action' => 'waybill_accessed', 'changes' => ['channel' => 'web', 'delivery_id' => $sellerOrder->delivery?->id]]);
 
-        return Inertia::render('marketplace/waybill', ['order' => $sellerOrder]);
+        return Inertia::render('marketplace/waybill', ['order' => $sellerOrder])->toResponse($request)->header('Cache-Control', 'private, no-store');
     }
 
     public function printWaybill(Request $request, SellerOrder $sellerOrder)
@@ -104,6 +111,9 @@ class OrderController extends Controller
             }
         }
         $orders = $query->latest('id')->paginate(10)->withQueryString();
+        if ($user->role === 'seller') {
+            $orders->getCollection()->each(fn ($parcel) => SellerBuyerPrivacy::minimize($parcel->order));
+        }
         $ids = $orders->pluck('id');
         $messages = DB::table('order_messages')->join('users', 'users.id', '=', 'order_messages.user_id')->whereIn('seller_order_id', $ids)->orderBy('order_messages.id')->get(['order_messages.id', 'seller_order_id', 'body', 'users.name', 'order_messages.created_at'])->groupBy('seller_order_id');
         $reviews = $user->role === 'buyer' ? ProductReview::query()->where('user_id', $user->id)->whereIn('order_item_id', $orders->getCollection()->flatMap(fn ($parcel) => $parcel->items->pluck('id')))->get()->keyBy('order_item_id') : [];
@@ -111,17 +121,23 @@ class OrderController extends Controller
         return Inertia::render('marketplace/orders', ['orders' => $orders, 'messages' => $messages, 'role' => $user->role, 'filters' => $filters, 'reviews' => $reviews]);
     }
 
-    public function prepare(Request $request, SellerOrder $sellerOrder)
+    public function prepare(Request $request, SellerOrder $sellerOrder, AuditLogger $audit)
     {
         abort_unless($request->user()->role === 'seller' && $sellerOrder->store_id === $request->user()->store?->id, 403);
-        $data = $request->validate(['status' => 'required|in:processing,shipped']);
-        DB::transaction(function () use ($sellerOrder, $data) {
+        $protected = array_fill_keys(['subtotal', 'total', 'shipping_fee', 'commission_basis_points', 'commission_amount',
+            'seller_proceeds', 'discount_amount', 'voucher_code', 'logistics_center_id', 'rider_id', 'tracking_reference',
+            'courier', 'external_courier', 'delivery_status', 'cod_status', 'settlement_status', 'payment_status',
+            'delivered_at', 'proof_photo_path', 'cod_amount', 'received_amount'], 'missing');
+        $data = $request->validate(['status' => 'required|in:processing,shipped', ...$protected]);
+        DB::transaction(function () use ($request, $sellerOrder, $data, $audit) {
             $order = $sellerOrder->order()->lockForUpdate()->firstOrFail();
             $sellerOrder = SellerOrder::query()->whereKey($sellerOrder->id)->lockForUpdate()->firstOrFail();
             $expected = $data['status'] === 'processing' ? 'pending' : 'processing';
             abort_unless($sellerOrder->status === $expected, 409, 'This order has already changed. Refresh the page.');
             $sellerOrder->update($data);
             $order->update(['status' => 'processing']);
+            $audit->record(['actor_id' => $request->user()->id, 'subject_type' => 'parcel_fulfillment', 'subject_id' => $sellerOrder->id,
+                'action' => 'seller_preparation_updated', 'changes' => ['from' => $expected, 'to' => $data['status']]]);
         }, 3);
 
         if ($request->routeIs('api.v1.*')) {

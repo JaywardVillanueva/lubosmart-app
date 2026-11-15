@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Cart;
+use App\Models\SellerOrder;
 use App\Models\StoreVoucher;
 use App\Services\StoreDiscount;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -14,7 +15,10 @@ class StoreVoucherController extends Controller
 {
     public function index(Request $request)
     {
-        return Inertia::render('seller/vouchers', ['vouchers' => StoreVoucher::query()->where('store_id', $request->user()->store?->id)->latest('id')->paginate(15), 'storeApproved' => $request->user()->store?->status === 'approved']);
+        $history = SellerOrder::query()->where('store_id', $request->user()->store?->id)->whereNotNull('store_voucher_id')
+            ->latest('id')->paginate(15, ['id', 'voucher_code', 'discount_amount', 'status', 'created_at'], 'history_page')->withQueryString();
+
+        return Inertia::render('seller/vouchers', ['vouchers' => StoreVoucher::query()->where('store_id', $request->user()->store?->id)->latest('id')->paginate(15)->withQueryString(), 'history' => $history, 'storeApproved' => $request->user()->store?->status === 'approved']);
     }
 
     public function store(Request $request)

@@ -24,7 +24,7 @@ test('rider settings show rider registration and private documents without logis
     $this->actingAs($rider)->get('/settings/profile')->assertInertia(fn (Assert $page) => $page
         ->component('settings/rider')->where('companyName', $center->name)->where('plateNumber', 'RID123')
         ->where('personalDetails.Middle initial (optional)', 'M')->where('personalDetails.Age', '28')->where('vehicleType', 'motorcycle')
-        ->has('documents', 1)->where('documents.0.id', $document->id)->missing('documents.0.path')->missing('documents.0.url')->missing('logisticsRegistration'));
+        ->has('documents', 1)->where('documents.0.id', $document->id)->missing('documents.0.path')->where('documents.0.url', fn ($url) => str_contains($url, '/api/account/documents/'.$document->id) && str_contains($url, 'signature='))->missing('logisticsRegistration'));
     $url = URL::temporarySignedRoute('registration-documents.show', now()->addMinutes(5), ['document' => $document->id]);
     $this->get($url)->assertForbidden();
     $this->actingAs($other)->get($url)->assertForbidden();

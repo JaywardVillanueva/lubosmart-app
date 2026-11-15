@@ -11,6 +11,7 @@ class ParcelResource extends JsonResource
     {
         $delivery = $this->delivery;
         $order = $this->order;
+        $limited = $request->user()?->role === 'seller' && ! $request->routeIs('api.v1.seller.orders.waybill');
 
         return [
             'id' => $this->id, 'order_id' => $this->order_id, 'status' => $this->status,
@@ -25,7 +26,7 @@ class ParcelResource extends JsonResource
             'items' => $this->items->map(fn ($item) => $item->only([
                 'id', 'product_id', 'product_name', 'quantity', 'price_each', 'product_variant_id', 'variant_name',
             ])),
-            'recipient' => [
+            'recipient' => $limited ? ['name' => $order->shipping_recipient_name, 'city' => $order->shipping_city, 'province' => $order->shipping_province] : [
                 'name' => $order->shipping_recipient_name, 'phone' => $order->shipping_phone,
                 'line1' => $order->shipping_line1, 'line2' => $order->shipping_line2,
                 'barangay' => $order->shipping_barangay, 'city' => $order->shipping_city,
@@ -33,6 +34,7 @@ class ParcelResource extends JsonResource
             ],
             'delivery' => $delivery ? [
                 'id' => $delivery->id, 'tracking_reference' => $delivery->tracking_reference,
+                'fulfillment_status' => $delivery->fulfillment_status,
                 'status' => $delivery->status, 'exception_status' => $delivery->exception_status,
                 'picked_up_at' => $delivery->picked_up_at?->toISOString(),
                 'received_at' => $delivery->received_at?->toISOString(),
@@ -41,6 +43,7 @@ class ParcelResource extends JsonResource
                 'dispatch_accepted_at' => $delivery->dispatch_accepted_at?->toISOString(),
                 'delivered_at' => $delivery->delivered_at?->toISOString(),
                 'has_proof' => (bool) $delivery->proof_photo_path,
+                'notes' => $delivery->delivery_notes,
             ] : null,
             'seller_proceeds' => $this->when(in_array($request->user()?->role, ['seller', 'admin'], true), $this->seller_proceeds),
             'commission_amount' => $this->when(in_array($request->user()?->role, ['seller', 'admin'], true), $this->commission_amount),

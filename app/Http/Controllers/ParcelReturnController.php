@@ -8,7 +8,9 @@ use App\Models\SellerOrder;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\Admin\AuditLogger;
+use App\Services\ParcelFinance;
 use App\Services\RestorePurchasedStock;
+use App\Services\SellerBuyerPrivacy;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -23,6 +25,7 @@ class ParcelReturnController extends Controller
         $filters = $request->validate(['parcel' => 'nullable|integer']);
         $ids = $user->role === 'logistics' ? $user->logisticsCenters()->operational()->pluck('logistics_centers.id') : collect();
         $query = ParcelReturn::query()
+            ->when($filters['parcel'] ?? null, fn ($q, $id) => $q->where('seller_order_id', $id))
             ->when($user->role === 'buyer', fn ($q) => $q->where('buyer_id', $user->id))
             ->when($user->role === 'seller', fn ($q) => $q->whereHas('sellerOrder', fn ($p) => $p->where('store_id', $user->store?->id)))
             ->when($user->role === 'rider', fn ($q) => $q->where('rider_id', $user->id))
@@ -34,9 +37,12 @@ class ParcelReturnController extends Controller
         $returns = $query->latest('id')->paginate(15);
         $addresses = in_array($user->role, ['logistics', 'rider'], true) ? Address::query()->whereIn('user_id', $returns->getCollection()->pluck('sellerOrder.store.user_id'))->orderByDesc('is_default')->latest('id')->get(['user_id', 'recipient_name', 'phone', 'line1', 'barangay', 'city', 'province'])->groupBy('user_id') : collect();
         $returns->through(function ($return) use ($addresses, $user) {
+            if ($user->role === 'seller') {
+                SellerBuyerPrivacy::minimize($return->sellerOrder->order);
+            }
             $return->makeHidden(['seller_debit_cents', 'commission_reversal_cents']);
             if (in_array($user->role, ['logistics', 'rider'], true)) {
-                $return->makeHidden(['refund_cents', 'refund_reference', 'refunded_by']);
+                $return->makeHidden(['refund_cents', 'refund_reference', 'refunded_by', 'product_refund_cents', 'shipping_refund_cents']);
                 $return->setAttribute('pickup_address', $return->sellerOrder->shipping_quote['pickup_address'] ?? $addresses->get($return->sellerOrder->store->user_id)?->first());
             }
 
@@ -74,7 +80,7 @@ class ParcelReturnController extends Controller
 
     public function update(Request $request, ParcelReturn $return, AuditLogger $audit)
     {
-        $data = $request->validate(['action' => 'required|in:approve,reject,assign,collect,receive,refund,close', 'reason' => 'required|string|min:3|max:500', 'rider_id' => 'required_if:action,assign|nullable|integer', 'tracking_reference' => 'required_if:action,collect,receive|nullable|string|max:40', 'condition' => 'required_if:action,receive|nullable|in:intact,damaged', 'restock' => 'required_if:action,receive|boolean', 'amount' => 'required_if:action,refund|nullable|numeric|decimal:0,2|min:0.01|max:99999999.99', 'reference' => 'required_if:action,refund|nullable|string|min:3|max:100']);
+        $data = $request->validate(['action' => 'required|in:approve,reject,assign,collect,receive,refund,close,review_responsibility', 'reason' => 'required|string|min:3|max:500', 'rider_id' => 'required_if:action,assign|nullable|integer', 'tracking_reference' => 'required_if:action,collect,receive|nullable|string|max:40', 'condition' => 'required_if:action,receive|nullable|in:intact,damaged', 'restock' => 'required_if:action,receive|boolean', 'amount' => 'required_if:action,refund|nullable|numeric|decimal:0,2|min:0.01|max:99999999.99', 'reference' => 'required_if:action,refund|nullable|string|min:3|max:100', 'responsibility' => 'required_if:action,review_responsibility|nullable|in:seller,logistics,buyer,undetermined']);
         try {
             DB::transaction(function () use ($request, $return, $data, $audit) {
                 Store::query()->whereKey($return->sellerOrder->store_id)->lockForUpdate()->firstOrFail();
@@ -83,8 +89,8 @@ class ParcelReturnController extends Controller
                 $actor = $request->user();
                 $delivery = $parcel->delivery;
                 $action = $data['action'];
-                if (in_array($action, ['approve', 'reject', 'refund', 'close'], true)) {
-                    abort_unless($actor->canAdmin($action === 'refund' ? 'finance' : 'disputes'), 403);
+                if (in_array($action, ['approve', 'reject', 'refund', 'close', 'review_responsibility'], true)) {
+                    abort_unless($actor->canAdmin(in_array($action, ['refund', 'review_responsibility'], true) ? 'finance' : 'disputes'), 403);
                 } elseif ($action === 'assign') {
                     abort_unless($actor->role === 'logistics' && $actor->logisticsCenters()->operational()->whereKey($delivery?->logistics_center_id)->exists(), 403);
                 } elseif ($action === 'collect') {
@@ -98,7 +104,13 @@ class ParcelReturnController extends Controller
                     }
                 }
                 $changes = [];
-                if (in_array($action, ['approve', 'reject'], true)) {
+                if ($action === 'review_responsibility') {
+                    abort_if(in_array($return->status, ['rejected', 'closed', 'refunded'], true), 409, 'A finalized return cannot be reclassified.');
+                    $changes = ['responsibility' => $data['responsibility'], 'responsibility_reason' => $data['reason'],
+                        'responsibility_reviewed_by' => $actor->id, 'responsibility_reviewed_at' => now()];
+                    $audit->record(['actor_id' => $actor->id, 'subject_type' => 'parcel_return', 'subject_id' => $return->id,
+                        'action' => 'return_responsibility_reviewed', 'changes' => ['from' => $return->responsibility, 'to' => $data['responsibility'], 'reason' => $data['reason']]]);
+                } elseif (in_array($action, ['approve', 'reject'], true)) {
                     abort_unless($return->status === 'requested', 409, 'This return already has a decision.');
                     $changes = ['status' => $action === 'approve' ? 'approved' : 'rejected', 'decision_reason' => $data['reason'], 'decided_by' => $actor->id];
                 } elseif ($action === 'assign') {
@@ -128,17 +140,15 @@ class ParcelReturnController extends Controller
                 } else {
                     abort_unless($return->status === 'received' && $return->received_at && ! $return->refunded_at, 409, 'Confirmed seller receipt is required before a refund.');
                     $cash = DB::table('cod_collections')->where('delivery_id', $delivery->id)->lockForUpdate()->first();
-                    $expected = (int) round(((float) $parcel->subtotal + (float) $parcel->shipping_fee) * 100);
-                    abort_unless($cash && $cash->status === 'reconciled' && $cash->received_amount !== null && (int) round((float) $cash->amount * 100) === $expected && (int) round((float) $cash->received_amount * 100) === $expected, 409, 'Reconcile the actual full COD receipt before recording the refund.');
-                    $amount = (int) round((float) $data['amount'] * 100);
+                    $expected = ParcelFinance::expected($parcel);
+                    abort_unless(ParcelFinance::reconciled($parcel, $cash), 409, 'Reconcile the actual full COD receipt before recording the refund.');
+                    $amount = ParcelFinance::cents((string) $data['amount']);
                     if ($amount > $expected) {
                         throw ValidationException::withMessages(['amount' => 'The refund cannot exceed the amount actually collected for this parcel.']);
                     }
-                    $products = min($amount, (int) round((float) $parcel->subtotal * 100));
-                    $subtotalCents = (int) round((float) $parcel->subtotal * 100);
-                    $recognizedCommission = (int) round((float) $parcel->commission_amount * 100);
-                    $commission = $subtotalCents > 0 ? min($recognizedCommission, intdiv($products * $recognizedCommission + intdiv($subtotalCents, 2), $subtotalCents)) : 0;
-                    $changes = ['status' => 'refunded', 'refund_cents' => $amount, 'seller_debit_cents' => $products - $commission, 'commission_reversal_cents' => $commission, 'refund_reference' => $data['reference'], 'refunded_by' => $actor->id, 'refunded_at' => now()];
+                    abort_unless($return->responsibility === 'seller' && $return->responsibility_reviewed_at, 409, 'Review financial responsibility first. Logistics, buyer and undetermined liability require an approved funding policy before recording a refund.');
+                    $split = ParcelFinance::refundableProducts($parcel, $amount);
+                    $changes = ['status' => 'refunded', 'refund_cents' => $amount, ...$split, 'refund_reference' => $data['reference'], 'refunded_by' => $actor->id, 'refunded_at' => now()];
                     $audit->record(['actor_id' => $actor->id, 'subject_type' => 'seller_order', 'subject_id' => $parcel->id, 'action' => 'manual_refund_recorded', 'changes' => ['return_id' => $return->id, ...$changes, 'refunded_at' => now()->toIso8601String(), 'reason' => $data['reason']]]);
                 }
                 $return->update($changes);

@@ -9,12 +9,15 @@ use App\Http\Controllers\ApplicationReviewController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DeliveryController;
+use App\Http\Controllers\FinanceController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\LocationController;
 use App\Http\Controllers\Logistics\NotificationsController as LogisticsNotificationsController;
 use App\Http\Controllers\Logistics\RiderController;
 use App\Http\Controllers\Logistics\ShippingRateController;
+use App\Http\Controllers\LogisticsSettlementController;
 use App\Http\Controllers\MarketplaceController;
+use App\Http\Controllers\NotificationInboxController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\ParcelReturnController;
 use App\Http\Controllers\PlatformContentController;
@@ -63,6 +66,12 @@ Route::middleware(['auth'])->group(function () {
         Route::get('locations', LocationController::class)->middleware('throttle:60,1')->name('locations');
         Route::get('registration-documents/{document}', RegistrationDocumentController::class)->middleware('signed')->name('registration-documents.show');
         Route::middleware('active')->group(function () {
+            Route::middleware('throttle:120,1')->controller(NotificationInboxController::class)->group(function () {
+                Route::get('notifications', 'index')->name('notifications.index');
+                Route::get('notifications/unread-count', 'count')->name('notifications.count');
+                Route::patch('notifications/read-all', 'readAll')->name('notifications.read-all');
+                Route::patch('notifications/{notification}/read', 'read')->whereUuid('notification')->name('notifications.read');
+            });
             Route::get('workspace/status', WorkspaceStatusController::class)->middleware(['role:buyer,seller,rider,logistics', 'throttle:120,1,workspace-status'])->name('workspace.status');
             Route::get('seller/notifications', App\Http\Controllers\Seller\NotificationsController::class)->middleware(['role:seller', 'throttle:60,1'])->name('seller.notifications');
             Route::get('rider/notifications', NotificationsController::class)->middleware(['role:rider', 'throttle:60,1'])->name('rider.notifications');
@@ -114,6 +123,9 @@ Route::middleware(['auth'])->group(function () {
             Route::get('deliveries/{delivery}/proof', [DeliveryController::class, 'proof'])->middleware('role:buyer,seller,rider,logistics,admin')->middleware('admin.permission:operations')->name('deliveries.proof');
             Route::get('reports', [ReportController::class, 'index'])->middleware('role:seller,rider,logistics,admin')->middleware('admin.permission:reports')->name('reports');
             Route::get('settlements', [SellerSettlementController::class, 'index'])->middleware(['role:admin,seller', 'admin.permission:finance'])->name('settlements');
+            Route::get('finance', [FinanceController::class, 'index'])->middleware(['role:admin,seller,logistics,rider', 'admin.permission:finance'])->name('finance');
+            Route::get('logistics-settlements', [LogisticsSettlementController::class, 'index'])->middleware(['role:admin,logistics', 'admin.permission:finance'])->name('logistics-settlements');
+            Route::post('logistics-settlements/{parcel}', [LogisticsSettlementController::class, 'store'])->middleware(['role:admin', 'admin.permission:finance', 'throttle:20,1'])->name('logistics-settlements.store');
             Route::post('settlements/{parcel}', [SellerSettlementController::class, 'store'])->middleware(['role:admin', 'admin.permission:finance', 'throttle:20,1'])->name('settlements.store');
             Route::get('rider-payments', [RiderPaymentController::class, 'index'])->middleware('role:logistics,rider')->name('rider-payments');
             Route::post('rider-payments', [RiderPaymentController::class, 'store'])->middleware(['role:logistics', 'throttle:20,1'])->name('rider-payments.store');
@@ -138,6 +150,7 @@ Route::middleware(['auth'])->group(function () {
             Route::put('admin/platform/{content}', [PlatformContentController::class, 'save'])->whereNumber('content')->middleware('role:admin')->middleware('admin.permission:system')->name('admin.platform.update');
             Route::get('support', [SupportCaseController::class, 'index'])->middleware('role:buyer,seller,rider,logistics,admin')->middleware('admin.permission:messages')->name('support.index');
             Route::post('support', [SupportCaseController::class, 'store'])->middleware('throttle:10,1')->middleware('role:buyer,seller,rider,logistics,admin')->middleware('admin.permission:messages')->name('support.store');
+            Route::get('support/report-options', [SupportCaseController::class, 'reportOptions'])->middleware(['role:buyer,seller,rider,logistics,admin', 'throttle:60,1'])->name('support.report-options');
             Route::get('support/{case}', [SupportCaseController::class, 'show'])->middleware('role:buyer,seller,rider,logistics,admin')->middleware('admin.permission:messages')->name('support.show');
             Route::post('support/{case}/messages', [SupportCaseController::class, 'message'])->middleware('throttle:30,1')->middleware('role:buyer,seller,rider,logistics,admin')->middleware('admin.permission:messages')->name('support.message');
             Route::patch('support/{case}', [SupportCaseController::class, 'update'])->middleware('role:admin')->middleware('admin.permission:messages')->name('support.update');

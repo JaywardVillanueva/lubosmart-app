@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Address;
+use App\Models\LogisticsCenter;
 use App\Models\PsgcLocation;
 use App\Models\User;
 use App\Services\AccountSettings;
@@ -28,3 +29,33 @@ foreach (['buyer', 'seller', 'logistics'] as $role) {
     $applicant = User::factory()->create(['role' => $role, 'status' => 'pending', 'name' => 'Notification '.$role, 'password' => 'Browser@2026']);
     $applicant->application()->create(['requested_role' => $role, 'status' => 'submitted', 'business_name' => 'Notification '.$role.' business', 'submitted_at' => now()]);
 }
+
+if (getenv('LUBOSMART_SHARED_SETTINGS_ONLY') === '1') {
+    foreach (['buyer', 'seller', 'rider'] as $role) {
+        $user = User::factory()->create(['role' => $role, 'email' => $role.'-settings@example.test', 'name' => 'Johanna Sample', 'password' => 'Browser@2026']);
+        if ($role === 'rider') {
+            $center = LogisticsCenter::query()->create(['code' => 'SHARED-SETTINGS', 'name' => 'Settings Center', 'is_active' => true, 'region' => '130000000', 'province' => 'Metro Manila', 'city' => 'Pasig City', 'barangay' => 'Kapitolyo', 'address' => '5 Main Street', 'contact_number' => '09170000002']);
+            $center->forceFill(['company_user_id' => $owner->id])->save();
+            $owner->logisticsCenters()->attach($center->id, ['granted_by' => $owner->id]);
+            $user->logisticsCenters()->attach($center->id, ['granted_by' => $owner->id]);
+            $user->forceFill(['logistics_center_id' => $center->id, 'logistics_company_id' => $owner->id])->save();
+            if (! $user->canOperate()) {
+                throw new RuntimeException('Rider fixture must have an operational center.');
+            }
+        }
+        DB::table('user_profiles')->insert(['user_id' => $user->id, 'first_name' => 'Johanna', 'last_name' => 'Sample', 'sex' => 'female', 'birthday' => '2003-02-07']);
+        $userAddress = $address->replicate();
+        $userAddress->user_id = $user->id;
+        $userAddress->save();
+        $application = $user->application()->create(['requested_role' => $role, 'status' => 'approved', 'seller_type' => $role === 'seller' ? 'individual' : null, 'logistics_center_id' => $role === 'rider' ? $center->id : null]);
+        $application->forceFill(['address_id' => $userAddress->id])->save();
+        $directory = $stage.DIRECTORY_SEPARATOR.'uploads'.DIRECTORY_SEPARATOR.'settings';
+        if (! is_dir($directory)) {
+            mkdir($directory, 0777, true);
+        }
+        file_put_contents($directory.DIRECTORY_SEPARATOR.$role.'.pdf', '%PDF-1.4 synthetic identity');
+        $application->documents()->create(['kind' => 'identity', 'disk' => 'local', 'path' => 'settings/'.$role.'.pdf', 'mime_type' => 'application/pdf', 'size_bytes' => 27]);
+    }
+}
+
+echo 'Account settings fixtures complete'.PHP_EOL;

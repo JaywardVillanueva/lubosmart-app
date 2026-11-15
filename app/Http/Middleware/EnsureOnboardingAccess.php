@@ -18,6 +18,10 @@ class EnsureOnboardingAccess
             return $next($request);
         }
         if (! $user->hasVerifiedEmail()) {
+            if ($request->routeIs('home', 'shop', 'products.show', 'platform-information')) {
+                return $next($request);
+            }
+
             return to_route('verification.notice');
         }
         if ($user->status === 'unverified') {

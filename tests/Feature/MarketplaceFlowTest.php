@@ -93,7 +93,7 @@ test('all five roles can complete the connected order delivery and cash workflow
     $this->post('/deliveries/'.$delivery->id, ['action' => 'assign', 'service_area_id' => $this->areaId, 'rider_id' => $this->rider->id] + marketplaceScan($delivery))->assertSessionHasNoErrors();
     $this->actingAs($this->rider)->post('/deliveries/'.$delivery->id, ['action' => 'accept_dispatch'] + marketplaceScan($delivery))->assertSessionHasNoErrors();
     $this->post('/deliveries/'.$delivery->id, ['action' => 'out_for_delivery'])->assertRedirect();
-    $this->post('/deliveries/'.$delivery->id, ['action' => 'delivered', 'proof' => marketplacePhoto()] + marketplaceScan($delivery))->assertRedirect();
+    $this->post('/deliveries/'.$delivery->id, ['action' => 'delivered', 'note' => 'Received by buyer.', 'cod_confirmed' => true, 'proof' => marketplacePhoto()] + marketplaceScan($delivery))->assertRedirect();
 
     $this->assertDatabaseHas('orders', ['id' => $sellerOrder->order_id, 'status' => 'completed']);
     $this->assertDatabaseHas('cod_collections', ['delivery_id' => $delivery->id, 'rider_id' => $this->rider->id, 'amount' => $cod, 'status' => 'collected']);
@@ -112,8 +112,8 @@ test('delivered commission ignores browser values rounds cents and is recorded o
     $this->product->update(['price' => '100.05']);
     $parcel = placeMarketplaceOrder($this);
     expect($parcel->commission_amount)->toBeNull();
-    $parcel->delivery->forceFill(['rider_id' => $this->rider->id, 'logistics_center_id' => $this->center->id, 'status' => 'out_for_delivery'])->save();
-    $payload = ['action' => 'delivered', 'proof' => marketplacePhoto(), 'commission_amount' => 0, 'seller_proceeds' => 999999, 'commission_basis_points' => 0] + marketplaceScan($parcel->delivery);
+    $parcel->delivery->forceFill(['rider_id' => $this->rider->id, 'logistics_center_id' => $this->center->id, 'status' => 'out_for_delivery', 'picked_up_at' => now(), 'received_at' => now(), 'sorted_at' => now(), 'dispatch_accepted_at' => now()])->save();
+    $payload = ['action' => 'delivered', 'note' => 'Received by buyer.', 'cod_confirmed' => true, 'proof' => marketplacePhoto(), 'commission_amount' => 0, 'seller_proceeds' => 999999, 'commission_basis_points' => 0] + marketplaceScan($parcel->delivery);
     $this->actingAs($this->rider)->post('/deliveries/'.$parcel->delivery->id, $payload)->assertSessionHasNoErrors();
     expect($parcel->fresh()->commission_amount)->toBe('20.01');
     expect($parcel->fresh()->seller_proceeds)->toBe('180.09');
@@ -226,17 +226,17 @@ test('delivery operations enforce center membership rider assignment and status 
     $this->actingAs($this->logistics)->post('/deliveries/'.$delivery->id, ['action' => 'assign', 'service_area_id' => $this->areaId, 'rider_id' => $outside->id])->assertSessionHasErrors('rider_id');
     $this->post('/deliveries/'.$delivery->id, ['action' => 'assign', 'service_area_id' => $this->areaId, 'rider_id' => $this->rider->id])->assertRedirect();
     $this->actingAs($outside)->post('/deliveries/'.$delivery->id, ['action' => 'picked_up'] + marketplaceScan($delivery))->assertForbidden();
-    $this->actingAs($this->rider)->post('/deliveries/'.$delivery->id, ['action' => 'delivered', 'proof' => marketplacePhoto()] + marketplaceScan($delivery))->assertConflict();
+    $this->actingAs($this->rider)->post('/deliveries/'.$delivery->id, ['action' => 'delivered', 'note' => 'Received by buyer.', 'cod_confirmed' => true, 'proof' => marketplacePhoto()] + marketplaceScan($delivery))->assertConflict();
     $this->assertDatabaseCount('cod_collections', 0);
 });
 
 test('delivery proof and COD are required and delivery cannot be confirmed twice', function () {
     $order = placeMarketplaceOrder($this);
     $delivery = $order->delivery;
-    $delivery->forceFill(['rider_id' => $this->rider->id, 'logistics_center_id' => $this->center->id, 'status' => 'out_for_delivery'])->save();
-    $this->actingAs($this->rider)->post('/deliveries/'.$delivery->id, ['action' => 'delivered'] + marketplaceScan($delivery))->assertSessionHasErrors('proof');
-    $this->post('/deliveries/'.$delivery->id, ['action' => 'delivered', 'proof' => marketplacePhoto()] + marketplaceScan($delivery))->assertRedirect();
-    $this->post('/deliveries/'.$delivery->id, ['action' => 'delivered', 'proof' => marketplacePhoto()] + marketplaceScan($delivery))->assertConflict();
+    $delivery->forceFill(['rider_id' => $this->rider->id, 'logistics_center_id' => $this->center->id, 'status' => 'out_for_delivery', 'picked_up_at' => now(), 'received_at' => now(), 'sorted_at' => now(), 'dispatch_accepted_at' => now()])->save();
+    $this->actingAs($this->rider)->post('/deliveries/'.$delivery->id, ['action' => 'delivered', 'note' => 'Received by buyer.', 'cod_confirmed' => true] + marketplaceScan($delivery))->assertSessionHasErrors('proof');
+    $this->post('/deliveries/'.$delivery->id, ['action' => 'delivered', 'note' => 'Received by buyer.', 'cod_confirmed' => true, 'proof' => marketplacePhoto()] + marketplaceScan($delivery))->assertRedirect();
+    $this->post('/deliveries/'.$delivery->id, ['action' => 'delivered', 'note' => 'Received by buyer.', 'cod_confirmed' => true, 'proof' => marketplacePhoto()] + marketplaceScan($delivery))->assertConflict();
     $this->assertDatabaseCount('cod_collections', 1);
     expect(Storage::disk('local')->allFiles('delivery-proofs'))->toHaveCount(1);
 });
@@ -245,8 +245,8 @@ test('split orders only complete after every parcel is delivered', function () {
     $order = placeMarketplaceOrder($this);
     $secondStore = Store::query()->create(['user_id' => $this->admin->id, 'name' => 'Another store', 'status' => 'approved']);
     SellerOrder::query()->create(['order_id' => $order->order_id, 'store_id' => $secondStore->id, 'subtotal' => '100.00', 'shipping_fee' => '50.00', 'commission_basis_points' => 1000, 'commission_amount' => '10.00', 'seller_proceeds' => '90.00', 'status' => 'pending']);
-    $order->delivery->forceFill(['rider_id' => $this->rider->id, 'logistics_center_id' => $this->center->id, 'status' => 'out_for_delivery'])->save();
-    $this->actingAs($this->rider)->post('/deliveries/'.$order->delivery->id, ['action' => 'delivered', 'proof' => marketplacePhoto()] + marketplaceScan($order->delivery))->assertRedirect();
+    $order->delivery->forceFill(['rider_id' => $this->rider->id, 'logistics_center_id' => $this->center->id, 'status' => 'out_for_delivery', 'picked_up_at' => now(), 'received_at' => now(), 'sorted_at' => now(), 'dispatch_accepted_at' => now()])->save();
+    $this->actingAs($this->rider)->post('/deliveries/'.$order->delivery->id, ['action' => 'delivered', 'note' => 'Received by buyer.', 'cod_confirmed' => true, 'proof' => marketplacePhoto()] + marketplaceScan($order->delivery))->assertRedirect();
     expect($order->order->fresh()->status)->toBe('pending');
 });
 
@@ -291,8 +291,8 @@ test('delivery uses the order commission snapshot after platform rates change', 
     DB::table('commerce_settings')->where('id', 1)->update(['platform_commission_basis_points' => 1225]);
     $parcel = placeMarketplaceOrder($this);
     DB::table('commerce_settings')->where('id', 1)->update(['platform_commission_basis_points' => 1700]);
-    $parcel->delivery->forceFill(['rider_id' => $this->rider->id, 'logistics_center_id' => $this->center->id, 'status' => 'out_for_delivery'])->save();
-    $this->actingAs($this->rider)->post('/deliveries/'.$parcel->delivery->id, ['action' => 'delivered', 'proof' => marketplacePhoto()] + marketplaceScan($parcel->delivery))->assertSessionHasNoErrors();
+    $parcel->delivery->forceFill(['rider_id' => $this->rider->id, 'logistics_center_id' => $this->center->id, 'status' => 'out_for_delivery', 'picked_up_at' => now(), 'received_at' => now(), 'sorted_at' => now(), 'dispatch_accepted_at' => now()])->save();
+    $this->actingAs($this->rider)->post('/deliveries/'.$parcel->delivery->id, ['action' => 'delivered', 'note' => 'Received by buyer.', 'cod_confirmed' => true, 'proof' => marketplacePhoto()] + marketplaceScan($parcel->delivery))->assertSessionHasNoErrors();
     expect($parcel->fresh()->commission_basis_points)->toBe(1225);
     expect($parcel->fresh()->commission_amount)->toBe('24.51');
     expect($parcel->fresh()->seller_proceeds)->toBe('175.59');

@@ -17,24 +17,44 @@ class RiderServiceAreaController extends Controller
     {
         $operator = $request->user();
         abort_unless($operator->role === 'logistics' && $operator->canOperate(), 403);
+        $filters = $request->validate(['search' => 'nullable|string|max:100', 'center' => 'nullable|integer']);
+        $search = trim($filters['search'] ?? '');
 
         $centers = $operator->logisticsCenters()->operational()->orderBy('name')->get(['logistics_centers.id', 'name']);
         $riders = User::query()->managedRiders($operator)->where('role', 'rider')
             ->whereIn('logistics_center_id', $centers->pluck('id'))
             ->where('status', 'approved')->whereNotNull('email_verified_at')
             ->orderBy('name')->get(['id', 'name', 'logistics_center_id']);
-        $assignments = DB::table('rider_service_area')
+        $coverage = DB::table('rider_service_area')
             ->join('service_areas', 'service_areas.id', '=', 'rider_service_area.service_area_id')
             ->join('users', 'users.id', '=', 'rider_service_area.rider_id')
             ->join('logistics_centers', 'logistics_centers.id', '=', 'service_areas.logistics_center_id')
             ->whereIn('users.id', $riders->pluck('id'))
             ->whereIn('service_areas.logistics_center_id', $centers->pluck('id'))
             ->whereColumn('users.logistics_center_id', 'service_areas.logistics_center_id')
-            ->orderBy('users.name')->orderBy('service_areas.name')->orderBy('service_areas.id')
-            ->paginate(20, ['users.id as rider_id', 'users.name as rider_name', 'service_areas.id as area_id',
-                'service_areas.name as area_name', 'service_areas.is_active', 'logistics_centers.name as center_name']);
+            ->when($filters['center'] ?? null, fn ($query, $center) => $query->where('service_areas.logistics_center_id', $center));
+        // Select matching riders first so their coverage is never split across pages.
+        $matching = (clone $coverage)->when($search !== '', function ($query) use ($search) {
+            $query->where(function ($query) use ($search) {
+                foreach (['users.name', 'service_areas.name', 'service_areas.barangay_name', 'service_areas.city_name', 'service_areas.province_name'] as $column) {
+                    $query->orWhere($column, 'like', '%'.$search.'%');
+                }
+            });
+        });
+        $riderPages = User::query()->whereIn('id', (clone $matching)->select('users.id'))
+            ->orderBy('name')->orderBy('id')->paginate(20, ['id'])->withQueryString();
+        $assignments = [
+            'total' => (clone $coverage)->whereIn('users.id', (clone $matching)->select('users.id'))->count(),
+            'rider_total' => $riderPages->total(),
+            'links' => $riderPages->linkCollection(),
+            'data' => (clone $coverage)->whereIn('users.id', $riderPages->getCollection()->pluck('id'))
+                ->orderBy('users.name')->orderBy('users.id')->orderBy('service_areas.name')->orderBy('service_areas.id')
+                ->get(['users.id as rider_id', 'users.name as rider_name', 'service_areas.id as area_id',
+                    'service_areas.name as area_name', 'service_areas.barangay_name', 'service_areas.city_name', 'service_areas.province_name',
+                    'service_areas.is_active', 'logistics_centers.name as center_name']),
+        ];
 
-        return Inertia::render('logistics/rider-coverage', compact('centers', 'riders', 'assignments'));
+        return Inertia::render('logistics/rider-coverage', compact('centers', 'riders', 'assignments', 'filters'));
     }
 
     public function store(Request $request, PhilippineLocations $locations): RedirectResponse
