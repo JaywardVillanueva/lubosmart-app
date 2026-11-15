@@ -1,10 +1,11 @@
-import AppWordmark from '@/components/branding/app-wordmark';
-import { ThemeToggle } from '@/components/navigation/theme-toggle';
-import { SkipLink } from '@/components/shell/skip-link';
-import { assets } from '@/config/assets';
-import { Head, Link } from '@inertiajs/react';
-import { ArrowLeft, ChevronLeft } from 'lucide-react';
-import type { ReactNode } from 'react';
+import AuthNotificationProvider from '@/components/auth/auth-notification-provider';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import Home from '@/pages/public/home';
+import { Head, Link, router } from '@inertiajs/react';
+import { ArrowLeft } from 'lucide-react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
+import '../../../css/auth-reference.css';
 
 export default function AccountAccessLayout({
     title,
@@ -13,125 +14,174 @@ export default function AccountAccessLayout({
     registering = false,
     recovery = false,
     hideBackLink = false,
+    registrationDetails = false,
+    verification = false,
+    beforeHeading,
+    compactLogin = false,
+    compactRecovery = false,
+    emailConfirmation = false,
 }: {
     title: string;
-    description: string;
+    description: ReactNode;
     children: ReactNode;
     registering?: boolean;
     recovery?: boolean;
     hideBackLink?: boolean;
+    registrationDetails?: boolean;
+    verification?: boolean;
+    beforeHeading?: ReactNode;
+    compactLogin?: boolean;
+    compactRecovery?: boolean;
+    emailConfirmation?: boolean;
 }) {
+    const [dirty, setDirty] = useState(false);
+    const leaving = useRef(false);
+    const [leaveAction, setLeaveAction] = useState<(() => void) | null>(null);
+    const confirmTrigger = useRef<HTMLElement | null>(null);
+    const askToLeave = (action: () => void) => {
+        confirmTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        setLeaveAction(() => action);
+    };
+    useEffect(() => {
+        if (!registrationDetails || !dirty) return;
+        const unload = (event: BeforeUnloadEvent) => {
+            if (leaving.current || document.querySelector('.auth-reference-shell form[aria-busy="true"]')) return;
+            event.preventDefault();
+            event.returnValue = '';
+        };
+        window.addEventListener('beforeunload', unload);
+        const remove = router.on('before', (event) => {
+            if (event.detail.visit.method !== 'get' || leaving.current) return;
+            event.preventDefault();
+            const visit = event.detail.visit;
+            askToLeave(() => {
+                leaving.current = true;
+                router.visit(visit.url);
+            });
+            return false;
+        });
+        return () => {
+            window.removeEventListener('beforeunload', unload);
+            remove();
+        };
+    }, [dirty, registrationDetails]);
+    const close = () => {
+        if (registrationDetails && dirty && !leaving.current) {
+            askToLeave(() => {
+                leaving.current = true;
+                close();
+            });
+            return;
+        }
+        leaving.current = true;
+        router.visit(route('home'), {
+            onSuccess: () =>
+                requestAnimationFrame(() => {
+                    document.querySelector<HTMLAnchorElement>(`a[href="${route(registering ? 'register' : 'login')}"]`)?.focus();
+                }),
+        });
+    };
     return (
-        <div
-            className={`bg-background text-foreground min-h-svh font-sans antialiased ${!registering ? 'overflow-hidden' : 'overflow-x-hidden'} [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${registering ? 'lg:grid lg:grid-cols-5' : 'lg:grid lg:grid-cols-5'}`}
-        >
-            <Head title={registering ? 'Create account' : recovery ? 'Forgot password' : 'Sign in'} />
-            <SkipLink />
-            <aside
-                className={`from-accent/40 via-accent to-primary/20 text-foreground relative hidden flex-col overflow-hidden bg-linear-to-br lg:flex ${registering ? 'h-svh gap-6 border-r p-8 lg:fixed lg:inset-y-0 lg:left-0 lg:w-1/3 xl:p-10' : 'min-h-svh gap-8 p-10 lg:col-span-3 xl:p-16'}`}
-                aria-label="LubosMart"
+        <>
+            <Head title={title} />
+            <div className="auth-landing-backdrop" inert aria-hidden="true">
+                <Home backdrop />
+            </div>
+            <Dialog
+                open
+                onOpenChange={(open) => {
+                    if (!open) close();
+                }}
             >
-                <div
-                    aria-hidden="true"
-                    className="bg-card/40 pointer-events-none absolute -top-1/3 -left-1/2 h-2/3 w-[180%] -rotate-12 rounded-[50%]"
-                />
-                <div
-                    aria-hidden="true"
-                    className="bg-primary/5 pointer-events-none absolute -bottom-1/3 -left-1/2 h-2/3 w-[180%] rotate-12 rounded-[50%]"
-                />
-                <Link
-                    href={route('home')}
-                    className="text-foreground relative z-10 inline-flex w-fit shrink-0 items-center gap-[11px] rounded-xl text-[1.2rem] font-semibold"
+                <DialogContent
+                    className={`auth-reference-shell ${compactLogin ? 'auth-reference-login' : ''} ${compactRecovery ? 'auth-reference-recovery' : ''} ${emailConfirmation ? 'auth-reference-email-confirmation' : ''} ${registrationDetails ? 'auth-reference-details' : registering && !verification ? 'auth-reference-signup' : ''}`}
+                    overlayClassName="auth-modal-overlay"
+                    onPointerDownOutside={(event) => event.preventDefault()}
+                    onCloseAutoFocus={(event) => event.preventDefault()}
+                    onOpenAutoFocus={(event) => {
+                        event.preventDefault();
+                        document.querySelector<HTMLElement>('.auth-reference-shell h1')?.focus();
+                    }}
                 >
-                    <img src={assets.brand.logo} width={40} height={40} alt="" className="size-10 shrink-0" />
-                    <AppWordmark />
-                </Link>
-                <div
-                    className={`relative z-10 ${registering ? 'flex min-h-0 flex-1 flex-col justify-center space-y-6 pb-12 [@media(max-height:640px)]:space-y-4 [@media(max-height:640px)]:pb-0' : 'flex w-1/2 flex-1 flex-col justify-center space-y-6 py-8'}`}
-                >
-                    <p
-                        className={
-                            registering
-                                ? 'text-primary text-xs font-semibold tracking-[0.12em] uppercase'
-                                : 'text-primary text-sm font-semibold tracking-[0.12em] uppercase'
-                        }
-                    >
-                        Your local marketplace
-                    </p>
-                    <h2
-                        className={`text-foreground font-serif leading-[1.08] font-normal tracking-[-0.04em] text-balance ${registering ? 'text-4xl xl:text-6xl 2xl:text-7xl [@media(max-height:640px)]:text-4xl' : 'text-[clamp(3rem,5.3vw,6rem)]'}`}
-                    >
-                        Local finds.
-                        <br />
-                        Everyday
-                        <br />
-                        <em className="text-primary">favorites.</em>
-                    </h2>
-                    <p className="text-muted-foreground text-base leading-7 text-pretty">
-                        Shop local sellers, find something you love, and pay when it arrives.
-                    </p>
-                </div>
-                {!registering && (
-                    <img
-                        src="/images/brand/auth-marketplace-3d.webp"
-                        alt=""
-                        width={1024}
-                        height={1536}
-                        className="auth-marketplace-illustration pointer-events-none absolute right-0 bottom-0 z-0 h-4/5 w-1/2 object-contain object-right-bottom"
-                    />
-                )}
-            </aside>
-            <main
-                id="main-content"
-                tabIndex={-1}
-                className={`min-w-0 px-4 py-6 sm:px-8 ${registering ? 'lg:col-span-5 lg:ml-[33.333333%] lg:px-10 lg:py-8 xl:px-12' : 'flex min-h-svh flex-col justify-center lg:col-span-2 lg:col-start-4 lg:px-8 xl:px-12'}`}
-            >
-                <div className={`mx-auto w-full ${registering ? 'max-w-5xl' : 'max-w-lg'}`}>
-                    <nav aria-label="Appearance" className="mb-4 flex justify-end">
-                        <ThemeToggle />
-                    </nav>
-                    <Link href={route('home')} className="mb-6 flex w-fit items-center gap-[11px] text-[1.2rem] font-semibold lg:hidden">
-                        <img src={assets.brand.logo} alt="" width={40} height={40} className="size-10 shrink-0" />
-                        <AppWordmark />
-                    </Link>
-                    {!hideBackLink && (
-                        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-                            <Link
-                                href={route(recovery ? 'login' : 'home')}
-                                className={
-                                    recovery
-                                        ? 'bg-card text-foreground hover:bg-accent focus-visible:ring-ring inline-flex min-h-11 items-center gap-2 rounded-lg border px-4 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none motion-reduce:transition-none'
-                                        : 'text-muted-foreground hover:text-foreground inline-flex min-h-11 items-center gap-2 text-sm'
-                                }
-                            >
-                                {recovery ? (
-                                    <ChevronLeft className="text-foreground size-4" aria-hidden="true" />
-                                ) : (
-                                    <ArrowLeft className="size-4" aria-hidden="true" />
-                                )}
-                                {recovery ? 'Back to Login' : 'Back to marketplace'}
-                            </Link>
-                        </div>
-                    )}
-                    <section className={registering ? 'min-w-0' : 'bg-card rounded-3xl border p-6 shadow-sm sm:p-9'} aria-labelledby="access-heading">
-                        <div className="mb-8 space-y-2">
-                            <h1 id="access-heading" className="text-3xl leading-tight font-semibold tracking-[-0.03em] text-balance">
-                                {title}
-                            </h1>
-                            <p className="text-muted-foreground text-sm leading-relaxed text-pretty">{description}</p>
-                        </div>
-                        {children}
-                        {!recovery && !registering && (
-                            <p className="text-muted-foreground mt-7 text-center text-sm">
-                                New to LubosMart?{' '}
-                                <Link href={route('register')} className="text-primary font-semibold underline underline-offset-4">
-                                    Create an account
+                    <nav className="auth-reference-panel-nav" aria-label="Authentication">
+                        {verification ? (
+                            <>
+                                <Link href={route('home')}>
+                                    <ArrowLeft size={16} aria-hidden="true" />
+                                    Back to home
                                 </Link>
+                                <Link href={route('logout')} method="post" as="button">
+                                    Log out
+                                </Link>
+                            </>
+                        ) : registrationDetails ? (
+                            <Link href={route('register')}>
+                                <ArrowLeft size={16} aria-hidden="true" />
+                                Choose a different role
+                            </Link>
+                        ) : !hideBackLink ? (
+                            <Link href={route(recovery ? 'login' : 'home')}>
+                                <ArrowLeft size={16} aria-hidden="true" />
+                                {recovery ? 'Back to sign in' : 'Back to home'}
+                            </Link>
+                        ) : null}
+                    </nav>
+                    <main id="main-content" className="auth-reference-panel" onChangeCapture={() => setDirty(true)}>
+                        {beforeHeading}
+                        <DialogTitle asChild>
+                            <h1 tabIndex={-1}>{title}</h1>
+                        </DialogTitle>
+                        <DialogDescription asChild>
+                            <p className="auth-reference-description">{description}</p>
+                        </DialogDescription>
+                        <AuthNotificationProvider>{children}</AuthNotificationProvider>
+                        {!registering && !recovery && (
+                            <p className="auth-reference-footer">
+                                {compactLogin ? 'New here? ' : "Don't have an account? "}
+                                <Link href={route('register')}>{compactLogin ? 'Create an account' : 'Sign up'}</Link>
                             </p>
                         )}
-                    </section>
-                </div>
-            </main>
-        </div>
+                    </main>
+                </DialogContent>
+            </Dialog>
+            <Dialog
+                open={!!leaveAction}
+                onOpenChange={(open) => {
+                    if (!open) setLeaveAction(null);
+                }}
+            >
+                <DialogContent
+                    onCloseAutoFocus={(event) => {
+                        event.preventDefault();
+                        confirmTrigger.current?.focus();
+                    }}
+                    onOpenAutoFocus={(event) => {
+                        event.preventDefault();
+                        document.querySelector<HTMLButtonElement>('[data-keep-registering]')?.focus();
+                    }}
+                >
+                    <DialogHeader>
+                        <DialogTitle>Leave registration?</DialogTitle>
+                        <DialogDescription>
+                            Your entered details and selected documents will be lost. Stay to continue your registration.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button data-keep-registering variant="outline" onClick={() => setLeaveAction(null)}>
+                            Keep editing
+                        </Button>
+                        <Button
+                            onClick={() => {
+                                const action = leaveAction;
+                                setLeaveAction(null);
+                                action?.();
+                            }}
+                        >
+                            Leave registration
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </>
     );
 }

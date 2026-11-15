@@ -1,5 +1,6 @@
-import { Card, Empty, Field, Page, Pager, type Pagination, buttonClass, money, secondaryClass } from '@/components/shared/marketplace-ui';
-import ValidatedForm from '@/components/shared/validated-form';
+import AutoFilterForm from '@/components/shared/auto-filter-form';
+import { FilterToolbar } from '@/components/shared/filter-toolbar';
+import { Card, Empty, Field, Page, Pager, type Pagination, money, secondaryClass } from '@/components/shared/marketplace-ui';
 import { useForm } from '@inertiajs/react';
 import { Download, PackageCheck } from 'lucide-react';
 
@@ -23,33 +24,45 @@ export default function LogisticsReports({
     const query = new URLSearchParams(Object.entries(filters).filter(([, value]) => Boolean(value)) as [string, string][]).toString();
     return (
         <Page title="Delivery Reports" description="Review completed parcels and delivery amounts for your logistics center.">
-            <Card>
-                <ValidatedForm
-                    className="grid items-end gap-4 sm:grid-cols-[1fr_1fr_auto]"
+            <Card className="!p-4">
+                <AutoFilterForm
+                    processing={form.processing}
+                    cancel={form.cancel}
+                    className="relative"
                     onSubmit={(event) => {
                         event.preventDefault();
-                        form.get('/reports', { preserveState: true });
+                        form.get('/reports', { preserveState: true, preserveScroll: true, replace: true });
                     }}
                 >
-                    <Field
-                        label="Delivered From"
-                        type="date"
-                        value={form.data.from}
-                        onChange={(event) => form.setData('from', event.target.value)}
-                        error={form.errors.from}
-                    />
-                    <Field
-                        label="Delivered To"
-                        type="date"
-                        min={form.data.from || undefined}
-                        value={form.data.to}
-                        onChange={(event) => form.setData('to', event.target.value)}
-                        error={form.errors.to}
-                    />
-                    <button className={buttonClass} disabled={form.processing}>
-                        Apply Dates
-                    </button>
-                </ValidatedForm>
+                    <FilterToolbar
+                        primaryClassName="md:w-48 lg:w-48"
+                        hasErrors={Object.keys(form.errors).length > 0}
+                        primary={
+                            <Field
+                                reserveFeedback={false}
+                                label="Delivered From"
+                                type="date"
+                                value={form.data.from}
+                                onChange={(event) => form.setData('from', event.target.value)}
+                                error={form.errors.from}
+                            />
+                        }
+                        activeFilters={[
+                            { key: 'from', label: 'From', value: form.data.from ?? '', onRemove: () => form.setData('from', '') },
+                            { key: 'to', label: 'To', value: form.data.to ?? '', onRemove: () => form.setData('to', '') },
+                        ].filter((filter) => !!filter.value)}
+                    >
+                        <Field
+                            reserveFeedback={false}
+                            label="Delivered To"
+                            type="date"
+                            min={form.data.from || undefined}
+                            value={form.data.to}
+                            onChange={(event) => form.setData('to', event.target.value)}
+                            error={form.errors.to}
+                        />
+                    </FilterToolbar>
+                </AutoFilterForm>
                 <a href={`/logistics/reports/export${query ? '?' + query : ''}`} className={`${secondaryClass} mt-4`}>
                     <Download className="size-4" />
                     Download Delivery CSV

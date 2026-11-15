@@ -276,7 +276,10 @@ async function until(predicate, label) {
         record('Order search and preparation', 'Search finds one parcel; preparation and ready actions update the pickup queue');
         await navigate('/inventory?status=low-stock');
         assert.equal(await evaluate('document.body.innerText.includes("Browser tote")'), true);
-        await evaluate('[...document.querySelectorAll("button")].find(el=>el.textContent.trim()==="Edit").click()');
+        await click('main button[aria-label^="Actions for "]');
+        await until(() => evaluate(`!!document.querySelector('[role="menu"]')`), 'inventory action menu');
+        await evaluate(`[...document.querySelectorAll('[role="menuitem"]')].find(el=>el.textContent==='Edit').click()`);
+        await until(() => evaluate(`[...document.querySelectorAll('h2')].some(el=>el.textContent==='Edit product')`), 'inventory editor');
         const stockSelector = await evaluate(
             '"[id="+JSON.stringify([...document.querySelectorAll("label")].find(el=>el.textContent.includes("Available stock")).htmlFor)+"]"',
         );
@@ -294,7 +297,13 @@ async function until(predicate, label) {
             true,
         );
         record('Inventory restock and weight', 'Saving stock and packed weight updates inventory and removes the low-stock result');
-        await evaluate(`[...document.querySelectorAll('button')].find(el=>el.textContent==='Size/color options').click()`);
+        await click('main button[aria-label^="Actions for "]');
+        await until(() => evaluate(`!!document.querySelector('[role="menu"]')`), 'inventory options menu');
+        await evaluate(`[...document.querySelectorAll('[role="menuitem"]')].find(el=>el.textContent==='Size/color options').click()`);
+        await until(
+            () => evaluate(`[...document.querySelectorAll('h2')].some(el=>el.textContent.startsWith('Size/color options for'))`),
+            'inventory options editor',
+        );
         for (const [index, name] of ['Small / Purple', 'Large / Orange'].entries()) {
             await evaluate(`[...document.querySelectorAll('button')].find(el=>el.textContent.trim()==='Add option').click()`);
             await set(`fieldset:nth-of-type(${index + 1}) input`, name);
@@ -368,7 +377,13 @@ async function until(predicate, label) {
         await screenshot('buyer-dashboard-desktop');
         await navigate('/orders?search=' + fixtures.pending.tracking);
         assert.equal(await evaluate('document.body.innerText.includes("1 matching parcel")'), true);
-        await evaluate(`[...document.querySelectorAll('summary')].find(el=>el.textContent.includes('Parcel handover history')).click()`);
+        await click('button[aria-label^="Actions for order #"]');
+        await until(() => evaluate(`!!document.querySelector('[role="menu"]')`), 'order history menu');
+        await evaluate(`[...document.querySelectorAll('[role="menuitem"]')].find(el=>el.textContent==='View handover history').click()`);
+        await until(
+            () => evaluate(`[...document.querySelectorAll('details[open] summary')].some(el=>el.textContent==='Parcel handover history')`),
+            'order history section',
+        );
         assert.equal(
             await evaluate('document.body.innerText.includes("Not recorded") && document.body.innerText.includes("Collected from seller")'),
             true,
@@ -420,7 +435,13 @@ async function until(predicate, label) {
         assert.equal((await sellerRequest('/login')).status, 200);
         assert.equal((await sellerRequest('/login', { email: 'seller@example.test', password: 'Browser@2026' })).status, 302);
         await navigate('/orders?search=' + fixtures.processing.id);
-        await evaluate(`[...document.querySelectorAll('summary')].find(el=>el.textContent.includes('Order conversation')).click()`);
+        await click('button[aria-label^="Actions for order #"]');
+        await until(() => evaluate(`!!document.querySelector('[role="menu"]')`), 'order conversation menu');
+        await evaluate(`[...document.querySelectorAll('[role="menuitem"]')].find(el=>el.textContent==='Order conversation').click()`);
+        await until(
+            () => evaluate(`[...document.querySelectorAll('details[open] summary')].some(el=>el.textContent.includes('Order conversation'))`),
+            'order conversation section',
+        );
         const draftSelector = await byLabel('Your message');
         await set(draftSelector, 'Keep this unfinished buyer message.');
         // Start after the initial status baseline is present.
@@ -666,7 +687,10 @@ async function until(predicate, label) {
         const integrityProduct = await evaluate(
             'JSON.parse(document.querySelector("#app").dataset.page).props.products.data.find(product=>product.name==="Stock integrity bag").id',
         );
-        await evaluate('[...document.querySelectorAll("button")].find(el=>el.textContent.trim()==="Edit").click()');
+        await click('main button[aria-label^="Actions for "]');
+        await until(() => evaluate(`!!document.querySelector('[role="menu"]')`), 'inventory action menu');
+        await evaluate(`[...document.querySelectorAll('[role="menuitem"]')].find(el=>el.textContent==='Edit').click()`);
+        await until(() => evaluate(`[...document.querySelectorAll('h2')].some(el=>el.textContent==='Edit product')`), 'inventory editor');
         const integrityStockInput = await byLabel('Available stock');
         assert.equal(await evaluate('document.querySelector(' + JSON.stringify(integrityStockInput) + ').value'), '5');
         const buyerCookies = new Map();
@@ -690,7 +714,10 @@ async function until(predicate, label) {
         await until(() => evaluate('document.body.innerText.includes("Stock changed while this form was open")'), 'stale seller stock rejected');
         assert.equal(await evaluate('document.querySelector(' + JSON.stringify(integrityStockInput) + ').value'), '5');
         await evaluate('[...document.querySelectorAll("button")].find(el=>el.textContent.trim()==="Cancel").click()');
-        await evaluate('[...document.querySelectorAll("button")].find(el=>el.textContent.trim()==="Edit").click()');
+        await click('main button[aria-label^="Actions for "]');
+        await until(() => evaluate(`!!document.querySelector('[role="menu"]')`), 'inventory action menu');
+        await evaluate(`[...document.querySelectorAll('[role="menuitem"]')].find(el=>el.textContent==='Edit').click()`);
+        await until(() => evaluate(`[...document.querySelectorAll('h2')].some(el=>el.textContent==='Edit product')`), 'inventory editor');
         const refreshedStockInput = await byLabel('Available stock');
         assert.equal(await evaluate('document.querySelector(' + JSON.stringify(refreshedStockInput) + ').value'), '3');
         await set(refreshedStockInput, '8');

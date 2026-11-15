@@ -30,11 +30,13 @@ export default function AddressLocationFields({
     errors,
     disabled,
     onChange,
+    onNamesChange,
 }: {
     data: AddressSelection;
     errors: Partial<Record<keyof AddressSelection, string>>;
     disabled: boolean;
     onChange: (values: Partial<AddressSelection> & { zip?: string }) => void;
+    onNamesChange?: (values: Partial<Record<'region' | 'province' | 'city' | 'barangay', string>>) => void;
 }) {
     const [retry, setRetry] = useState(0);
     const regions = useLocations('?regions=1', retry);
@@ -62,6 +64,11 @@ export default function AddressLocationFields({
                     error={errors[key]}
                     onChange={(event) => {
                         const value = event.target.value;
+                        const name = result.items.find((item) => item.code === value)?.name ?? '';
+                        if (key === 'region_code') onNamesChange?.({ region: name, province: '', city: '', barangay: '' });
+                        if (key === 'province_code') onNamesChange?.({ province: name, city: '', barangay: '' });
+                        if (key === 'city_code') onNamesChange?.({ city: name, barangay: '' });
+                        if (key === 'barangay_code') onNamesChange?.({ barangay: name });
                         if (key === 'region_code') onChange({ region_code: value, province_code: '', city_code: '', barangay_code: '', zip: '' });
                         if (key === 'province_code') onChange({ province_code: value, city_code: '', barangay_code: '', zip: '' });
                         if (key === 'city_code')

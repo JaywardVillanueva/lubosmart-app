@@ -20,7 +20,7 @@ export default function GoogleContinueButton({
             ) : (
                 <img src={assets.auth.google} width={20} height={20} alt="" className="size-5 shrink-0 object-contain" />
             )}
-            {processing ? 'Connecting…' : 'Continue with Google'}
+            <span>{processing ? 'Connecting…' : 'Continue with Google'}</span>
         </button>
     );
 }

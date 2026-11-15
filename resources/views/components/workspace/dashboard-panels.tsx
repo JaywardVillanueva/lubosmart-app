@@ -1,4 +1,5 @@
 import { Card } from '@/components/shared/marketplace-ui';
+import { WorkspaceIllustration } from '@/components/workspace/workspace-illustration';
 import type { SharedData } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
 import { ArrowUpRight, type LucideIcon } from 'lucide-react';
@@ -8,34 +9,33 @@ export function DashboardWelcome({
     label,
     title,
     description,
+    context,
     icon: Icon,
     children,
 }: {
     label: string;
     title: string;
     description: string;
+    context?: string;
     icon: LucideIcon;
     children?: ReactNode;
 }) {
     return (
-        <section className="border-primary/15 from-accent via-card to-accent/40 relative isolate overflow-hidden rounded-2xl border bg-gradient-to-br p-6 sm:p-8">
-            <div
-                aria-hidden="true"
-                className="border-primary/5 pointer-events-none absolute -right-12 -bottom-24 size-72 rounded-full border-[40px]"
-            />
-            <div className="relative flex items-start justify-between gap-5">
-                <div className="max-w-xl min-w-0">
-                    <p className="text-primary text-xs font-semibold tracking-widest uppercase">{label}</p>
-                    <h2 className="mt-3 text-2xl font-semibold tracking-tight break-words sm:text-3xl">{title}</h2>
-                    <p className="text-muted-foreground mt-3 text-sm leading-relaxed break-words">{description}</p>
+        <section aria-label={label} className="workspace-welcome relative isolate overflow-hidden rounded-2xl border p-6 sm:p-8 lg:px-10">
+            <div className="relative grid items-center gap-6 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+                <div className="min-w-0">
+                    <p className="text-primary mb-3 flex items-center gap-2 text-xs font-semibold tracking-wider uppercase">
+                        <Icon aria-hidden="true" className="size-4" />
+                        {label}
+                    </p>
+                    <h2 className="text-2xl font-semibold tracking-tight break-words sm:text-3xl lg:text-4xl">{title}</h2>
+                    {context && <p className="text-primary mt-2 text-sm font-medium break-words">{context}</p>}
+                    <p className="text-muted-foreground mt-3 max-w-xl text-sm leading-relaxed break-words sm:text-base">{description}</p>
                     {children && <div className="mt-5 flex flex-wrap items-center gap-3">{children}</div>}
                 </div>
-                <span
-                    aria-hidden="true"
-                    className="border-primary/10 bg-card/80 text-primary hidden size-20 shrink-0 rotate-6 items-center justify-center rounded-3xl border shadow-sm sm:flex"
-                >
-                    <Icon className="size-9" />
-                </span>
+                <div className="pointer-events-none hidden min-w-0 md:block">
+                    <WorkspaceIllustration />
+                </div>
             </div>
         </section>
     );
@@ -57,18 +57,20 @@ export function DashboardMetric({
     const { auth } = usePage<SharedData>().props;
     const content = (
         <>
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-4">
                 <span aria-hidden="true" className="bg-accent text-primary flex size-11 items-center justify-center rounded-xl">
                     <Icon className="size-5" />
                 </span>
-                {href && auth.user.role === 'admin' && <ArrowUpRight aria-hidden="true" className="text-muted-foreground size-4" />}
+                <div className="min-w-0 flex-1">
+                    <h2 className="text-muted-foreground text-sm font-medium">{label}</h2>
+                    <p className="mt-1 text-2xl font-semibold tracking-tight tabular-nums">{value.toLocaleString()}</p>
+                </div>
+                {href && auth.user.role === 'admin' && <ArrowUpRight aria-hidden="true" className="text-primary size-4 shrink-0" />}
             </div>
-            <p className="mt-4 text-3xl font-semibold tracking-tight tabular-nums">{value.toLocaleString()}</p>
-            <h2 className="mt-1 text-sm font-medium">{label}</h2>
-            <p className="text-muted-foreground mt-2 text-xs leading-relaxed">{hint}</p>
+            <p className="text-muted-foreground mt-3 text-xs leading-relaxed">{hint}</p>
         </>
     );
-    const className = 'bg-card min-w-0 rounded-2xl border p-5 shadow-sm shadow-black/[.02]';
+    const className = 'workspace-card bg-card min-w-0 rounded-2xl border p-5';
     return href ? (
         <Link href={href} className={`${className} hover:border-primary/40 focus-visible:outline-ring transition-colors focus-visible:outline-2`}>
             {content}

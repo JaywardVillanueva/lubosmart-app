@@ -1,9 +1,7 @@
 import AuthFeedback from '@/components/auth/auth-feedback';
-import AppWordmark from '@/components/branding/app-wordmark';
-import { ThemeToggle } from '@/components/navigation/theme-toggle';
+import PublicHeader from '@/components/navigation/public-header';
 import { SkipLink } from '@/components/shell/skip-link';
 import { buttonVariants } from '@/components/ui/button';
-import { assets } from '@/config/assets';
 import AppLayout from '@/layouts/app-layout';
 import { cn } from '@/lib/utils';
 import { type SharedData } from '@/types';
@@ -16,7 +14,7 @@ export const roleLabel = (role: string | null | undefined) => (role ? (roleLabel
 export const buttonClass = buttonVariants();
 export const secondaryClass = buttonVariants({ variant: 'outline' });
 export const inputClass =
-    'min-h-11 w-full min-w-0 rounded-xl border border-input bg-background px-3.5 py-2.5 text-base transition-colors placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none aria-invalid:border-destructive disabled:cursor-not-allowed disabled:opacity-60 md:text-sm';
+    'min-h-11 w-full min-w-0 rounded-control border border-input bg-background px-4 py-2 text-base leading-6 transition-colors placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none aria-invalid:border-destructive disabled:cursor-not-allowed disabled:opacity-60 md:text-sm';
 
 export function Notice({ children, tone = 'success' }: { children: ReactNode; tone?: 'success' | 'error' | 'warning' }) {
     return (
@@ -39,6 +37,7 @@ export function Page({
     children,
     embedded = false,
     headerInNavbar = false,
+    storefront = false,
 }: {
     title: string;
     description?: string;
@@ -46,20 +45,14 @@ export function Page({
     children: ReactNode;
     embedded?: boolean;
     headerInNavbar?: boolean;
+    storefront?: boolean;
 }) {
     const { auth, status, errors } = usePage<SharedData>().props;
-    const useNavbarHeader = (headerInNavbar || ['buyer', 'seller', 'rider', 'logistics'].includes(auth.user?.role ?? '')) && !embedded && !!auth.user;
+    const ContentHeading = embedded ? 'h2' : 'h1';
+    const useNavbarHeader = (headerInNavbar || !!auth.user) && !embedded && !storefront;
     const pageHeader = (
         <div className="min-w-0">
-            <h1
-                className={
-                    auth.user?.role === 'admin'
-                        ? 'text-muted-foreground text-xs font-bold tracking-widest uppercase'
-                        : 'text-foreground text-xl font-semibold tracking-tight sm:text-2xl'
-                }
-            >
-                {title}
-            </h1>
+            <h1 className="text-foreground text-xl font-semibold tracking-tight sm:text-2xl">{title}</h1>
             {description && (
                 <p
                     title={description}
@@ -74,18 +67,23 @@ export function Page({
         </div>
     );
     const content = (
-        <div className="mx-auto flex w-full max-w-6xl min-w-0 flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-9">
+        <div
+            className={cn(
+                'workspace-page flex w-full min-w-0 flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8',
+                storefront && 'catalog-storefront gap-4 py-4',
+            )}
+        >
             {!embedded && <Head title={title} />}
             {!useNavbarHeader && (
-                <div className="flex flex-wrap items-start justify-between gap-4 border-b pb-6">
+                <div className={cn('flex flex-wrap items-start justify-between gap-4 border-b pb-6', storefront && 'catalog-intro')}>
                     <div className="min-w-0">
-                        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{title}</h1>
+                        <ContentHeading className="text-2xl font-semibold tracking-tight sm:text-3xl">{title}</ContentHeading>
                         {description && <p className="text-muted-foreground mt-2 max-w-xl text-sm leading-relaxed">{description}</p>}
                     </div>
                     {action}
                 </div>
             )}
-            {useNavbarHeader && action}
+            {useNavbarHeader && action && <div className="flex min-w-0 flex-wrap items-center justify-end gap-3">{action}</div>}
             {useNavbarHeader && auth.user?.role === 'logistics' && description && (
                 <p className="text-muted-foreground text-sm leading-relaxed sm:hidden">{description}</p>
             )}
@@ -108,33 +106,19 @@ export function Page({
             {content}
         </AppLayout>
     ) : (
-        <>
+        <div className={storefront ? 'reference-page reference-catalog' : 'reference-page'}>
             <SkipLink />
-            <header className="bg-card border-b">
-                <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
-                    <Link href="/" className="flex items-center gap-2 font-semibold">
-                        <img src={assets.brand.logo} alt="" className="size-9" />
-                        <AppWordmark />
-                    </Link>
-                    <nav aria-label="Marketplace navigation" className="flex items-center gap-4">
-                        <ThemeToggle />
-                        <Link href="/" className="text-muted-foreground hover:text-primary hidden text-sm sm:inline-flex">
-                            Home
-                        </Link>
-                        <Link href="/login" className={secondaryClass}>
-                            Sign in
-                        </Link>
-                    </nav>
-                </div>
-            </header>
+            <div className="reference-page reference-home" style={{ minHeight: 0 }}>
+                <PublicHeader home />
+            </div>
             <main id="main-content" tabIndex={-1}>
                 {content}
             </main>
-        </>
+        </div>
     );
 }
 export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
-    return <section className={`bg-card min-w-0 rounded-2xl border p-5 shadow-sm shadow-black/[.02] sm:p-6 ${className}`}>{children}</section>;
+    return <section className={cn('workspace-card bg-card min-w-0 rounded-2xl border p-5 sm:p-6', className)}>{children}</section>;
 }
 export function Empty({ title, description, href, label }: { title: string; description: string; href?: string; label?: string }) {
     return (
@@ -190,12 +174,13 @@ export function Field({
     error,
     hint,
     className,
+    reserveFeedback = true,
     ...props
-}: InputHTMLAttributes<HTMLInputElement> & { label: string; error?: string; hint?: string }) {
+}: InputHTMLAttributes<HTMLInputElement> & { label: string; error?: string; hint?: string; reserveFeedback?: boolean }) {
     const generatedId = useId();
     const id = props.id ?? generatedId;
     return (
-        <div className="grid gap-2">
+        <div className="grid min-w-0 content-start gap-2">
             <label htmlFor={id} className="text-sm font-medium">
                 {label}
             </label>
@@ -211,7 +196,7 @@ export function Field({
                     {hint}
                 </p>
             )}
-            <AuthFeedback id={`${id}-error`} message={error} reserveSpace />
+            <AuthFeedback id={`${id}-error`} message={error} reserveSpace={reserveFeedback} />
         </div>
     );
 }
@@ -226,7 +211,7 @@ export function Select({
     const generatedId = useId();
     const id = props.id ?? generatedId;
     return (
-        <div className="grid gap-2">
+        <div className="grid min-w-0 content-start gap-2">
             <label htmlFor={id} className={cn('text-sm font-medium', reserveFeedback && 'min-h-5')}>
                 {label}
             </label>
@@ -248,7 +233,7 @@ export function Textarea({ label, error, className, ...props }: TextareaHTMLAttr
     const generatedId = useId();
     const id = props.id ?? generatedId;
     return (
-        <div className="grid gap-2">
+        <div className="grid min-w-0 content-start gap-2">
             <label htmlFor={id} className="text-sm font-medium">
                 {label}
             </label>

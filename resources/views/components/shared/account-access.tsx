@@ -1,6 +1,7 @@
 import { buttonClass, Card, Select } from '@/components/shared/marketplace-ui';
 import { ReasonConfirmation } from '@/components/shared/reason-confirmation';
 import ValidatedForm from '@/components/shared/validated-form';
+import { cn } from '@/lib/utils';
 import { type User } from '@/types';
 import { useForm } from '@inertiajs/react';
 import { useState } from 'react';
@@ -9,24 +10,29 @@ export function AccountAccess({
     account,
     allowedStatuses,
     onSaved,
+    embedded = false,
 }: {
     account: Pick<User, 'id' | 'name' | 'status'>;
     allowedStatuses: string[];
     onSaved?: () => void;
+    embedded?: boolean;
 }) {
     const [confirming, setConfirming] = useState(false);
     const form = useForm({ status: allowedStatuses.find((status) => status !== account.status) ?? account.status, reason: '' });
+    const Container = embedded ? 'div' : Card;
     return (
         <>
             {!!allowedStatuses?.filter((status) => status !== account.status).length && (
-                <Card>
-                    <h2 className="font-semibold">Manage Access</h2>
-                    <p className="text-muted-foreground mt-1 text-sm">Choose an action and a reason. A confirmation appears before saving.</p>
+                <Container>
+                    {!embedded && <h2 className="font-semibold">Manage Access</h2>}
+                    {!embedded && (
+                        <p className="text-muted-foreground mt-1 text-sm">Choose an action and a reason. A confirmation appears before saving.</p>
+                    )}
                     <ValidatedForm
-                        className="mt-5 grid gap-4 sm:grid-cols-2"
+                        className={cn('grid gap-4 sm:grid-cols-2', !embedded && 'mt-5')}
                         onSubmit={(event) => {
                             event.preventDefault();
-                            setConfirming(true);
+                            if (!form.processing && form.data.status !== account.status && form.data.reason.trim()) setConfirming(true);
                         }}
                     >
                         <Select
@@ -72,10 +78,14 @@ export function AccountAccess({
                             ))}
                         </Select>
                         <button
-                            className={buttonClass + ' sm:col-span-2 sm:justify-self-end'}
+                            className={cn(
+                                buttonClass,
+                                'sm:col-span-2 sm:justify-self-end',
+                                form.data.status !== 'approved' && 'bg-destructive text-destructive-foreground hover:bg-destructive/90',
+                            )}
                             disabled={form.processing || form.data.status === account.status || !form.data.reason.trim()}
                         >
-                            Review Action
+                            {form.processing ? 'Saving...' : 'Review Action'}
                         </button>
                     </ValidatedForm>
                     <ReasonConfirmation
@@ -100,7 +110,7 @@ export function AccountAccess({
                             })
                         }
                     />
-                </Card>
+                </Container>
             )}
         </>
     );

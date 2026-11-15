@@ -59,6 +59,7 @@ export function AppSidebar() {
         { title: 'Complaints & Disputes', url: '/support?kind=complaint', icon: MessageSquareWarning, badge: badges.disputes },
         { title: 'Commission', url: '/admin/commission', icon: BadgePercent },
         { title: 'Seller settlements', url: '/settlements', icon: BadgePercent },
+        { title: 'Shipping allocations', url: '/logistics-settlements', icon: Truck },
         { title: 'Returns & refunds', url: '/returns', icon: Package },
         { title: 'Reports', url: '/reports', icon: ChartNoAxesCombined },
         { title: 'Platform Settings', url: '/admin/platform', icon: SlidersHorizontal },
@@ -78,6 +79,7 @@ export function AppSidebar() {
         { title: 'Rider Coverage', url: '/logistics/rider-coverage', icon: MapPinned },
         { title: 'Shipping Rates', url: '/logistics/shipping-rates', icon: Truck },
         { title: 'Rider payments', url: '/rider-payments', icon: BadgePercent },
+        { title: 'Shipping allocations', url: '/logistics-settlements', icon: Truck },
         { title: 'Return assignments', url: '/returns', icon: Package },
         { title: 'Delivery Reports', url: '/reports', icon: ChartNoAxesCombined },
         { title: 'Messages', url: '/support?kind=message', icon: MessageCircle },
@@ -116,6 +118,9 @@ export function AppSidebar() {
         { title: 'Support', url: '/support?kind=complaint', icon: MessageSquareWarning },
         { title: 'Account settings', url: '/settings/profile', icon: Settings },
     ];
+    for (const navigation of [adminItems, logisticsItems, riderItems, sellerItems]) {
+        navigation.push({ title: 'Finance overview', url: '/finance', icon: BadgePercent });
+    }
     useEffect(() => {
         if (role === 'admin' && auth.user.status === 'approved') poll.start();
         return () => poll.stop();
@@ -145,8 +150,8 @@ export function AppSidebar() {
     if (auth.user.status === 'pending')
         items.splice(0, items.length, { title: 'Waiting for approval', url: '/application/waiting', icon: ClipboardCheck });
     return (
-        <Sidebar collapsible="icon" variant="inset" className="[&_[data-sidebar=sidebar]]:bg-card">
-            <SidebarHeader className="h-18 shrink-0 flex-row items-center gap-2 border-b px-3">
+        <Sidebar collapsible="icon" variant="sidebar" className="[&_[data-sidebar=sidebar]]:bg-card">
+            <SidebarHeader className="h-18 shrink-0 flex-row items-center gap-2 border-b px-3 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-2">
                 <SidebarLogoToggle className="group-data-[collapsible=icon]:mx-auto" />
                 <Link
                     href="/dashboard"
@@ -189,7 +194,7 @@ export function AppSidebar() {
                 </div>
             </SidebarContent>
 
-            <SidebarFooter className="border-t p-3">
+            <SidebarFooter className="border-t p-3 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:p-2">
                 <SidebarThemeToggle />
             </SidebarFooter>
         </Sidebar>

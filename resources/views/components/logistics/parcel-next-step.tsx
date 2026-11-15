@@ -1,6 +1,7 @@
 import { secondaryClass } from '@/components/shared/marketplace-ui';
 import type { Delivery } from '@/pages/marketplace/deliveries';
 import { Link } from '@inertiajs/react';
+import { ArrowRight } from 'lucide-react';
 
 export default function ParcelNextStep({
     parcel,
@@ -37,11 +38,10 @@ export default function ParcelNextStep({
         scan = role === 'logistics';
     } else if (parcel.status !== 'delivered' && !parcel.sorted_at) {
         title = 'Next: sort by destination';
-        description = 'Logistics must verify the label and record the destination area and bin/route.';
-        scan = role === 'logistics';
+        description = 'Logistics records the destination area and bin/route. No additional scan is required.';
     } else if (parcel.status !== 'delivered' && !parcel.dispatch_prepared_at) {
         title = role === 'rider' ? 'Waiting for delivery assignment' : 'Next: assign delivery rider';
-        description = 'Logistics must scan the label and assign an eligible delivery rider. The pickup rider may be selected again.';
+        description = 'Logistics assigns an eligible delivery rider without an additional scan. The pickup rider may be selected again.';
     } else if (parcel.status !== 'delivered' && !parcel.dispatch_accepted_at) {
         title = role === 'rider' ? 'Next: accept dispatch handover' : 'Waiting for the delivery rider to accept';
         description =
@@ -51,8 +51,16 @@ export default function ParcelNextStep({
         description = 'Dispatch handover is accepted. The assigned rider can now begin the delivery route.';
     } else if (parcel.status === 'out_for_delivery') {
         title = 'Next: deliver and record actual COD';
-        description = 'Confirm delivery only after the buyer receives the parcel, with recipient details, proof photo, and the full COD amount.';
+        description =
+            'Confirm delivery only after the buyer receives the parcel, with a camera photo, delivery note, and explicit confirmation of the full COD payment.';
     }
+    if (compact)
+        return (
+            <p className="text-primary mt-3 flex items-start gap-2 text-sm font-medium">
+                <ArrowRight aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+                <span>{title}</span>
+            </p>
+        );
     return (
         <div className="bg-accent/40 mt-4 space-y-2 rounded-xl border p-4" role={compact ? undefined : 'status'}>
             <p className="text-primary text-sm font-semibold">{title}</p>

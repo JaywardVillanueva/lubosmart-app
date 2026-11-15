@@ -1,0 +1,449 @@
+/* Shared account-access dialog. All colors follow the global website theme. */
+.auth-reference-panel input.auth-code-entry {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    height: 48px;
+    opacity: 0;
+    cursor: text;
+}
+.auth-reference-email-confirmation h1,
+.auth-reference-email-confirmation .auth-reference-description {
+    text-align: center;
+    padding-right: 0;
+}
+.auth-reference-email-confirmation .auth-reference-panel > a.auth-reference-primary,
+.auth-reference-email-confirmation .auth-reference-panel form button[type='submit'] {
+    width: 100%;
+    min-height: 56px;
+    border-radius: var(--radius-control);
+}
+.auth-reference-shell.auth-reference-recovery {
+    max-width: 544px;
+    border-radius: 24px;
+}
+.auth-reference-recovery .auth-reference-panel-nav {
+    display: none;
+}
+.auth-reference-recovery .auth-reference-panel {
+    padding: 40px;
+}
+.auth-reference-recovery .auth-reference-description {
+    font-size: 16px;
+}
+.auth-reference-recovery .auth-reference-panel input[type='email'] {
+    height: 56px;
+    border-radius: var(--radius-control);
+}
+.auth-reference-recovery .auth-reference-panel form > div > button[type='submit'] {
+    width: 100%;
+    min-height: 56px;
+    border-radius: var(--radius-control);
+}
+@media (max-width: 639px) {
+    .auth-reference-recovery .auth-reference-panel {
+        padding: 32px 24px 24px;
+    }
+}
+.auth-reference-shell.auth-reference-login {
+    border-radius: 24px;
+}
+.auth-reference-login .auth-reference-panel-nav {
+    display: none;
+}
+.auth-reference-login .auth-reference-panel {
+    padding: 32px;
+}
+.auth-reference-login .auth-reference-panel form > .auth-action-button,
+.auth-reference-login .auth-reference-google button {
+    width: 100%;
+}
+.auth-reference-login .auth-reference-panel input:not([type='checkbox']) {
+    height: 48px;
+    border-radius: var(--radius-control);
+}
+@media (max-width: 639px) {
+    .auth-reference-login .auth-reference-panel {
+        padding: 32px 24px 24px;
+    }
+}
+.auth-landing-backdrop {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    transition: none;
+    animation: none;
+    pointer-events: none;
+    user-select: none;
+}
+.auth-modal-overlay {
+    background: color-mix(in srgb, var(--foreground) 32%, transparent);
+    backdrop-filter: none;
+}
+.auth-reference-shell {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding: 0;
+    width: calc(100% - 2rem);
+    max-width: 480px;
+    max-height: 90dvh;
+    overflow: clip;
+    transition: none;
+    animation: none;
+    border-radius: 16px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    box-shadow: 0 12px 32px -16px color-mix(in srgb, var(--foreground) 35%, transparent);
+}
+.auth-reference-signup {
+    max-width: 520px;
+}
+.auth-reference-details {
+    max-width: 960px;
+}
+.auth-reference-shell > button {
+    top: 12px;
+    right: 12px;
+    border-radius: var(--radius-control);
+    background: var(--card);
+    color: var(--muted-foreground);
+}
+.auth-reference-panel {
+    min-width: 0;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 24px;
+    scroll-padding-block: 16px 100px;
+}
+.auth-reference-panel-nav {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    min-height: 56px;
+    padding: 12px 64px 0 24px;
+}
+.auth-reference-panel-nav a,
+.auth-reference-panel-nav button {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    color: var(--primary);
+    font-size: 14px;
+    font-weight: 600;
+}
+.auth-reference-panel h1 {
+    padding-right: 32px;
+    font-size: clamp(24px, 3vw, 30px);
+    line-height: 1.25;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+}
+.auth-reference-description {
+    margin-block: 8px 24px;
+    color: var(--muted-foreground);
+    font-size: 14px;
+    line-height: 1.6;
+}
+.auth-reference-panel input:not([type='radio']):not([type='checkbox']):not([type='file']),
+.auth-reference-panel select {
+    width: 100%;
+    min-width: 0;
+    height: 44px;
+    border-radius: var(--radius-control);
+    border-color: var(--input);
+    background-color: var(--card);
+    font-size: 16px;
+}
+.auth-reference-panel input[readonly] {
+    background-color: var(--muted) !important;
+}
+.auth-reference-panel input::placeholder {
+    color: var(--muted-foreground);
+    opacity: 1;
+}
+.auth-reference-input-icon {
+    position: absolute;
+    display: grid;
+    place-items: center;
+    inset-block: 0;
+    left: 12px;
+    width: 20px;
+    pointer-events: none;
+}
+.auth-reference-primary,
+.auth-reference-panel .auth-action-button,
+.auth-reference-panel button[type='submit'],
+.auth-reference-google button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: fit-content;
+    max-width: 100%;
+    min-height: 44px;
+    gap: 8px;
+    padding: 10px 20px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-control);
+    background: var(--primary);
+    color: var(--primary-foreground);
+    font-size: 14px;
+    line-height: 22px;
+    font-weight: 600;
+}
+.auth-reference-primary:hover,
+.auth-reference-panel .auth-action-button:hover,
+.auth-reference-panel button[type='submit']:hover {
+    background: color-mix(in srgb, var(--primary) 90%, var(--foreground));
+}
+.auth-reference-shell button:disabled,
+.auth-reference-primary:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+.auth-reference-google button {
+    border-color: var(--input);
+    background: var(--card);
+    color: var(--foreground);
+}
+.auth-reference-google button:hover {
+    background: var(--accent);
+}
+/* Center the focused account actions without changing the registration step footer. */
+.auth-reference-panel form > .auth-action-button,
+.auth-reference-panel form > div > button[type='submit'],
+.auth-reference-google button,
+.auth-reference-continue {
+    display: flex;
+    min-height: 48px;
+    padding: 12px 24px;
+    margin-inline: auto;
+    font-size: 16px;
+}
+.auth-reference-panel form > div > button[type='submit'] + button {
+    margin-inline: auto;
+}
+.auth-reference-footer {
+    margin-top: 16px;
+    text-align: center;
+    font-size: 14px;
+    line-height: 1.6;
+}
+.auth-reference-footer a {
+    color: var(--primary);
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+.auth-reference-roles {
+    display: grid;
+    gap: 12px;
+}
+.auth-reference-role {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 72px;
+    padding: 12px;
+    border: 1px solid var(--input);
+    border-radius: var(--radius-control);
+    cursor: pointer;
+}
+.auth-reference-role.is-selected {
+    border-color: var(--primary);
+    background: var(--accent);
+}
+.auth-reference-role input {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    accent-color: var(--primary);
+}
+.auth-reference-role-icon {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    color: var(--primary);
+}
+.auth-reference-role-icon svg {
+    width: 24px;
+    height: 24px;
+}
+.auth-reference-role-copy {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+}
+.auth-reference-role-copy strong {
+    font-size: 14px;
+}
+.auth-reference-role-copy > span {
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--muted-foreground);
+}
+.auth-reference-continue {
+    display: flex;
+    width: 100%;
+    margin-top: 20px;
+}
+.auth-reference-shell a:focus-visible,
+.auth-reference-shell button:focus-visible,
+.auth-reference-role:focus-within {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+}
+.auth-reference-shell h1:focus {
+    outline: none;
+}
+.auth-registration-footer {
+    position: sticky;
+    bottom: -24px;
+    z-index: 5;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 20px;
+    padding-block: 16px;
+    border-top: 1px solid var(--border);
+    background: var(--card);
+}
+.auth-registration-footer .auth-step-count {
+    margin-left: auto;
+    color: var(--muted-foreground);
+    font-size: 12px;
+}
+.auth-stepper li {
+    position: relative;
+}
+.auth-stepper li:not(:last-child)::after {
+    position: absolute;
+    content: '';
+    top: 16px;
+    left: calc(50% + 20px);
+    width: calc(100% - 32px);
+    height: 1px;
+    background: var(--border);
+}
+.auth-stepper button {
+    position: relative;
+    z-index: 1;
+}
+.auth-reference-shell .auth-upload-input {
+    height: auto;
+    border: 0;
+    padding: 8px;
+    font-size: 14px;
+}
+.auth-upload-input::file-selector-button {
+    margin-right: 12px;
+    padding: 10px 12px;
+    border: 1px solid var(--input);
+    border-radius: var(--radius-control);
+    background: var(--card);
+    color: var(--foreground);
+    font: inherit;
+    cursor: pointer;
+}
+@media (max-width: 639px) {
+    .auth-reference-panel-nav {
+        padding-left: 16px;
+    }
+    .auth-reference-panel {
+        padding: 16px;
+    }
+    .auth-registration-footer {
+        bottom: -16px;
+    }
+    .auth-registration-footer .auth-step-count {
+        display: none;
+    }
+    .auth-reference-shell {
+        width: calc(100% - 1rem);
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .auth-reference-shell,
+    .auth-modal-overlay {
+        animation: none !important;
+        transition: none !important;
+    }
+}
+.auth-reference-shell .auth-action-button:hover,
+.auth-reference-shell .auth-action-button:focus-visible,
+.auth-reference-shell .registration-role-card:hover,
+.auth-reference-shell .registration-role-card:focus-visible {
+    transform: none;
+    box-shadow: none;
+}
+.auth-reference-shell .auth-action-button svg,
+.auth-reference-shell .registration-role-card svg {
+    transform: none !important;
+}
+
+@keyframes account-role-reveal {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes account-role-select {
+    50% {
+        transform: scale(1.15) rotate(-6deg);
+    }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .auth-reference-signup .auth-reference-description,
+    .auth-reference-signup .auth-reference-role,
+    .auth-reference-signup .auth-reference-continue,
+    .auth-reference-signup .auth-reference-footer {
+        animation: account-role-reveal 320ms ease-out backwards;
+    }
+    .auth-reference-signup .auth-reference-role:nth-of-type(2) {
+        animation-delay: 50ms;
+    }
+    .auth-reference-signup .auth-reference-role:nth-of-type(3) {
+        animation-delay: 100ms;
+    }
+    .auth-reference-signup .auth-reference-role:nth-of-type(4) {
+        animation-delay: 150ms;
+    }
+    .auth-reference-signup .auth-reference-continue,
+    .auth-reference-signup .auth-reference-footer {
+        animation-delay: 200ms;
+    }
+    .auth-reference-signup .auth-reference-role {
+        transition:
+            transform 180ms ease-out,
+            border-color 180ms ease-out,
+            background-color 180ms ease-out;
+    }
+    .auth-reference-signup .auth-reference-role:not(:has(input:disabled)):hover {
+        transform: translateY(-2px);
+    }
+    .auth-reference-signup .auth-reference-role:not(:has(input:disabled)):active {
+        transform: scale(0.99);
+    }
+    .auth-reference-signup .auth-reference-role.is-selected .auth-reference-role-icon {
+        animation: account-role-select 280ms ease-out;
+    }
+    /* Keyboard navigation reveals the whole group immediately. */
+    .auth-reference-signup .auth-reference-roles:focus-within .auth-reference-role,
+    .auth-reference-signup .auth-reference-continue:focus-visible {
+        animation: none;
+    }
+}

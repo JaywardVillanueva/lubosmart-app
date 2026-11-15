@@ -1,10 +1,10 @@
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { CircleAlert, CircleCheck, X } from 'lucide-react';
+import { CircleAlert, CircleCheck, Info, TriangleAlert, X } from 'lucide-react';
 import { createContext, type ReactNode, useContext, useEffect, useRef, useState } from 'react';
 
 type Confirmation = { title: string; description: string; confirmLabel?: string; destructive?: boolean };
-type Toast = { id: number; message: string; tone: 'success' | 'error' };
+type Toast = { id: number; message: string; tone: 'success' | 'error' | 'warning' | 'info' };
 const ConfirmContext = createContext<(options: Confirmation) => Promise<boolean>>(async () => false);
 export const useConfirmAction = () => useContext(ConfirmContext);
 
@@ -21,8 +21,16 @@ export function ActionFeedbackProvider({ children }: { children: ReactNode }) {
     const nextId = useRef(0);
     useEffect(() => {
         const timers = new Set<ReturnType<typeof setTimeout>>();
+        const recent = new Map<string, number>();
         const receive = (event: Event) => {
             const detail = (event as CustomEvent<Omit<Toast, 'id'>>).detail;
+            const key = `${detail.tone}:${detail.message}`;
+            const now = Date.now();
+            if (now - (recent.get(key) ?? 0) < 4000) return;
+            recent.forEach((time, entry) => {
+                if (now - time >= 4000) recent.delete(entry);
+            });
+            recent.set(key, now);
             const id = ++nextId.current;
             setToasts((current) => [...current.slice(-2), { ...detail, id }]);
             const timer = setTimeout(
@@ -30,7 +38,7 @@ export function ActionFeedbackProvider({ children }: { children: ReactNode }) {
                     setToasts((current) => current.filter((toast) => toast.id !== id));
                     timers.delete(timer);
                 },
-                detail.tone === 'error' ? 10000 : 6000,
+                detail.tone === 'error' ? 10000 : 4000,
             );
             timers.add(timer);
         };
@@ -89,7 +97,7 @@ export function ActionFeedbackProvider({ children }: { children: ReactNode }) {
             </Dialog>
             <div
                 aria-label="Action notifications"
-                className="pointer-events-none fixed right-4 bottom-4 left-4 z-40 flex flex-col gap-3 sm:left-auto sm:w-96 print:hidden"
+                className="pointer-events-none fixed right-4 bottom-24 left-4 z-40 flex flex-col gap-3 sm:top-20 sm:bottom-auto sm:left-auto sm:w-96 print:hidden"
             >
                 {toasts.map((toast) => (
                     <div
@@ -99,6 +107,10 @@ export function ActionFeedbackProvider({ children }: { children: ReactNode }) {
                     >
                         {toast.tone === 'error' ? (
                             <CircleAlert aria-hidden className="text-destructive size-5 shrink-0" />
+                        ) : toast.tone === 'warning' ? (
+                            <TriangleAlert aria-hidden className="text-warning size-5 shrink-0" />
+                        ) : toast.tone === 'info' ? (
+                            <Info aria-hidden className="text-primary size-5 shrink-0" />
                         ) : (
                             <CircleCheck aria-hidden className="text-success size-5 shrink-0" />
                         )}

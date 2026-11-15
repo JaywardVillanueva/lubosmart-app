@@ -2,7 +2,7 @@ import { LogisticsCharts } from '@/components/logistics/logistics-charts';
 import ParcelNavigation from '@/components/logistics/parcel-navigation';
 import { InfoModal } from '@/components/shared/info-modal';
 import { Badge, Card, Empty, Page, buttonClass, secondaryClass } from '@/components/shared/marketplace-ui';
-import { DashboardMetric } from '@/components/workspace/dashboard-panels';
+import { DashboardMetric, DashboardWelcome } from '@/components/workspace/dashboard-panels';
 import type { SharedData } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
 import { Boxes, CheckCircle2, CircleAlert, ClipboardCheck, MapPinned, PackageCheck, PackageOpen, Truck, Users, Wallet } from 'lucide-react';
@@ -61,57 +61,46 @@ export default function LogisticsDashboard({
     ];
     return (
         <Page title="Logistics Dashboard" headerInNavbar description="Manage your center, coordinate riders, and keep parcels moving.">
-            <section
-                aria-label="Welcome and priorities"
-                className="border-primary/15 from-accent via-card to-background rounded-2xl border bg-linear-to-br p-6 sm:p-8"
+            <DashboardWelcome
+                label="Operations overview"
+                title={'Welcome back, ' + auth.user.name.trim().split(/\s+/)[0] + '.'}
+                description="Monitor parcel movement, review your queues, and keep your riders ready."
+                context={centers.map((center) => center.name).join(' / ') || 'Your logistics company'}
+                icon={Truck}
             >
-                <div className="grid items-center gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-                    <div className="min-w-0">
-                        <p className="text-primary text-xs font-semibold tracking-widest uppercase">Operations overview</p>
-                        <h2 className="mt-3 text-2xl font-semibold tracking-tight break-words sm:text-3xl">
-                            Welcome back, {auth.user.name.trim().split(/\s+/)[0]}.
-                        </h2>
-                        <p className="text-muted-foreground mt-3 text-sm leading-relaxed">
-                            {centers.map((center) => center.name).join(' / ') || 'Your logistics company'}
-                        </p>
-                        <p className="text-muted-foreground mt-2 text-sm leading-relaxed">
-                            Monitor parcel movement, review your queues, and keep your riders ready.
-                        </p>
-                        <div className="mt-5 grid gap-3 sm:flex sm:flex-wrap">
-                            <Link href="/logistics/scan" className={buttonClass}>
-                                Scan parcel
-                            </Link>
-                            <Link href="/deliveries" className={secondaryClass}>
-                                Parcel operations
-                            </Link>
-                            <Link href="/reports" className={secondaryClass}>
-                                Delivery reports
-                            </Link>
-                        </div>
-                    </div>
-                    <div className="bg-card/90 rounded-xl border p-5">
-                        <h3 className="text-sm font-semibold">Needs attention</h3>
-                        <p className="text-muted-foreground mt-1 text-xs">Current company review queues</p>
-                        <ul className="mt-3 divide-y">
-                            {[
-                                { label: 'Pickup approvals', value: metrics.pickupRequests, href: '/deliveries?stage=pickups' },
-                                { label: 'Parcels to sort', value: metrics.sorting, href: '/deliveries?stage=sorting' },
-                                { label: 'Rider applications', value: metrics.riderApplications, href: '/reviews' },
-                            ].map((item) => (
-                                <li key={item.label}>
-                                    <Link
-                                        href={item.href}
-                                        className="hover:text-primary focus-visible:ring-ring flex min-h-11 items-center justify-between gap-3 rounded px-1 text-sm focus-visible:ring-2"
-                                    >
-                                        <span>{item.label}</span>
-                                        <span className="font-semibold tabular-nums">{item.value.toLocaleString()}</span>
-                                    </Link>
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
+                <div className="grid gap-3 sm:flex sm:flex-wrap">
+                    <Link href="/logistics/scan" className={buttonClass}>
+                        Scan parcel
+                    </Link>
+                    <Link href="/deliveries" className={secondaryClass}>
+                        Parcel operations
+                    </Link>
+                    <Link href="/reports" className={secondaryClass}>
+                        Delivery reports
+                    </Link>
                 </div>
-            </section>
+            </DashboardWelcome>
+            <div className="workspace-priorities bg-card rounded-xl border p-5">
+                <h3 className="text-sm font-semibold">Needs attention</h3>
+                <p className="text-muted-foreground mt-1 text-xs">Current company review queues</p>
+                <ul className="mt-3 divide-y">
+                    {[
+                        { label: 'Pickup approvals', value: metrics.pickupRequests, href: '/deliveries?stage=pickups' },
+                        { label: 'Parcels to sort', value: metrics.sorting, href: '/deliveries?stage=sorting' },
+                        { label: 'Rider applications', value: metrics.riderApplications, href: '/reviews' },
+                    ].map((item) => (
+                        <li key={item.label}>
+                            <Link
+                                href={item.href}
+                                className="hover:text-primary focus-visible:ring-ring flex min-h-11 items-center justify-between gap-3 rounded px-1 text-sm focus-visible:ring-2"
+                            >
+                                <span>{item.label}</span>
+                                <span className="font-semibold tabular-nums">{item.value.toLocaleString()}</span>
+                            </Link>
+                        </li>
+                    ))}
+                </ul>
+            </div>
             {!!setupChecklist.length && (
                 <Card>
                     <h2 className="text-lg font-semibold">Company setup</h2>

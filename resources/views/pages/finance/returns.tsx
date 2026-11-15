@@ -1,5 +1,8 @@
-import { Card, Empty, money, Page, Pager, type Pagination } from '@/components/shared/marketplace-ui';
+import { Badge, Card, Empty, money, Page, Pager, type Pagination } from '@/components/shared/marketplace-ui';
 import RecordAction, { type ActionField } from '@/components/shared/record-action';
+import { openRecordSection, RecordHeader } from '@/components/shared/record-header';
+import { History, RotateCcw } from 'lucide-react';
+import { useRef } from 'react';
 
 type Location = { recipient_name?: string; phone?: string; line1?: string; barangay?: string; city?: string; province?: string };
 type ReturnRecord = {
@@ -7,6 +10,10 @@ type ReturnRecord = {
     status: string;
     reason: string;
     decision_reason: string | null;
+    responsibility: 'seller' | 'logistics' | 'buyer' | 'undetermined' | null;
+    responsibility_reason: string | null;
+    product_refund_cents?: number | null;
+    shipping_refund_cents?: number | null;
     refund_cents?: number | null;
     refund_reference?: string | null;
     restocked: boolean;
@@ -34,18 +41,28 @@ const reason: ActionField = { key: 'reason', label: 'Reason / handover notes', t
 const tracking: ActionField = { key: 'tracking_reference', label: 'Scan or enter the attached parcel tracking reference', maxLength: 40 };
 
 function ReturnCard({ entry, role, riders }: { entry: ReturnRecord; role: string; riders: { id: number; name: string }[] }) {
+    const historyRef = useRef<HTMLDetailsElement>(null);
     const parcel = entry.seller_order;
     const url = `/returns/${entry.id}`;
     const maximum = Number(parcel.subtotal) + Number(parcel.shipping_fee);
     return (
-        <Card>
-            <h2 className="text-lg font-semibold">
-                Return #{entry.id} · Parcel #{parcel.id} · {parcel.store.name}
-            </h2>
-            <p role="status" className="text-primary mt-3 text-sm font-semibold capitalize">
-                {entry.status.replaceAll('_', ' ')}
-            </p>
-            <p className="text-muted-foreground mt-2 text-sm break-all">Tracking: {parcel.delivery?.tracking_reference ?? 'Not recorded'}</p>
+        <Card className="!p-4 sm:!p-5">
+            <RecordHeader
+                label={`Return #${entry.id} / Parcel #${parcel.id}`}
+                title={parcel.store.name}
+                reference={parcel.delivery?.tracking_reference ?? 'Not recorded'}
+                status={<Badge status={entry.status} />}
+                icon={RotateCcw}
+                actions={[
+                    {
+                        id: 'history',
+                        label: 'View return history',
+                        icon: History,
+                        visible: !!entry.events.length,
+                        onSelect: () => openRecordSection(historyRef.current),
+                    },
+                ]}
+            />
             <p className="mt-3 text-sm break-words whitespace-pre-wrap">{entry.reason}</p>
             <ul className="mt-3 space-y-1 text-sm">
                 {parcel.items.map((item) => (
@@ -56,15 +73,47 @@ function ReturnCard({ entry, role, riders }: { entry: ReturnRecord; role: string
                 ))}
             </ul>
             {entry.decision_reason && <p className="text-muted-foreground mt-3 text-sm break-words">Admin decision: {entry.decision_reason}</p>}
+            <p className="text-muted-foreground mt-3 text-sm">
+                Financial responsibility: {entry.responsibility ?? 'Awaiting review'}. {entry.responsibility_reason}
+            </p>
             {entry.refund_cents != null && (
                 <p className="text-success mt-3 text-sm">
                     Recorded manual refund: {money(entry.refund_cents / 100)} · {entry.refund_reference}
+                </p>
+            )}
+            {entry.product_refund_cents != null && entry.shipping_refund_cents != null && (
+                <p className="text-muted-foreground mt-2 text-sm tabular-nums">
+                    Product refund: {money(entry.product_refund_cents / 100)}. Shipping refund: {money(entry.shipping_refund_cents / 100)}. Shipping
+                    liability remains subject to the reviewed policy.
                 </p>
             )}
             {entry.condition && (
                 <p className="text-muted-foreground mt-3 text-sm">
                     Seller received goods: {entry.condition}. {entry.restocked ? 'Stock restored once.' : 'Stock was not restored.'}
                 </p>
+            )}
+            {role === 'admin' && !['rejected', 'refunded', 'closed'].includes(entry.status) && (
+                <RecordAction
+                    title="Review financial responsibility"
+                    description="Review evidence and record the responsible party with your findings. A selected return reason alone does not establish fault. Logistics, buyer and undetermined funding remain pending policy approval; no liability or payment is created by this decision."
+                    url={url}
+                    method="patch"
+                    action="review_responsibility"
+                    fields={[
+                        {
+                            key: 'responsibility',
+                            label: 'Reviewed responsible party',
+                            type: 'select',
+                            options: [
+                                { value: 'seller', label: 'Seller — verified preparation or product fault' },
+                                { value: 'logistics', label: 'Logistics — verified custody or delivery fault' },
+                                { value: 'buyer', label: 'Buyer change of mind — policy review required' },
+                                { value: 'undetermined', label: 'Undetermined — further evidence needed' },
+                            ],
+                        },
+                        { ...reason, label: 'Evidence reviewed and decision reason' },
+                    ]}
+                />
             )}
             {['logistics', 'rider'].includes(role) && (
                 <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -176,9 +225,10 @@ function ReturnCard({ entry, role, riders }: { entry: ReturnRecord; role: string
                     ]}
                 />
             )}
-            {role === 'admin' && entry.status === 'received' && maximum > 0 && (
+            {role === 'admin' && entry.status === 'received' && maximum > 0 && entry.responsibility === 'seller' && (
                 <RecordAction
                     title="Record manual refund"
+                    forceDialog
                     description={`Confirm the actual buyer refund after seller receipt and full COD reconciliation. Maximum ${money(maximum)}. Amounts first reverse net product sales and their commission proportionally; any remainder is shipping refund. A refund after seller payout creates a seller balance owed back. This records a payment you made; it does not send money.`}
                     url={url}
                     method="patch"
@@ -197,6 +247,12 @@ function ReturnCard({ entry, role, riders }: { entry: ReturnRecord; role: string
                     ]}
                 />
             )}
+            {role === 'admin' && entry.status === 'received' && entry.responsibility !== 'seller' && (
+                <p role="status" className="mt-4 text-sm">
+                    Refund recording is held until responsibility and the applicable funding policy are established. Do not reclassify verified
+                    Logistics fault as Seller fault to release payment.
+                </p>
+            )}
             {role === 'admin' && entry.status === 'received' && (
                 <RecordAction
                     title="Close without refund"
@@ -207,7 +263,7 @@ function ReturnCard({ entry, role, riders }: { entry: ReturnRecord; role: string
                     fields={[reason]}
                 />
             )}
-            <details className="mt-5 border-t pt-4">
+            <details ref={historyRef} className="mt-5 border-t pt-4">
                 <summary className="min-h-6 cursor-pointer text-sm font-medium">Return handover and decision history</summary>
                 <ol className="mt-3 space-y-3">
                     {entry.events.map((event) => (

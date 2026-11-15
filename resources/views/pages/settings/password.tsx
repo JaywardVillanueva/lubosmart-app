@@ -1,19 +1,17 @@
 import EmailCodeConfirmation from '@/components/auth/email-code-confirmation';
 import InputError from '@/components/auth/input-error';
+import PasswordInput from '@/components/settings/password-input';
 import SettingsPage from '@/components/settings/settings-page';
 import HeadingSmall from '@/components/shared/heading-small';
 import { Card } from '@/components/shared/marketplace-ui';
 import ValidatedForm from '@/components/shared/validated-form';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import type { SharedData } from '@/types';
-import { Head, useForm, usePage } from '@inertiajs/react';
+import { Head, useForm } from '@inertiajs/react';
 import { type FormEvent, useState } from 'react';
 
 export default function Password({ googleOnly, confirmed, status }: { googleOnly: boolean; confirmed: boolean; status?: string }) {
-    const { auth } = usePage<SharedData>().props;
-    const requiresCurrentPassword = !googleOnly && ['admin', 'logistics', 'rider'].includes(auth.user.role);
+    const requiresCurrentPassword = !googleOnly;
     const form = useForm({ current_password: '', password: '', password_confirmation: '' });
     const [confirmingChange, setConfirmingChange] = useState(false);
     const submit = (event: FormEvent) => {
@@ -42,7 +40,7 @@ export default function Password({ googleOnly, confirmed, status }: { googleOnly
         <SettingsPage title="Password settings" breadcrumbs={[{ title: 'Password Settings', href: '/settings/password' }]}>
             <Head title="Password Settings" />
 
-            <Card className="grid gap-6">
+            <Card className="grid max-w-2xl gap-4 p-4 sm:p-5">
                 <HeadingSmall
                     title={googleOnly ? 'Set LubosMart password' : 'Change Password'}
                     description={
@@ -59,7 +57,7 @@ export default function Password({ googleOnly, confirmed, status }: { googleOnly
                     </p>
                 )}
                 {confirmingChange ? (
-                    <div className="grid gap-5">
+                    <div className="grid gap-4">
                         <EmailCodeConfirmation purpose="password" confirmed={confirmed} codeSent />
                         <InputError message={(form.errors as Record<string, string>).code} />
                         <InputError message={form.errors.password} />
@@ -74,11 +72,11 @@ export default function Password({ googleOnly, confirmed, status }: { googleOnly
                         </div>
                     </div>
                 ) : (
-                    <ValidatedForm onSubmit={submit} className="grid gap-5">
+                    <ValidatedForm onSubmit={submit} className="grid gap-4">
                         {requiresCurrentPassword && (
                             <div className="grid gap-2">
                                 <Label htmlFor="current_password">Current Password</Label>
-                                <Input
+                                <PasswordInput
                                     id="current_password"
                                     type="password"
                                     autoComplete="current-password"
@@ -95,22 +93,26 @@ export default function Password({ googleOnly, confirmed, status }: { googleOnly
                         <InputError message={(form.errors as Record<string, string>).code} />
                         <div className="grid gap-2">
                             <Label htmlFor="password">New Password</Label>
-                            <Input
+                            <PasswordInput
                                 id="password"
                                 type="password"
                                 autoComplete="new-password"
                                 required
                                 minLength={8}
+                                aria-describedby="password-requirements password-error"
                                 disabled={form.processing}
                                 aria-invalid={!!form.errors.password}
                                 value={form.data.password}
                                 onChange={(event) => form.setData('password', event.target.value)}
                             />
-                            <InputError message={form.errors.password} />
+                            <p id="password-requirements" className="text-muted-foreground text-sm">
+                                Use at least 8 characters. Your email code is required to complete the change.
+                            </p>
+                            <InputError id="password-error" message={form.errors.password} />
                         </div>
                         <div className="grid gap-2">
                             <Label htmlFor="password_confirmation">Confirm New Password</Label>
-                            <Input
+                            <PasswordInput
                                 id="password_confirmation"
                                 type="password"
                                 autoComplete="new-password"
@@ -122,7 +124,9 @@ export default function Password({ googleOnly, confirmed, status }: { googleOnly
                             />
                             <InputError message={form.errors.password_confirmation} />
                         </div>
-                        <Button disabled={form.processing}>{form.processing ? 'Sending code...' : 'Change Password'}</Button>
+                        <Button className="w-full sm:w-auto sm:justify-self-start" disabled={form.processing}>
+                            {form.processing ? 'Sending code...' : 'Change Password'}
+                        </Button>
                     </ValidatedForm>
                 )}
             </Card>

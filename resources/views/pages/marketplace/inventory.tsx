@@ -1,5 +1,6 @@
 import SellerListFilters from '@/components/seller/list-filters';
 import VariantForm from '@/components/seller/variant-form';
+import { ActionDropdown } from '@/components/shared/action-dropdown';
 import {
     Badge,
     buttonClass,
@@ -16,7 +17,7 @@ import {
 } from '@/components/shared/marketplace-ui';
 import ValidatedForm from '@/components/shared/validated-form';
 import { Link, useForm } from '@inertiajs/react';
-import { Pencil, Plus } from 'lucide-react';
+import { Pencil, Plus, SlidersHorizontal } from 'lucide-react';
 import { useState } from 'react';
 import { type Product } from './catalog';
 
@@ -166,6 +167,7 @@ export default function Inventory({
     filters?: { search?: string; status?: string };
 }) {
     const [editing, setEditing] = useState<Product | null | undefined>(undefined);
+    const [openMenu, setOpenMenu] = useState<number | null>(null);
     const [options, setOptions] = useState<Product | null>(null);
     return (
         <Page
@@ -251,13 +253,21 @@ export default function Inventory({
                                     </p>
                                 </div>
                                 <Badge status={product.status} />
-                                <button className={secondaryClass} onClick={() => setEditing(product)}>
-                                    <Pencil className="size-3" />
-                                    Edit
-                                </button>
-                                <button className={secondaryClass} onClick={() => setOptions(product)} disabled={store?.status !== 'approved'}>
-                                    Size/color options
-                                </button>
+                                <ActionDropdown
+                                    label={`Actions for ${product.name}`}
+                                    open={openMenu === product.id}
+                                    onOpenChange={(open) => setOpenMenu(open ? product.id : null)}
+                                    actions={[
+                                        { id: 'edit', label: 'Edit', icon: Pencil, onSelect: () => setEditing(product) },
+                                        {
+                                            id: 'options',
+                                            label: 'Size/color options',
+                                            icon: SlidersHorizontal,
+                                            disabled: store?.status !== 'approved',
+                                            onSelect: () => setOptions(product),
+                                        },
+                                    ]}
+                                />
                             </div>
                         ))}
                     </div>

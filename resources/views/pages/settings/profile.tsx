@@ -1,3 +1,4 @@
+import OperationalProfile from '@/components/settings/operational-profile';
 import { Card, secondaryClass } from '@/components/shared/marketplace-ui';
 import ValidatedForm from '@/components/shared/validated-form';
 import { type BreadcrumbItem, type SharedData } from '@/types';
@@ -22,7 +23,31 @@ const breadcrumbs: BreadcrumbItem[] = [
     },
 ];
 
-export default function Profile({
+type BuyerRegistration = {
+    personalDetails: Record<string, string | null>;
+    registeredAddress: Record<string, string | null>;
+    documents: { id: number; kind: string; url: string }[];
+};
+
+export default function Profile(props: Parameters<typeof LegacyProfile>[0] & Partial<BuyerRegistration>) {
+    const { auth } = usePage<SharedData>().props;
+    if (auth.user.role === 'buyer') {
+        return (
+            <>
+                <Head title="Account settings" />
+                <OperationalProfile
+                    {...props}
+                    personalDetails={props.personalDetails ?? {}}
+                    registeredAddress={props.registeredAddress ?? {}}
+                    documents={props.documents ?? []}
+                />
+            </>
+        );
+    }
+    return <LegacyProfile {...props} />;
+}
+
+function LegacyProfile({
     mustVerifyEmail,
     status,
     googleConnected,
@@ -82,9 +107,9 @@ export default function Profile({
                 </p>
             )}
             {showEmailConfirmation && <EmailCodeConfirmation purpose="profile" confirmed={sensitiveConfirmed} />}
-            <Card>
-                <div className="mb-6 flex items-center gap-4">
-                    <span className="bg-accent text-primary flex size-16 shrink-0 items-center justify-center rounded-full text-xl font-semibold">
+            <Card className="max-w-2xl p-4 sm:p-5">
+                <div className="mb-4 flex items-center gap-3">
+                    <span className="bg-accent text-primary flex size-12 shrink-0 items-center justify-center rounded-full text-lg font-semibold">
                         {auth.user.name
                             .split(' ')
                             .filter(Boolean)
@@ -94,9 +119,7 @@ export default function Profile({
                             .toUpperCase()}
                     </span>
                     <div className="min-w-0">
-                        <h2 className="text-xl font-semibold break-words">
-                            {isAdmin ? 'Admin Account' : isLogistics ? auth.user.name : 'My Profile'}
-                        </h2>
+                        <h2 className="text-xl font-semibold break-words">{auth.user.name}</h2>
                         <p className="text-muted-foreground mt-1 text-sm">
                             {isAdmin ? 'Your administrator profile.' : 'Manage and protect your LubosMart account.'}
                         </p>
@@ -114,9 +137,9 @@ export default function Profile({
                     </div>
                 )}
 
-                <ValidatedForm id="contact-details" tabIndex={-1} onSubmit={submit} className="scroll-mt-24 space-y-6" aria-busy={processing}>
-                    <fieldset disabled={processing} className="grid gap-6 disabled:opacity-70">
-                        <legend className="mb-4 text-sm font-semibold">
+                <ValidatedForm id="contact-details" tabIndex={-1} onSubmit={submit} className="scroll-mt-24 space-y-4" aria-busy={processing}>
+                    <fieldset disabled={processing} className="grid gap-4 disabled:opacity-70">
+                        <legend className="mb-2 text-sm font-semibold">
                             {isAdmin ? 'Profile' : isLogistics ? 'Contact details' : 'Personal Information'}
                         </legend>
                         <div className="grid gap-2">
@@ -125,7 +148,7 @@ export default function Profile({
                             <Input
                                 id="name"
                                 name="name"
-                                className="mt-1 block min-h-11 w-full"
+                                className="block min-h-11 w-full"
                                 value={data.name}
                                 onChange={(e) => setData('name', e.target.value)}
                                 required

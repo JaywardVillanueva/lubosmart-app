@@ -1,7 +1,7 @@
 import InputError from '@/components/auth/input-error';
 import { Password } from '@/components/auth/registration-form';
 import { buttonClass } from '@/components/shared/marketplace-ui';
-import AuthLayout from '@/layouts/auth-layout';
+import AuthLayout from '@/layouts/auth/account-access-layout';
 import { Head, Link, useForm } from '@inertiajs/react';
 export default function ActivateRider({ token, valid, requiresLogout = false }: { token: string; valid: boolean; requiresLogout?: boolean }) {
     const form = useForm({ password: '', password_confirmation: '' });
@@ -10,6 +10,7 @@ export default function ActivateRider({ token, valid, requiresLogout = false }: 
             <Head title="Activate rider account" />
             {valid ? (
                 <form
+                    noValidate
                     className="space-y-5"
                     onSubmit={(event) => {
                         event.preventDefault();
@@ -42,6 +43,7 @@ export default function ActivateRider({ token, valid, requiresLogout = false }: 
                         required
                         disabled={form.processing || requiresLogout}
                         value={form.data.password_confirmation}
+                        error={form.errors.password_confirmation}
                         onChange={(event) => form.setData('password_confirmation', event.target.value)}
                     />
                     <InputError message={(form.errors as Record<string, string>).activation} />

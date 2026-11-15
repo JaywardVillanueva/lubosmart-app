@@ -63,6 +63,7 @@ async function until(predicate, label) {
         assert.equal(seed.status, 0, seed.stderr);
         const accountSeed = spawnSync('php', ['tests/Fixtures/account-settings-seed.php'], { cwd: root, env, encoding: 'utf8', windowsHide: true });
         assert.equal(accountSeed.status, 0, accountSeed.stdout + accountSeed.stderr);
+        assert.ok(accountSeed.stdout.includes('Account settings fixtures complete'), accountSeed.stdout + accountSeed.stderr);
         console.log('Account fixtures ready');
         const appPort = await port(),
             debugPort = await port();
@@ -209,10 +210,87 @@ async function until(predicate, label) {
             );
         };
         await navigate('/login');
-        await set('input[type=email]', 'settings@example.test');
+        await set('input[type=email]', process.env.LUBOSMART_SHARED_SETTINGS_ONLY === '1' ? 'buyer-settings@example.test' : 'settings@example.test');
         await set('input[type=password]', 'Browser@2026');
-        await click('button[type=submit]');
+        await click('form:has(input[type=password]) button[type=submit]');
         await until(() => evaluate('location.pathname !== "/login"'), 'login complete');
+        if (process.env.LUBOSMART_SHARED_SETTINGS_ONLY === '1') {
+            await viewport(1440, 1000);
+            for (const role of ['buyer', 'seller', 'rider', 'logistics']) {
+                if (role !== 'buyer') {
+                    await evaluate(`(async()=>{const token=decodeURIComponent(document.cookie.split('; ').find(c=>c.startsWith('XSRF-TOKEN=')).split('=').slice(1).join('='));await fetch('/logout',{method:'POST',headers:{'X-XSRF-TOKEN':token}})})()`);
+                    await navigate('/login');
+                    await set('input[type=email]', role === 'logistics' ? 'settings@example.test' : role + '-settings@example.test');
+                    await set('input[type=password]', 'Browser@2026');
+                    await click('form:has(input[type=password]) button[type=submit]');
+                    await until(() => evaluate('location.pathname !== "/login"'), 'role login');
+                }
+                await navigate('/settings/profile');
+                await until(() => evaluate('document.body.innerText.includes(' + JSON.stringify(role === 'logistics' ? 'Carla' : 'Johanna Sample') + ')'), 'personal details');
+                await viewport(1440, 640);
+                await click('[data-sidebar=header] button[aria-label="Collapse navigation"]');
+                await delay(300);
+                assert.equal(await evaluate('document.querySelector("[data-collapsible=icon]") !== null'), true);
+                const bounds = await evaluate(
+                    'JSON.stringify((()=>{const rail=document.querySelector("[data-sidebar=sidebar]").getBoundingClientRect();const logo=document.querySelector("[data-sidebar=header] button svg").getBoundingClientRect();const actions=[...document.querySelectorAll("[data-sidebar=sidebar] [data-sidebar=menu-button]")].map(el=>{const r=el.getBoundingClientRect();const icon=el.querySelector("svg").getBoundingClientRect();return {width:r.width,height:r.height,fits:icon.left>=rail.left&&icon.right<=rail.right}});return {logoFits:logo.left>=rail.left&&logo.right<=rail.right,actions}})())'
+                );
+                const layout = JSON.parse(bounds);
+                assert.equal(layout.logoFits, true);
+                assert.ok(layout.actions.every(action=>action.width>=44&&action.height>=44&&action.fits));
+                await evaluate('document.querySelector("[data-sidebar=content]").scrollTop=10000');
+                assert.equal(await evaluate('(()=>{const content=document.querySelector("[data-sidebar=content]");const region=content.getBoundingClientRect();const last=[...content.querySelectorAll("[data-sidebar=menu-button]")].at(-1).getBoundingClientRect();return last.top>=region.top&&last.bottom<=region.bottom+1})()'), true);
+                await screenshot(role + '-sidebar-collapsed');
+                await click('[data-sidebar=header] button[aria-label="Expand navigation"]');
+                await delay(300);
+                await viewport(320, 900);
+                await until(() => evaluate('[...document.querySelectorAll("header button")].some(el=>el.getAttribute("aria-label")==="Expand navigation")'), 'mobile toggle ready');
+                await click('header button[aria-label="Expand navigation"]');
+                await until(() => evaluate('!!document.querySelector("[data-mobile=true]")'), 'mobile navigation');
+                await delay(400);
+                assert.equal(await evaluate('(()=>{const rail=document.querySelector("[data-mobile=true]").getBoundingClientRect();const logo=document.querySelector("[data-mobile=true] [data-sidebar=header] svg").getBoundingClientRect();return logo.left>=rail.left&&logo.right<=rail.right})()'), true);
+                await screenshot(role + '-sidebar-mobile');
+                await cdp('Input.dispatchKeyEvent', {type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
+                await cdp('Input.dispatchKeyEvent', {type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
+                await until(() => evaluate('!document.querySelector("[data-mobile=true]")'), 'close mobile navigation');
+                await viewport(1440, 1000);
+                record(role + ' sidebar', 'Logo and action icons contained in collapsed rail, 44px targets, mobile drawer opens/closes');
+                if (role === 'logistics') continue;
+
+                assert.equal(await evaluate('document.querySelectorAll("#personal-information input").length'), 0);
+                await screenshot(role + '-personal-desktop');
+                for (const width of [320, 768, 1440]) {
+                    await viewport(width, 900);
+                    assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true);
+                }
+                await viewport(320, 900);
+                await screenshot(role + '-personal-mobile');
+                await click('nav[aria-label="Account settings categories"] a[href="#submitted-documents"]');
+                await until(() => evaluate('!!document.querySelector("#submitted-documents a[target=_blank]")'), 'private view link');
+                assert.equal(await evaluate('document.querySelectorAll("input[type=file]").length'), 0);
+                assert.equal(await evaluate('fetch(document.querySelector("#submitted-documents a[target=_blank]").href).then(r=>r.ok)'), true);
+                await screenshot(role + '-documents-mobile');
+                await click('nav[aria-label="Account settings categories"] a[href="#contact-details"]');
+                await until(() => evaluate('document.body.innerText.includes("Send verification code")'), 'contact view');
+                assert.equal(await evaluate('document.querySelectorAll("#contact-details input").length'), 0);
+                assert.equal(await evaluate('document.body.innerText.includes("Delete account")'), false);
+                await screenshot(role + '-contact-mobile');
+                await evaluate('document.documentElement.classList.add("dark")');
+                await screenshot(role + '-contact-dark-mobile');
+                await evaluate('document.documentElement.classList.remove("dark")');
+                await navigate('/settings/password');
+                assert.equal(await evaluate('!!document.querySelector("#current_password")'), true);
+                await screenshot(role + '-password-mobile');
+                await navigate('/settings/addresses');
+                await until(() => evaluate('document.body.innerText.includes("Registration")'), 'saved addresses');
+                assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true);
+                await screenshot(role + '-addresses-mobile');
+                record(role + ' shared settings', 'Read-only personal details, private document download, gated contact fields, no ID replacement/deletion, password and saved addresses; responsive 320/768/1440');
+                await viewport(1440, 1000);
+            }
+            assert.deepEqual(runtimeErrors, []);
+            fs.writeFileSync(path.join(output, 'shared-settings-results.json'), JSON.stringify({ checks, runtimeErrors }, null, 2));
+            return;
+        }
         await navigate('/settings/account');
         await until(() => evaluate('document.body.innerText.includes("Carla")'), 'settings load');
         await screenshot('personal-details-desktop');
@@ -293,7 +371,7 @@ async function until(predicate, label) {
         await navigate('/login');
         await set('input[type=email]', 'review@example.test');
         await set('input[type=password]', 'Browser@2026');
-        await click('button[type=submit]');
+        await click('form:has(input[type=password]) button[type=submit]');
         await until(() => evaluate('location.pathname !== "/login"'), 'login complete');
         await navigate('/admin/change-requests');
         await until(() => evaluate('document.body.innerText.includes("Proposed values")'), 'admin queue');

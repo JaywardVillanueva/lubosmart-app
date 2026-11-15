@@ -221,7 +221,8 @@ export default function Addresses({ addresses, registrationAddressId }: { addres
                                 </p>
                                 {address.id === registrationAddressId && (
                                     <p className="text-muted-foreground mt-3 text-xs">
-                                        This address is also used in your registration application. Editing it updates that address too.
+                                        This registered address is protected. Add a separate delivery address; use your existing registration
+                                        correction process for changes.
                                     </p>
                                 )}
                                 <div className="mt-4 flex flex-wrap gap-2">
@@ -246,6 +247,7 @@ export default function Addresses({ addresses, registrationAddressId }: { addres
                                         className={secondaryClass}
                                         disabled={busy || form.processing}
                                         onClick={() => start(address)}
+                                        hidden={address.id === registrationAddressId}
                                     >
                                         <Pencil className="size-4" />
                                         Edit address

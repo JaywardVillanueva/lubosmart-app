@@ -1,12 +1,14 @@
 import EmailCodeConfirmation from '@/components/auth/email-code-confirmation';
-import DeleteUser from '@/components/settings/delete-user';
+import InputError from '@/components/auth/input-error';
 import PersonalDetails from '@/components/settings/personal-details';
+import RegisteredAddress from '@/components/settings/registered-address';
 import { SettingsSections, roleSettingsItems } from '@/components/settings/settings-sections';
 import { Badge, Card, Field, Page, secondaryClass } from '@/components/shared/marketplace-ui';
 import ValidatedForm from '@/components/shared/validated-form';
 import { Button } from '@/components/ui/button';
 import type { SharedData } from '@/types';
-import { Link, useForm, usePage } from '@inertiajs/react';
+import { Link, router, useForm, usePage } from '@inertiajs/react';
+import { ExternalLink, FileText } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 const riderCategories = [
@@ -16,6 +18,7 @@ const riderCategories = [
     { id: 'submitted-documents', title: 'Submitted documents' },
     { id: 'contact-details', title: 'Contact and security' },
 ];
+const buyerCategories = riderCategories.filter((item) => item.id !== 'rider-details');
 const riderDocumentLabels: Record<string, string> = {
     identity: 'Government-issued ID',
     license: 'Driver’s license',
@@ -36,8 +39,9 @@ export default function OperationalProfile({
     requiredDocuments = [],
     bankAccount,
     sensitiveConfirmed,
-    googleOnly,
     documents,
+    googleConnected = false,
+    status,
 }: {
     personalDetails: Record<string, string | null>;
     registeredAddress: Record<string, string | null>;
@@ -50,11 +54,14 @@ export default function OperationalProfile({
     bankAccount: string | null;
     sensitiveConfirmed: boolean;
     googleOnly: boolean;
-    documents: { id: number; kind: string }[];
+    googleConnected?: boolean;
+    status?: string;
+    documents: { id: number; kind: string; url: string }[];
 }) {
     const { auth } = usePage<SharedData>().props;
+    const buyer = auth.user.role === 'buyer';
     const seller = auth.user.role === 'seller';
-    const categories = seller ? sellerCategories : riderCategories;
+    const categories = buyer ? buyerCategories : seller ? sellerCategories : riderCategories;
     const sellerDocumentLabels: Record<string, string> = {
         identity: 'Government-issued ID',
         business_permit: 'Business permit',
@@ -69,7 +76,9 @@ export default function OperationalProfile({
                   sellerDocumentLabels[kind] ?? kind.replaceAll('_', ' '),
               ]),
           )
-        : riderDocumentLabels;
+        : buyer
+          ? { identity: 'Government-issued ID' }
+          : riderDocumentLabels;
     const [category, setCategory] = useState('personal-information');
     useEffect(() => {
         const update = () => {
@@ -87,11 +96,10 @@ export default function OperationalProfile({
         bank_account: bankAccount ?? '',
         ...(seller && businessName ? { business_name: businessName } : {}),
         ...(plateNumber ? { plate_number: plateNumber } : {}),
-        current_password: '',
-        identity: null as File | null,
         _method: 'patch',
     });
-    const editing = ['rider-details', 'business-details', 'submitted-documents', 'contact-details'].includes(category);
+    const [refreshingDocuments, setRefreshingDocuments] = useState(false);
+    const editing = ['rider-details', 'business-details', 'contact-details'].includes(category);
     const details = (values: Record<string, string | null>) => (
         <dl className="grid gap-4 sm:grid-cols-2">
             {Object.entries(values).map(([label, value]) => (
@@ -104,26 +112,27 @@ export default function OperationalProfile({
     );
     return (
         <Page
-            title={seller ? 'Seller settings' : 'Rider settings'}
+            title={buyer ? 'Buyer settings' : seller ? 'Seller settings' : 'Rider settings'}
             description={
                 seller
                     ? 'Your registration, store and bank details, contact information, and account security.'
                     : 'Your registration details, delivery contact information, and account security.'
             }
         >
+            {status && (
+                <p role="status" className="text-primary text-sm">
+                    {status}
+                </p>
+            )}
             <SettingsSections items={roleSettingsItems(auth.user.role)}>
                 <div id={category} tabIndex={-1} className="min-w-0 flex-1 scroll-mt-28 space-y-6">
                     <Card>
                         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
                             <h2 className="text-lg font-semibold">{categories.find((item) => item.id === category)?.title}</h2>
-                            <Badge status={auth.user.status} />
+                            {!['personal-information', 'contact-details'].includes(category) && <Badge status={auth.user.status} />}
                         </div>
                         {category === 'personal-information' && (
                             <div className="space-y-4">
-                                <p className="text-muted-foreground text-sm">
-                                    Your submitted personal information. Contact {seller ? 'support' : 'your logistics company'} if your registration
-                                    needs correction.
-                                </p>
                                 <PersonalDetails
                                     firstName={personalDetails['First name']}
                                     middleInitial={personalDetails['Middle initial (optional)']}
@@ -136,7 +145,7 @@ export default function OperationalProfile({
                         )}
                         {category === 'registered-address' && (
                             <div className="space-y-4">
-                                {details(registeredAddress)}
+                                <RegisteredAddress details={registeredAddress} />
                                 <Link href="/settings/addresses" className={secondaryClass}>
                                     Manage addresses
                                 </Link>
@@ -165,10 +174,21 @@ export default function OperationalProfile({
                                     {Object.entries(documentLabels).map(([kind, label]) => {
                                         const document = documents.find((item) => item.kind === kind);
                                         return (
-                                            <li key={kind} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3">
-                                                <span className="text-sm">{label}</span>
+                                            <li key={kind} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4">
+                                                <span className="flex min-w-0 items-center gap-3 text-sm font-medium">
+                                                    <FileText aria-hidden="true" className="text-primary size-5 shrink-0" />
+                                                    {label}
+                                                </span>
                                                 {document ? (
-                                                    <span className="text-sm">Submitted</span>
+                                                    <a
+                                                        href={document.url}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        className="text-primary focus-visible:ring-ring inline-flex min-h-11 items-center gap-2 rounded text-sm font-medium underline focus-visible:ring-2"
+                                                    >
+                                                        View document <ExternalLink aria-hidden="true" className="size-4" />
+                                                        <span className="sr-only"> (opens in a new tab)</span>
+                                                    </a>
                                                 ) : (
                                                     <span className="text-muted-foreground text-sm">Not submitted</span>
                                                 )}
@@ -176,19 +196,39 @@ export default function OperationalProfile({
                                         );
                                     })}
                                 </ul>
-                                <p className="text-muted-foreground text-xs">
-                                    Registration documents remain private.{' '}
-                                    {seller
-                                        ? 'Contact support for business document corrections.'
-                                        : 'Contact Logistics for license or vehicle document corrections.'}
+                                <p className="text-muted-foreground text-sm">
+                                    Private document links expire after five minutes. Refresh links before opening an expired document.
                                 </p>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    disabled={refreshingDocuments}
+                                    onClick={() => {
+                                        setRefreshingDocuments(true);
+                                        router.reload({ only: ['documents'], onFinish: () => setRefreshingDocuments(false) });
+                                    }}
+                                >
+                                    {refreshingDocuments ? 'Refreshing links...' : 'Refresh document links'}
+                                </Button>
                             </div>
                         )}
-                        {editing && (
+                        {category === 'contact-details' && (
+                            <div className="mb-6 space-y-4">
+                                <p className="text-sm">
+                                    Verify a code sent to your current registered email before changing email or contact number.
+                                </p>
+                                <EmailCodeConfirmation purpose="profile" confirmed={sensitiveConfirmed} compact />
+                                <p className="text-muted-foreground text-sm break-words">
+                                    Current email: {auth.user.email} / Contact: {auth.user.phone || 'Not provided'}
+                                </p>
+                                {googleConnected && <p className="text-muted-foreground text-sm">Google connected</p>}
+                            </div>
+                        )}
+                        {editing && (category !== 'contact-details' || sensitiveConfirmed) && (
                             <div className="space-y-6">
-                                <EmailCodeConfirmation purpose="profile" confirmed={sensitiveConfirmed} />
+                                {category !== 'contact-details' && <EmailCodeConfirmation purpose="profile" confirmed={sensitiveConfirmed} />}
                                 <ValidatedForm
-                                    className="space-y-4"
+                                    className="max-w-3xl space-y-4"
                                     aria-busy={form.processing}
                                     onSubmit={(event) => {
                                         event.preventDefault();
@@ -196,7 +236,6 @@ export default function OperationalProfile({
                                             name: category === 'contact-details' ? values.name : auth.user.name,
                                             email: category === 'contact-details' ? values.email : auth.user.email,
                                             ...(category === 'contact-details' ? { phone: values.phone } : {}),
-                                            current_password: values.current_password,
                                             _method: values._method,
                                             ...(category === 'rider-details'
                                                 ? { bank_account: values.bank_account, ...(plateNumber ? { plate_number: values.plate_number } : {}) }
@@ -207,13 +246,12 @@ export default function OperationalProfile({
                                                       ...(businessName ? { business_name: values.business_name } : {}),
                                                   }
                                                 : {}),
-                                            ...(category === 'submitted-documents' ? { identity: values.identity } : {}),
                                         }));
                                         form.post('/settings/profile', {
                                             forceFormData: true,
                                             preserveScroll: true,
                                             onSuccess: () => {
-                                                form.reset('current_password', 'identity');
+                                                form.clearErrors();
                                             },
                                         });
                                     }}
@@ -222,18 +260,6 @@ export default function OperationalProfile({
                                         <legend className="sr-only">Update {categories.find((item) => item.id === category)?.title}</legend>
                                         {category === 'contact-details' && (
                                             <>
-                                                <Field
-                                                    id="name"
-                                                    label="Display name"
-                                                    autoComplete="name"
-                                                    required
-                                                    maxLength={160}
-                                                    minLength={2}
-                                                    pattern={"(?=(?:[^\\p{L}]*\\p{L}){2})[\\p{L}\\p{M} .'\\-]+"}
-                                                    value={form.data.name}
-                                                    onChange={(event) => form.setData('name', event.target.value)}
-                                                    error={form.errors.name}
-                                                />
                                                 <Field
                                                     id="email"
                                                     label="Email address"
@@ -291,31 +317,7 @@ export default function OperationalProfile({
                                                 />
                                             </>
                                         )}
-                                        {category === 'submitted-documents' && (
-                                            <>
-                                                <Field
-                                                    label="Replace photo ID (JPG, PNG or PDF, up to 5 MB)"
-                                                    type="file"
-                                                    accept="image/jpeg,image/png,application/pdf"
-                                                    onChange={(event) => form.setData('identity', event.target.files?.[0] ?? null)}
-                                                    error={form.errors.identity}
-                                                />
-                                                <p className="text-muted-foreground text-sm">
-                                                    Replacing your ID sends your account back to {seller ? 'admin' : 'your logistics company'} for
-                                                    approval.
-                                                </p>
-                                            </>
-                                        )}
-                                        {!googleOnly && (
-                                            <Field
-                                                label="Current password (or confirm an email code above)"
-                                                type="password"
-                                                autoComplete="current-password"
-                                                value={form.data.current_password}
-                                                onChange={(event) => form.setData('current_password', event.target.value)}
-                                                error={form.errors.current_password}
-                                            />
-                                        )}
+                                        <InputError message={(form.errors as Record<string, string>).code} />
                                         <Button disabled={form.processing}>{form.processing ? 'Saving…' : 'Save changes'}</Button>
                                         {form.recentlySuccessful && (
                                             <p role="status" className="text-primary text-sm">
@@ -327,12 +329,11 @@ export default function OperationalProfile({
                             </div>
                         )}
                         {category === 'contact-details' && (
-                            <Link className={`${secondaryClass} mt-5`} href="/settings/password">
+                            <Link className="text-primary mt-5 inline-flex min-h-11 items-center underline" href="/settings/password">
                                 Change password
                             </Link>
                         )}
                     </Card>
-                    {category === 'contact-details' && <DeleteUser />}
                 </div>
             </SettingsSections>
         </Page>

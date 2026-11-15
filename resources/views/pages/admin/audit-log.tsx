@@ -1,8 +1,9 @@
+import AutoFilterForm from '@/components/shared/auto-filter-form';
+import { FilterToolbar } from '@/components/shared/filter-toolbar';
 import { InfoModal } from '@/components/shared/info-modal';
-import { Badge, buttonClass, Card, Empty, Field, Page, Pager, secondaryClass, Select, type Pagination } from '@/components/shared/marketplace-ui';
-import ValidatedForm from '@/components/shared/validated-form';
+import { Badge, Card, Empty, Field, Page, Pager, Select, type Pagination } from '@/components/shared/marketplace-ui';
 import { activityAction, activityDate, activityDescription, activitySubject, titleCase } from '@/lib/admin-display';
-import { Link, useForm } from '@inertiajs/react';
+import { useForm } from '@inertiajs/react';
 import { History } from 'lucide-react';
 type AuditEvent = {
     id: number;
@@ -28,35 +29,52 @@ export default function AuditLog({
     const form = useForm({ action: filters.action ?? '', search: filters.search ?? '' });
     return (
         <Page title="Activity History" description="A record of registration decisions, account access, and platform changes.">
-            <Card>
-                <ValidatedForm
-                    className="grid items-end gap-4 sm:grid-cols-[1fr_220px_auto_auto]"
+            <Card className="!p-4">
+                <AutoFilterForm
+                    processing={form.processing}
+                    cancel={form.cancel}
+                    className="relative"
                     onSubmit={(event) => {
                         event.preventDefault();
-                        form.get('/admin/audit-log');
+                        form.get('/admin/audit-log', { preserveState: true, preserveScroll: true, replace: true });
                     }}
                 >
-                    <Field
-                        label="Search Activity"
-                        placeholder="Name, email, listing or conversation"
-                        value={form.data.search}
-                        onChange={(event) => form.setData('search', event.target.value)}
-                    />
-                    <Select label="Action" value={form.data.action} onChange={(event) => form.setData('action', event.target.value)}>
-                        <option value="">All Actions</option>
-                        {actions.map((action) => (
-                            <option key={action} value={action}>
-                                {activityAction(action)}
-                            </option>
-                        ))}
-                    </Select>
-                    <button className={buttonClass} disabled={form.processing}>
-                        Apply Filters
-                    </button>
-                    <Link href="/admin/audit-log" className={secondaryClass}>
-                        Reset
-                    </Link>
-                </ValidatedForm>
+                    <FilterToolbar
+                        hasErrors={Object.keys(form.errors).length > 0}
+                        primary={
+                            <Field
+                                reserveFeedback={false}
+                                label="Search Activity"
+                                placeholder="Name, email, listing or conversation"
+                                value={form.data.search}
+                                onChange={(event) => form.setData('search', event.target.value)}
+                            />
+                        }
+                        activeFilters={[
+                            { key: 'search', label: 'Search', value: form.data.search ?? '', onRemove: () => form.setData('search', '') },
+                            {
+                                key: 'action',
+                                label: 'Action',
+                                value: form.data.action ? activityAction(form.data.action) : '',
+                                onRemove: () => form.setData('action', ''),
+                            },
+                        ].filter((filter) => !!filter.value)}
+                    >
+                        <Select
+                            reserveFeedback={false}
+                            label="Action"
+                            value={form.data.action}
+                            onChange={(event) => form.setData('action', event.target.value)}
+                        >
+                            <option value="">All Actions</option>
+                            {actions.map((action) => (
+                                <option key={action} value={action}>
+                                    {activityAction(action)}
+                                </option>
+                            ))}
+                        </Select>
+                    </FilterToolbar>
+                </AutoFilterForm>
             </Card>
             {events.data.length ? (
                 <Card className="!py-2">

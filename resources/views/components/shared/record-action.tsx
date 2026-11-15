@@ -24,6 +24,7 @@ export default function RecordAction({
     method = 'post',
     fields,
     action,
+    forceDialog = false,
 }: {
     title: string;
     description: string;
@@ -31,6 +32,7 @@ export default function RecordAction({
     method?: 'post' | 'patch';
     fields: ActionField[];
     action?: string;
+    forceDialog?: boolean;
 }) {
     const form = useForm<Record<string, string>>(Object.fromEntries(fields.map((field) => [field.key, field.value ?? ''])));
     const { auth } = usePage<SharedData>().props;
@@ -92,7 +94,7 @@ export default function RecordAction({
             </button>
         </ValidatedForm>
     );
-    if (auth.user.role !== 'admin')
+    if (auth.user.role !== 'admin' || forceDialog)
         return (
             <Dialog
                 open={open}

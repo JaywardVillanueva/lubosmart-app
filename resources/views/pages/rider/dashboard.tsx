@@ -1,7 +1,7 @@
 ﻿import { LogisticsCharts } from '@/components/logistics/logistics-charts';
 import RiderNavigation from '@/components/rider/rider-navigation';
 import { Badge, buttonClass, Card, Empty, money, Page, secondaryClass } from '@/components/shared/marketplace-ui';
-import { DashboardMetric } from '@/components/workspace/dashboard-panels';
+import { DashboardMetric, DashboardWelcome } from '@/components/workspace/dashboard-panels';
 import type { SharedData } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
 import { ClipboardCheck, MapPinned, MessageCircle, PackageCheck, PackageOpen, Truck, Wallet } from 'lucide-react';
@@ -56,48 +56,39 @@ export default function RiderDashboard({
     ];
     return (
         <Page title="Rider dashboard" headerInNavbar description="Your assigned parcels, delivery proof, and COD responsibilities.">
-            <section
-                aria-label="Welcome and priorities"
-                className="border-primary/15 from-accent via-card to-background rounded-2xl border bg-linear-to-br p-6 sm:p-8"
+            <DashboardWelcome
+                label="My delivery overview"
+                title={'Welcome back, ' + auth.user.name.trim().split(/\s+/)[0] + '.'}
+                description="Check your pickups, accept handovers, and complete each delivery with proof."
+                context={companyName || 'Your logistics company'}
+                icon={Truck}
             >
-                <div className="grid items-center gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-                    <div className="min-w-0">
-                        <p className="text-primary text-xs font-semibold tracking-widest uppercase">My delivery overview</p>
-                        <h2 className="mt-3 text-2xl font-semibold tracking-tight break-words sm:text-3xl">
-                            Welcome back, {auth.user.name.trim().split(/\s+/)[0]}.
-                        </h2>
-                        <p className="text-muted-foreground mt-3 text-sm">{companyName || 'Your logistics company'}</p>
-                        <p className="text-muted-foreground mt-2 text-sm leading-relaxed">
-                            Check your assigned pickups, accept dispatch handovers, and complete each delivery with proof.
-                        </p>
-                        <div className="mt-5 flex flex-wrap gap-3">
-                            <Link href="/deliveries" className={buttonClass}>
-                                My deliveries
-                            </Link>
-                            <Link href="/reports" className={secondaryClass}>
-                                Delivery reports
-                            </Link>
-                        </div>
-                    </div>
-                    <div className="bg-card/90 rounded-xl border p-5">
-                        <h3 className="text-sm font-semibold">Needs attention</h3>
-                        <p className="text-muted-foreground mt-1 text-xs">Your current tasks</p>
-                        <ul className="mt-3 divide-y">
-                            {[...cards.slice(0, 2), { label: 'COD handovers', value: queues.cash, href: '/deliveries?stage=cash' }].map((item) => (
-                                <li key={item.label}>
-                                    <Link
-                                        href={item.href}
-                                        className="hover:text-primary focus-visible:ring-ring flex min-h-11 items-center justify-between gap-3 rounded px-1 text-sm focus-visible:ring-2"
-                                    >
-                                        <span>{item.label}</span>
-                                        <span className="font-semibold tabular-nums">{item.value.toLocaleString()}</span>
-                                    </Link>
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
+                <div className="flex flex-wrap gap-3">
+                    <Link href="/deliveries" className={buttonClass}>
+                        My deliveries
+                    </Link>
+                    <Link href="/reports" className={secondaryClass}>
+                        Delivery reports
+                    </Link>
                 </div>
-            </section>
+            </DashboardWelcome>
+            <div className="workspace-priorities bg-card rounded-xl border p-5">
+                <h3 className="text-sm font-semibold">Needs attention</h3>
+                <p className="text-muted-foreground mt-1 text-xs">Your current tasks</p>
+                <ul className="mt-3 divide-y">
+                    {[...cards.slice(0, 2), { label: 'COD handovers', value: queues.cash, href: '/deliveries?stage=cash' }].map((item) => (
+                        <li key={item.label}>
+                            <Link
+                                href={item.href}
+                                className="hover:text-primary focus-visible:ring-ring flex min-h-11 items-center justify-between gap-3 rounded px-1 text-sm focus-visible:ring-2"
+                            >
+                                <span>{item.label}</span>
+                                <span className="font-semibold tabular-nums">{item.value.toLocaleString()}</span>
+                            </Link>
+                        </li>
+                    ))}
+                </ul>
+            </div>
             <RiderNavigation />
             <section aria-label="My parcel workload" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 {cards.map((card) => (

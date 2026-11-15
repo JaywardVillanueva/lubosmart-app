@@ -41,6 +41,10 @@ function componentModule(filename) {
                 };
             if (name === 'lucide-react') return new Proxy({}, { get: () => () => null });
             if (name === '@/lib/registration-validation') return validationModule();
+            if (name === '@/components/auth/registration-progress')
+                return componentModule('resources/views/components/auth/registration-progress.tsx').exports;
+            if (name === '@/components/auth/registration-footer')
+                return componentModule('resources/views/components/auth/registration-footer.tsx').exports;
             if (name.startsWith('@/')) return { default: () => null };
             if (name === '@inertiajs/react') return {};
             return require(name);
@@ -57,6 +61,7 @@ function componentModule(filename) {
 
 function elements(element) {
     if (!element || typeof element !== 'object') return [];
+    if (['RegistrationProgress', 'RegistrationFooter'].includes(element.type?.name)) return elements(element.type(element.props));
     const children = element.props?.children;
     return [element, ...(Array.isArray(children) ? children.flat(Infinity) : [children]).flatMap(elements)];
 }
@@ -179,6 +184,7 @@ function registrationForm(role, processing = false) {
             if (name === '@inertiajs/react') return inertia;
             if (name === 'react')
                 return {
+                    useEffect() {},
                     useState: (initial) => {
                         const index = stateCursor++;
                         if (!(index in states)) states[index] = initial;
@@ -207,12 +213,17 @@ function registrationForm(role, processing = false) {
                 return { default: () => null, Upload: () => null, emptyCompanyDetails: defaults, emptySellerDetails: defaults };
             if (name === '@/lib/registration-validation') return validationModule();
             if (name === '@/hooks/use-auth-request-feedback') return { useAuthRequestFeedback: () => ({ requestError: '', setRequestError() {} }) };
+            if (name === '@/components/auth/registration-progress')
+                return componentModule('resources/views/components/auth/registration-progress.tsx').exports;
+            if (name === '@/components/auth/registration-footer')
+                return componentModule('resources/views/components/auth/registration-footer.tsx').exports;
             if (name.startsWith('@/')) return { default: () => null };
             return require(name);
         },
         route: (name) => '/' + name,
         requestAnimationFrame: (callback) => callback(),
         Intl,
+        File,
     });
     const render = () => {
         stateCursor = 0;
@@ -279,9 +290,9 @@ test('Rider choice submits public signup and explains Logistics approval', () =>
         .props.onChange();
     const rider = form.render();
     assert.ok(elements(rider).some((element) => element.props?.name === 'phone' && element.props.value === '' && element.props.phonePrefix));
-    assert.ok(elements(rider).some((element) => element.props?.['aria-label'] === 'Rider registration progress'));
+    assert.ok(elements(rider).some((element) => element.props?.['aria-label'] === 'Registration progress'));
     assert.ok(elements(rider).some((element) => element.props?.name === 'birthday'));
-    assert.equal(elements(rider).filter((element) => element.type === 'button' && element.props.type === 'submit').length, 1);
+    assert.equal(elements(rider).filter((element) => element.type === 'button' && element.props.type === 'submit').length, 0);
     rider.props.onSubmit({ preventDefault() {} });
     assert.equal(form.posts.length, 0);
     assert.equal(form.focus[0], '[name="first_name"]');

@@ -1,20 +1,26 @@
-import AppWordmark from '@/components/branding/app-wordmark';
 import ParcelBarcode from '@/components/logistics/parcel-barcode';
 import ParcelQrCode from '@/components/logistics/parcel-qr-code';
 import { notify, useConfirmAction } from '@/components/shared/action-feedback';
 import { buttonClass, money, secondaryClass } from '@/components/shared/marketplace-ui';
-import { assets } from '@/config/assets';
 import type { SharedData } from '@/types';
 import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import { Printer } from 'lucide-react';
+import '../../../css/waybill.css';
 import { type SellerOrder } from './orders';
 
 export default function Waybill({ order }: { order: SellerOrder }) {
     const confirm = useConfirmAction();
     const { auth } = usePage<SharedData>().props;
     const print = useForm({ packages: 1, request_key: crypto.randomUUID() });
+    const pickup = order.shipping_quote?.pickup_address ?? order.store.pickup_address;
+    const reference = order.delivery?.tracking_reference;
+    const quantity = order.items.reduce((sum, item) => sum + item.quantity, 0);
+    const orderDate = new Date(order.order.created_at);
+    const formattedDate = Number.isNaN(orderDate.getTime())
+        ? 'Not available'
+        : orderDate.toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'Asia/Manila' });
     return (
-        <main className="mx-auto max-w-2xl p-5 sm:p-10">
+        <main className="waybill-page mx-auto max-w-2xl p-4 sm:p-8">
             <Head title={`Waybill ${order.id}`} />
             <div className="mb-6 flex flex-wrap justify-between gap-3 print:hidden">
                 <Link href="/orders" className={secondaryClass}>
@@ -55,51 +61,100 @@ export default function Waybill({ order }: { order: SellerOrder }) {
                     {error}
                 </p>
             ))}
-            <article className="rounded-2xl border bg-white p-5 text-gray-900 sm:p-8 print:rounded-none print:border-0 print:p-0">
-                <header className="flex flex-wrap items-center justify-between gap-3 border-b pb-6">
-                    <div className="flex items-center gap-3">
-                        <img src={assets.brand.logo} alt="" className="size-10" />
-                        <AppWordmark className="text-xl [--app-wordmark-color:#000]" />
+            <article className="shipping-label" aria-label={`Shipping label for parcel ${order.id}`}>
+                <header className="shipping-label-header">
+                    <span className="shipping-label-brand">LubosMart</span>
+                    <div>
+                        <span className="shipping-label-caption">Parcel ID</span>
+                        <strong>#{order.id}</strong>
                     </div>
-                    <span className="text-sm">COD · Parcel #{order.id}</span>
                 </header>
-                {order.delivery?.tracking_reference && <ParcelBarcode reference={order.delivery.tracking_reference} />}
-                {order.delivery?.tracking_reference && <ParcelQrCode reference={order.delivery.tracking_reference} />}
-                <div className="py-6">
-                    <p className="text-xs tracking-widest text-gray-500 uppercase">Ship to</p>
-                    <h1 className="mt-3 text-2xl font-semibold">{order.order.shipping_recipient_name}</h1>
-                    <p className="mt-3 leading-relaxed">
-                        {order.order.shipping_line1}
-                        <br />
-                        {order.order.shipping_barangay}, {order.order.shipping_city}
-                        <br />
-                        {order.order.shipping_province}
-                    </p>
-                    <p className="mt-3">{order.order.shipping_phone}</p>
+                <div className="shipping-label-order">
+                    <div>
+                        <span className="shipping-label-caption">Order ID</span>
+                        <strong>#{order.order_id}</strong>
+                    </div>
+                    <span className="shipping-label-service">COD</span>
                 </div>
-                <div className="border-y py-5">
-                    <p className="text-xs text-gray-500">Sender store</p>
-                    <p className="mt-1 font-semibold">{order.store.name}</p>
-                    <p className="mt-2 text-sm">
-                        Order #{order.order_id} · {order.items.reduce((sum, item) => sum + item.quantity, 0)} items
-                    </p>
+                {reference ? (
+                    <div className="shipping-label-barcode">
+                        <ParcelBarcode reference={reference} />
+                    </div>
+                ) : (
+                    <p className="shipping-label-section">Tracking reference not yet assigned.</p>
+                )}
+                <section>
+                    <h2 className="shipping-label-heading">Buyer (to)</h2>
+                    <div className="shipping-label-section">
+                        <div className="shipping-label-contact">
+                            <h1>{order.order.shipping_recipient_name}</h1>
+                            <span>{order.order.shipping_phone}</span>
+                        </div>
+                        <p>
+                            {[order.order.shipping_line1, order.order.shipping_barangay, order.order.shipping_city, order.order.shipping_province]
+                                .filter(Boolean)
+                                .join(', ')}
+                        </p>
+                    </div>
+                </section>
+                <section>
+                    <h2 className="shipping-label-heading">Seller (from)</h2>
+                    <div className="shipping-label-section">
+                        <div className="shipping-label-contact">
+                            <strong>{order.store.name}</strong>
+                            {pickup?.phone && <span>{pickup.phone}</span>}
+                        </div>
+                        <p>
+                            {pickup
+                                ? [pickup.line1, pickup.barangay, pickup.city, pickup.province].filter(Boolean).join(', ')
+                                : 'Pickup address not available'}
+                        </p>
+                    </div>
+                </section>
+                <div className="shipping-label-details">
+                    {reference && (
+                        <div className="shipping-label-qr">
+                            <ParcelQrCode reference={reference} />
+                        </div>
+                    )}
+                    <dl className="shipping-label-facts">
+                        <div>
+                            <dt>Quantity</dt>
+                            <dd>
+                                {quantity} {quantity === 1 ? 'item' : 'items'}
+                            </dd>
+                        </div>
+                        <div>
+                            <dt>Weight</dt>
+                            <dd>
+                                {order.shipping_weight_grams != null ? `${order.shipping_weight_grams.toLocaleString('en-PH')} g` : 'Not recorded'}
+                            </dd>
+                        </div>
+                        <div>
+                            <dt>Order date</dt>
+                            <dd>{formattedDate}</dd>
+                        </div>
+                    </dl>
                 </div>
-                <ul className="my-5 space-y-2 text-sm">
-                    {order.items.map((item) => (
-                        <li key={item.id}>
-                            {item.quantity} × {item.product_name}
-                            {item.variant_name && ` · ${item.variant_name}`}
-                        </li>
-                    ))}
-                </ul>
-                <div className="rounded-xl bg-gray-100 p-5">
-                    <p className="text-xs tracking-widest uppercase">Collect from recipient</p>
-                    <p className="mt-2 text-3xl font-semibold">{money(Number(order.subtotal) + Number(order.shipping_fee))}</p>
-                    <p className="mt-2 text-xs text-gray-500">Includes the delivery fee for this parcel.</p>
-                </div>
-                <footer className="mt-7 text-xs text-gray-500">
-                    Internal LubosMart waybill · Keep this label with the parcel. Record delivery and cash collection in the rider workspace.
-                </footer>
+                <section className="shipping-label-collection">
+                    <div>
+                        <h2>COD · Collect from recipient</h2>
+                        <p>Includes delivery fee</p>
+                    </div>
+                    <strong>{money(Number(order.subtotal) + Number(order.shipping_fee))}</strong>
+                </section>
+                <section className="shipping-label-items">
+                    <h2>Parcel contents</h2>
+                    <ul>
+                        {order.items.map((item) => (
+                            <li key={item.id}>
+                                {item.quantity} × {item.product_name}
+                                {item.variant_name && ` · ${item.variant_name}`}
+                            </li>
+                        ))}
+                    </ul>
+                </section>
+                <footer className="shipping-label-footer">Internal LubosMart waybill · One label per parcel · Keep with parcel</footer>
             </article>
         </main>
     );

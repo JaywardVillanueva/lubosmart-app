@@ -1,5 +1,5 @@
 // Components
-import { Head, Link, useForm } from '@inertiajs/react';
+import { Link, useForm } from '@inertiajs/react';
 import { LoaderCircle } from 'lucide-react';
 import { useEffect, type FormEventHandler } from 'react';
 
@@ -24,20 +24,21 @@ export default function ForgotPassword({ status }: { status?: string }) {
     };
 
     return (
-        <AccountAccessLayout recovery hideBackLink title="Forgot password" description="Enter your email to receive a 6-digit password reset code.">
-            <Head title="Forgot password" />
-
-            {status && (
-                <div className="mb-4">
-                    <AuthFeedback message={status} tone="success" />
-                </div>
-            )}
+        <AccountAccessLayout
+            recovery
+            compactRecovery
+            hideBackLink
+            title="Forgot your password?"
+            description="Enter the email you signed up with and we'll send you a code to reset it."
+        >
+            <AuthFeedback message={status} tone="success" />
 
             <div className="space-y-6">
                 <form onSubmit={submit} noValidate aria-busy={processing}>
                     <div className="grid gap-2">
                         <AuthInput
-                            label="Email address"
+                            label="Email"
+                            reserveFeedback={false}
                             id="email"
                             type="email"
                             name="email"
@@ -46,29 +47,30 @@ export default function ForgotPassword({ status }: { status?: string }) {
                             error={errors.email}
                             disabled={processing}
                             value={data.email}
-                            autoFocus
+                            autoCapitalize="none"
+                            spellCheck={false}
                             onChange={(e) => {
                                 setData('email', e.target.value);
                                 clearErrors('email');
                             }}
-                            placeholder="email@example.com"
+                            placeholder="name@example.com"
                         />
                     </div>
 
                     <div className="mt-6 grid gap-3">
-                        <Button type="submit" className="w-full" disabled={processing}>
+                        <Button type="submit" className="auth-action-button" disabled={processing}>
                             {processing && <LoaderCircle className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />}
-                            {processing ? 'Sending email code…' : 'Send email code'}
+                            {processing ? 'Sending reset code…' : 'Send reset code'}
                         </Button>
-                        <Link
-                            href={route('login')}
-                            className="text-primary focus-visible:ring-ring mx-auto inline-flex min-h-11 items-center text-sm font-medium underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
-                        >
-                            Back to Login
-                        </Link>
                     </div>
                 </form>
             </div>
+            <p className="text-muted-foreground mt-4 flex flex-wrap items-center justify-center gap-x-1 text-sm">
+                Remembered it?
+                <Link href={route('login')} className="text-primary inline-flex min-h-11 items-center font-semibold hover:underline">
+                    Back to sign in
+                </Link>
+            </p>
         </AccountAccessLayout>
     );
 }

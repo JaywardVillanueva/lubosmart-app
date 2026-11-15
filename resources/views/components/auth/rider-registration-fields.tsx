@@ -144,7 +144,7 @@ export default function RiderRegistrationFields({
     );
     const locations = (items: Location[]) => items.map((item) => ({ value: item.code, label: item.name }));
     return (
-        <fieldset disabled={disabled} className="grid min-w-0 items-start gap-5 sm:grid-cols-2 xl:grid-cols-3">
+        <fieldset disabled={disabled} className="grid min-w-0 items-start gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <legend className="mb-4 font-semibold">Rider details</legend>
             {select(
                 'logistics_center_id',

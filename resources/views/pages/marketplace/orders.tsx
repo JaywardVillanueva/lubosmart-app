@@ -3,9 +3,11 @@ import SellerListFilters from '@/components/seller/list-filters';
 import SellerNavigation from '@/components/seller/seller-navigation';
 import { useConfirmAction } from '@/components/shared/action-feedback';
 import { Badge, buttonClass, Card, Empty, money, Page, Pager, Textarea, type Pagination } from '@/components/shared/marketplace-ui';
+import { openRecordSection, RecordDisclosure, RecordHeader } from '@/components/shared/record-header';
 import ValidatedForm from '@/components/shared/validated-form';
-import { Link, useForm, usePoll } from '@inertiajs/react';
-import { Check, MapPin, MessageCircle, Package, Truck } from 'lucide-react';
+import { useForm, usePoll } from '@inertiajs/react';
+import { Check, Download, Eye, FileText, History, MapPin, MessageCircle, Package, RotateCcw, Truck } from 'lucide-react';
+import { useRef } from 'react';
 
 type Message = { id: number; body: string; name: string; created_at: string };
 export type SellerOrder = {
@@ -30,6 +32,7 @@ export type SellerOrder = {
         id: number;
         status: string;
         proof_photo_path: string | null;
+        delivery_notes?: string | null;
         tracking_reference?: string | null;
         exception_status?: string | null;
         picked_up_at?: string | null;
@@ -60,6 +63,9 @@ function OrderCard({
     role: string;
     reviews: Record<string, PurchaseReview>;
 }) {
+    const detailsRef = useRef<HTMLDetailsElement>(null);
+    const historyRef = useRef<HTMLDetailsElement>(null);
+    const conversationRef = useRef<HTMLDetailsElement>(null);
     const confirm = useConfirmAction();
     const message = useForm({ body: '' });
     const cancel = useForm({});
@@ -73,39 +79,81 @@ function OrderCard({
                 ? 1
                 : 0;
     return (
-        <Card>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                    <p className="text-muted-foreground text-xs">
-                        Order #{order.order_id} / Parcel #{order.id}
-                    </p>
-                    <h2 className="mt-1 text-lg font-semibold">{order.store.name}</h2>
-                    {order.delivery?.tracking_reference && (
-                        <p className="text-muted-foreground mt-2 text-sm break-all">Tracking: {order.delivery.tracking_reference}</p>
-                    )}
-                </div>
-                <Badge
-                    label={
-                        order.status === 'shipped' && ['unassigned', 'assigned'].includes(order.delivery?.status ?? '')
-                            ? order.delivery?.status === 'assigned'
-                                ? 'Pickup rider assigned'
-                                : 'Ready for pickup'
-                            : undefined
-                    }
-                    status={
-                        ['pending', 'processing', 'completed', 'cancelled'].includes(order.status) || order.delivery?.status === 'unassigned'
-                            ? order.status
-                            : (order.delivery?.status ?? order.status)
-                    }
-                />
-            </div>
+        <Card className="!p-4 sm:!p-5">
+            <RecordHeader
+                label={`Order #${order.order_id} / Parcel #${order.id}`}
+                title={order.store.name}
+                reference={order.delivery?.tracking_reference}
+                status={
+                    <Badge
+                        label={
+                            order.status === 'shipped' && ['unassigned', 'assigned'].includes(order.delivery?.status ?? '')
+                                ? order.delivery?.status === 'assigned'
+                                    ? 'Pickup rider assigned'
+                                    : 'Ready for pickup'
+                                : undefined
+                        }
+                        status={
+                            ['pending', 'processing', 'completed', 'cancelled'].includes(order.status) || order.delivery?.status === 'unassigned'
+                                ? order.status
+                                : (order.delivery?.status ?? order.status)
+                        }
+                    />
+                }
+                onOpen={() => openRecordSection(detailsRef.current)}
+                actions={[
+                    { id: 'details', label: 'View order details', icon: Eye, onSelect: () => openRecordSection(detailsRef.current) },
+                    {
+                        id: 'history',
+                        label: 'View handover history',
+                        icon: History,
+                        visible: order.status !== 'cancelled',
+                        onSelect: () => openRecordSection(historyRef.current),
+                    },
+                    {
+                        id: 'conversation',
+                        label: 'Order conversation',
+                        icon: MessageCircle,
+                        onSelect: () => openRecordSection(conversationRef.current),
+                    },
+                    {
+                        id: 'waybill',
+                        label: 'Print waybill',
+                        icon: FileText,
+                        visible: ['seller', 'admin'].includes(role),
+                        href: '/orders/' + order.id + '/waybill',
+                    },
+                    {
+                        id: 'proof',
+                        label: 'Download delivery proof',
+                        icon: Download,
+                        visible: !!order.delivery?.proof_photo_path,
+                        href: '/deliveries/' + order.delivery?.id + '/proof',
+                        download: true,
+                    },
+                    {
+                        id: 'return',
+                        label: 'Request or follow a return',
+                        icon: RotateCcw,
+                        visible: role === 'buyer' && order.status === 'completed',
+                        href: '/returns?parcel=' + order.id,
+                    },
+                ]}
+            />
+            <p className="mt-3 line-clamp-2 text-sm [overflow-wrap:anywhere]">
+                {order.items.map((item) => item.product_name + (item.variant_name ? ' (' + item.variant_name + ')' : '')).join(', ')}
+            </p>
+            <p className="text-muted-foreground mt-1 text-xs">
+                {order.items.reduce((total, item) => total + item.quantity, 0)} items / COD{' '}
+                {money(Number(order.subtotal) + Number(order.shipping_fee))}
+            </p>
             {order.delivery?.exception_status && (
                 <p role="status" className="text-destructive mt-4 text-sm">
                     Delivery issue: {order.delivery.exception_status.replaceAll('_', ' ')}.{' '}
                     {role === 'buyer' ? 'Contact your seller or support for follow-up.' : 'Contact support or your buyer for follow-up.'}
                 </p>
             )}
-            <ol aria-label="Order progress" className={`my-6 grid grid-cols-4 gap-1 ${order.status === 'cancelled' ? 'hidden' : ''}`}>
+            <ol aria-label="Order progress" className={`my-4 grid grid-cols-4 gap-1 ${order.status === 'cancelled' ? 'hidden' : ''}`}>
                 {[order.status === 'pending' ? 'Order placed' : 'Preparing', 'Ready', 'On the way', 'Delivered'].map((label, i) => (
                     <li key={label} className="text-center">
                         <div className={`mb-2 h-1 rounded-full ${i <= stage ? 'bg-primary' : 'bg-muted'}`} />
@@ -114,8 +162,8 @@ function OrderCard({
                 ))}
             </ol>
             {order.status !== 'cancelled' && (
-                <details className="mb-6 rounded-xl border p-4">
-                    <summary className="min-h-6 cursor-pointer text-sm font-medium">Parcel handover history</summary>
+                <RecordDisclosure ref={historyRef} className="mt-3 border-t pt-2">
+                    <summary className="min-h-11 cursor-pointer text-sm font-medium">Parcel handover history</summary>
                     <p className="text-muted-foreground mt-3 text-sm">
                         Rider assignment and label printing do not confirm physical pickup. Each store sends a separate parcel.
                     </p>
@@ -140,58 +188,65 @@ function OrderCard({
                             </li>
                         ))}
                     </ol>
-                </details>
+                </RecordDisclosure>
             )}
-            <div className="grid gap-6 md:grid-cols-2">
-                <div>
-                    <ul className="space-y-3">
-                        {order.items.map((item) => (
-                            <li key={item.id} className="flex justify-between gap-3 text-sm">
-                                <span>
-                                    {item.product_name}
-                                    {item.variant_name && <span className="text-muted-foreground"> · {item.variant_name}</span>}
-                                    <span className="text-muted-foreground"> × {item.quantity}</span>
-                                </span>
-                                <span className="shrink-0">{money(Number(item.price_each) * item.quantity)}</span>
-                            </li>
-                        ))}
-                    </ul>
-                    {Number(order.discount_amount ?? 0) > 0 && (
-                        <p className="text-success mt-4 text-sm">
-                            Voucher {order.voucher_code}: −{money(order.discount_amount!)} on product sales
-                        </p>
-                    )}
-                    <div className="mt-4 flex justify-between border-t pt-3 text-sm">
-                        <span className="text-muted-foreground">Delivery fee</span>
-                        {money(order.shipping_fee)}
+            <details ref={detailsRef} className="mt-3 border-t pt-2">
+                <summary className="min-h-11 cursor-pointer text-sm font-medium">Order details</summary>
+                <div className="grid gap-6 md:grid-cols-2">
+                    <div>
+                        <ul className="space-y-3">
+                            {order.items.map((item) => (
+                                <li key={item.id} className="flex justify-between gap-3 text-sm">
+                                    <span>
+                                        {item.product_name}
+                                        {item.variant_name && <span className="text-muted-foreground"> · {item.variant_name}</span>}
+                                        <span className="text-muted-foreground"> × {item.quantity}</span>
+                                    </span>
+                                    <span className="shrink-0">{money(Number(item.price_each) * item.quantity)}</span>
+                                </li>
+                            ))}
+                        </ul>
+                        {Number(order.discount_amount ?? 0) > 0 && (
+                            <p className="text-success mt-4 text-sm">
+                                Voucher {order.voucher_code}: −{money(order.discount_amount!)} on product sales
+                            </p>
+                        )}
+                        <div className="mt-4 flex justify-between border-t pt-3 text-sm">
+                            <span className="text-muted-foreground">Delivery fee</span>
+                            {money(order.shipping_fee)}
+                        </div>
+                        <div className="mt-3 flex justify-between font-semibold">
+                            <span>Cash on delivery</span>
+                            {money(Number(order.subtotal) + Number(order.shipping_fee))}
+                        </div>
+                        {role === 'seller' && (
+                            <p className="text-muted-foreground mt-3 text-xs">
+                                Seller proceeds: {money(order.seller_proceeds)} · Commission: {money(order.commission_amount)}
+                            </p>
+                        )}
                     </div>
-                    <div className="mt-3 flex justify-between font-semibold">
-                        <span>Cash on delivery</span>
-                        {money(Number(order.subtotal) + Number(order.shipping_fee))}
-                    </div>
-                    {role === 'seller' && (
-                        <p className="text-muted-foreground mt-3 text-xs">
-                            Seller proceeds: {money(order.seller_proceeds)} · Commission: {money(order.commission_amount)}
+                    <div className="bg-background rounded-xl p-4">
+                        <p className="mb-3 flex items-center gap-2 text-sm font-semibold">
+                            <MapPin className="text-primary size-4" />
+                            Delivery details
                         </p>
-                    )}
+                        <p className="text-sm">{order.order.shipping_recipient_name}</p>
+                        {role === 'seller' ? (
+                            <p className="text-muted-foreground mt-1 text-sm">
+                                {order.order.shipping_city}, {order.order.shipping_province}. Contact the buyer through parcel messaging; use the
+                                authorized waybill for the shipping label.
+                            </p>
+                        ) : (
+                            <p className="text-muted-foreground mt-1 text-sm leading-relaxed">
+                                {order.order.shipping_line1}, {order.order.shipping_barangay}, {order.order.shipping_city},{' '}
+                                {order.order.shipping_province}
+                            </p>
+                        )}
+                        {role !== 'seller' && <p className="text-muted-foreground mt-2 text-xs">{order.order.shipping_phone}</p>}
+                    </div>
                 </div>
-                <div className="bg-background rounded-xl p-4">
-                    <p className="mb-3 flex items-center gap-2 text-sm font-semibold">
-                        <MapPin className="text-primary size-4" />
-                        Delivery details
-                    </p>
-                    <p className="text-sm">{order.order.shipping_recipient_name}</p>
-                    <p className="text-muted-foreground mt-1 text-sm leading-relaxed">
-                        {order.order.shipping_line1}, {order.order.shipping_barangay}, {order.order.shipping_city}, {order.order.shipping_province}
-                    </p>
-                    <p className="text-muted-foreground mt-2 text-xs">{order.order.shipping_phone}</p>
-                    {order.delivery?.proof_photo_path && (
-                        <a href={`/deliveries/${order.delivery.id}/proof`} className="text-primary mt-3 block text-sm underline">
-                            Download delivery proof
-                        </a>
-                    )}
-                </div>
-            </div>
+            </details>
+            {order.delivery?.delivery_notes && <p className="my-4 text-sm break-words">Delivery notes: {order.delivery.delivery_notes}</p>}
             {role === 'seller' && ['pending', 'processing'].includes(order.status) && (
                 <button
                     className={`${buttonClass} mt-5`}
@@ -203,19 +258,17 @@ function OrderCard({
                                 description: `Parcel #${order.id} from ${order.store.name}. Confirm the items and packaging before updating fulfillment.`,
                                 confirmLabel: order.status === 'pending' ? 'Start preparing' : 'Mark ready for pickup',
                             })
-                        )
+                        ) {
+                            prepare.transform(() => ({ status: order.status === 'pending' ? 'processing' : 'shipped' }));
                             prepare.patch(`/orders/${order.id}`, { preserveScroll: true });
+                        }
                     }}
                 >
                     {order.status === 'pending' ? <Package className="size-4" /> : <Truck className="size-4" />}
                     {prepare.processing ? 'Updating parcel…' : order.status === 'pending' ? 'Start preparing' : 'Mark ready for pickup'}
                 </button>
             )}
-            {['seller', 'admin'].includes(role) && (
-                <Link href={`/orders/${order.id}/waybill`} className="text-primary mt-5 ml-3 inline-flex text-sm underline">
-                    Print waybill
-                </Link>
-            )}
+
             {role === 'buyer' && order.order.status === 'pending' && (
                 <details className="mt-5">
                     <summary className="text-muted-foreground cursor-pointer text-sm">Cancel this purchase</summary>
@@ -248,11 +301,7 @@ function OrderCard({
                     Delivered successfully
                 </p>
             )}
-            {role === 'buyer' && order.status === 'completed' && (
-                <Link href={`/returns?parcel=${order.id}`} className="text-primary mt-4 inline-flex min-h-11 items-center text-sm underline">
-                    Request or follow a return
-                </Link>
-            )}
+
             {role === 'buyer' &&
                 order.status === 'completed' &&
                 order.delivery?.status === 'delivered' &&
@@ -264,8 +313,8 @@ function OrderCard({
                         review={reviews[item.id]}
                     />
                 ))}
-            <details className="mt-6 border-t pt-5">
-                <summary className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+            <RecordDisclosure ref={conversationRef} className="mt-6 border-t pt-5">
+                <summary className="flex min-h-11 cursor-pointer items-center gap-2 text-sm font-medium">
                     <MessageCircle className="text-primary size-4" />
                     Order conversation ({messages.length})
                 </summary>
@@ -307,7 +356,7 @@ function OrderCard({
                         </ValidatedForm>
                     )}
                 </div>
-            </details>
+            </RecordDisclosure>
         </Card>
     );
 }
@@ -347,13 +396,7 @@ export default function Orders({
             {orders.data.length ? (
                 <div className="space-y-5">
                     {orders.data.map((order) => (
-                        <OrderCard
-                            key={`${order.id}-${order.status}`}
-                            order={order}
-                            messages={messages[order.id] ?? []}
-                            role={role}
-                            reviews={reviews}
-                        />
+                        <OrderCard key={order.id} order={order} messages={messages[order.id] ?? []} role={role} reviews={reviews} />
                     ))}
                 </div>
             ) : (

@@ -12,6 +12,7 @@ export type ProductCardData = {
     image_url?: string | null;
     stock?: number;
     seller?: string;
+    categoryLabel?: string;
     sample?: boolean;
     originalPrice?: string | null;
     rating?: number | null;
@@ -21,7 +22,17 @@ export type ProductCardData = {
     reviews_count?: number;
 };
 
-export default function ProductCard({ product, saved = false }: { product: ProductCardData; saved?: boolean }) {
+export default function ProductCard({
+    product,
+    saved = false,
+    compact = false,
+    listView = false,
+}: {
+    product: ProductCardData;
+    saved?: boolean;
+    compact?: boolean;
+    listView?: boolean;
+}) {
     const { auth } = usePage<SharedData>().props;
     const [failedImage, setFailedImage] = useState<string | null>(null);
     const [feedback, setFeedback] = useState('');
@@ -41,10 +52,42 @@ export default function ProductCard({ product, saved = false }: { product: Produ
     const discounted =
         live && Number(product.price) >= 0 && Number.isFinite(Number(product.originalPrice)) && Number(product.originalPrice) > Number(product.price);
     const discount = discounted ? Math.round((1 - Number(product.price) / Number(product.originalPrice)) * 100) : 0;
-    const iconClass =
-        'bg-card/95 text-primary hover:bg-accent focus-visible:ring-ring absolute top-3 right-3 flex size-11 items-center justify-center rounded-full shadow-sm focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50';
+    const iconClass = compact
+        ? 'bg-card/95 text-primary hover:bg-accent focus-visible:ring-ring absolute top-3 right-3 flex size-11 items-center justify-center rounded-full shadow-sm focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50'
+        : 'bg-card/95 text-primary hover:bg-accent focus-visible:ring-ring absolute top-2 right-2 flex size-10 items-center justify-center rounded-lg border focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50';
+    const ratingContent = (
+        <div className="text-muted-foreground flex min-h-5 flex-wrap items-center gap-x-2 text-xs leading-5">
+            {rating != null && reviewCount != null && reviewCount > 0 ? (
+                <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span className="text-warning flex gap-0.5" aria-hidden="true">
+                        {Array.from({ length: 5 }, (_, index) => (
+                            <Star key={index} className={'size-3.5 ' + (index < Math.round(rating) ? 'fill-current' : '')} />
+                        ))}
+                    </span>
+                    <span className="whitespace-nowrap">
+                        {rating.toFixed(1)} ({reviewCount})
+                    </span>
+                </span>
+            ) : (
+                <span className="flex flex-wrap items-center gap-x-1.5" aria-label="No ratings yet">
+                    <span className="text-warning flex items-center gap-0.5" aria-hidden="true">
+                        {Array.from({ length: 5 }, (_, index) => (
+                            <Star key={index} className="size-3 shrink-0" />
+                        ))}
+                    </span>
+                    <span>No ratings yet</span>
+                </span>
+            )}
+        </div>
+    );
     return (
-        <article className="product-card bg-card text-card-foreground group flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border shadow-sm transition-[box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:shadow-md motion-reduce:transform-none motion-reduce:transition-none">
+        <article
+            className={
+                compact
+                    ? 'product-card bg-card text-card-foreground group flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border shadow-sm transition-[box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:shadow-md motion-reduce:transform-none motion-reduce:transition-none'
+                    : 'product-card bg-card text-card-foreground group flex h-full min-w-0 flex-col overflow-hidden rounded-xl border transition-shadow duration-200 hover:shadow-sm motion-reduce:transition-none'
+            }
+        >
             <div className="bg-muted/40 relative aspect-square shrink-0 overflow-hidden">
                 {product.image_url && product.image_url !== failedImage ? (
                     <img
@@ -55,7 +98,11 @@ export default function ProductCard({ product, saved = false }: { product: Produ
                         width={400}
                         height={400}
                         onError={() => setFailedImage(product.image_url!)}
-                        className="absolute inset-0 h-full w-full object-cover object-center transition-transform duration-200 group-hover:scale-[1.03] motion-reduce:transform-none motion-reduce:transition-none"
+                        className={
+                            compact
+                                ? 'absolute inset-0 h-full w-full object-cover object-center transition-transform duration-200 group-hover:scale-[1.03] motion-reduce:transform-none motion-reduce:transition-none'
+                                : 'absolute inset-0 h-full w-full object-contain object-center'
+                        }
                     />
                 ) : (
                     <div className="text-muted-foreground absolute inset-0 flex flex-col items-center justify-center gap-2">
@@ -118,39 +165,25 @@ export default function ProductCard({ product, saved = false }: { product: Produ
                     </button>
                 )}
             </div>
+            {listView && <div className="product-image-rating">{ratingContent}</div>}
             <div className="flex flex-1 flex-col gap-2 p-3 sm:p-4">
+                {product.categoryLabel && (
+                    <span className="bg-accent text-primary w-fit rounded-full px-2 py-1 text-xs font-semibold">{product.categoryLabel}</span>
+                )}
                 <h2 className="h-10 text-sm leading-5 font-semibold">
                     <Link href={live ? `/products/${product.id}` : href} className="line-clamp-2 break-words hover:underline" title={product.name}>
                         {product.name}
                     </Link>
                 </h2>
-                <div className="text-muted-foreground flex min-h-5 flex-wrap items-center gap-x-2 text-xs leading-5">
-                    {rating != null && reviewCount != null ? (
-                        <span className="flex items-center gap-1">
-                            <span className="text-warning flex gap-0.5" aria-hidden="true">
-                                {Array.from({ length: 5 }, (_, index) => (
-                                    <Star key={index} className={'size-3.5 ' + (index < Math.round(rating) ? 'fill-current' : '')} />
-                                ))}
-                            </span>
-                            {rating.toFixed(1)} ({reviewCount})
-                        </span>
-                    ) : (
-                        <span className="flex flex-wrap items-center gap-x-1.5" aria-label="No ratings yet">
-                            <span className="text-warning flex items-center gap-0.5" aria-hidden="true">
-                                {Array.from({ length: 5 }, (_, index) => (
-                                    <Star key={index} className="size-3 shrink-0" />
-                                ))}
-                            </span>
-                            <span>No ratings yet</span>
-                        </span>
-                    )}
-                </div>
+                {!listView && ratingContent}
                 <p className="text-muted-foreground min-h-5 text-xs leading-5 tabular-nums">
-                    {displayedStock != null
-                        ? displayedStock === 0
-                            ? 'Out of stock'
-                            : 'Stock: ' + displayedStock.toLocaleString() + ' available'
-                        : 'Stock not provided'}
+                    {compact && product.sample
+                        ? 'Sample preview'
+                        : displayedStock != null
+                          ? displayedStock === 0
+                              ? 'Out of stock'
+                              : 'Stock: ' + displayedStock.toLocaleString() + ' available'
+                          : 'Stock not provided'}
                 </p>
                 {!!variants.length && (
                     <Select
@@ -174,7 +207,7 @@ export default function ProductCard({ product, saved = false }: { product: Produ
                         </span>
                     </p>
                 )}
-                <div className="mt-auto flex min-h-11 items-center justify-between gap-2 pt-2">
+                <div className={'mt-auto flex min-h-11 gap-2 pt-2 ' + (compact ? 'flex-col items-stretch' : 'items-center justify-between')}>
                     <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5 tabular-nums">
                         <span className="text-primary max-w-full text-lg font-bold tracking-tight break-all sm:text-xl">{money(product.price)}</span>
                         {discounted && <del className="text-muted-foreground max-w-full text-xs break-all">{money(product.originalPrice!)}</del>}
@@ -185,21 +218,31 @@ export default function ProductCard({ product, saved = false }: { product: Produ
                             disabled={stock === 0 || cart.processing}
                             aria-label={'Add ' + product.name + ' to cart'}
                             onClick={() => cart.put('/cart/' + product.id, { preserveScroll: true, onSuccess: () => setFeedback('Added to cart') })}
-                            className="bg-accent text-primary hover:bg-primary hover:text-primary-foreground focus-visible:ring-ring flex size-11 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
+                            className={
+                                compact
+                                    ? 'reference-button w-full'
+                                    : 'bg-accent text-primary hover:bg-primary hover:text-primary-foreground focus-visible:ring-ring flex size-11 shrink-0 items-center justify-center rounded-lg transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none'
+                            }
                         >
                             {cart.processing ? (
                                 <LoaderCircle aria-hidden="true" className="size-5 animate-spin motion-reduce:animate-none" />
                             ) : (
                                 <ShoppingCart aria-hidden="true" className="size-5" />
                             )}
+                            {compact && <span>{cart.processing ? 'Adding...' : 'Add to Cart'}</span>}
                         </button>
                     ) : (
                         <Link
                             href={product.sample || !auth.user ? route('login') : auth.user.role === 'buyer' && !eligible ? '/application' : href}
                             aria-label={(product.sample || !auth.user ? 'Sign in to shop ' : 'View in shop ') + product.name}
-                            className="bg-accent text-primary hover:bg-primary hover:text-primary-foreground focus-visible:ring-ring flex size-11 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:ring-2 focus-visible:outline-none motion-reduce:transition-none"
+                            className={
+                                compact
+                                    ? 'reference-button w-full'
+                                    : 'bg-accent text-primary hover:bg-primary hover:text-primary-foreground focus-visible:ring-ring flex size-11 shrink-0 items-center justify-center rounded-lg transition-colors focus-visible:ring-2 focus-visible:outline-none motion-reduce:transition-none'
+                            }
                         >
                             <ShoppingCart aria-hidden="true" className="size-5" />
+                            {compact && <span>{product.sample || !auth.user ? 'Sign in to shop' : 'View in shop'}</span>}
                         </Link>
                     )}
                 </div>
