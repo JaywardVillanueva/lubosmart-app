@@ -1,5 +1,7 @@
 # Seller settlement, Logistics Rider payments, returns and profit
 
+Update, 2026-11-11: [financial integrity implementation](FINANCIAL_FULFILLMENT_IMPLEMENTATION_2026_11_11.md) adds the owner-approved shipping-retention/product-remittance model, evidence-based platform receipts before new Seller payouts, reviewed return responsibility, explicit new refund splits and scoped finance views. Its two migrations remain unapplied to the configured database. Earlier dated results and setup notes below are historical.
+
 Implemented locally on 2026-10-25/26 (Asia/Manila), following the owner's role decisions. These workflows record manual transactions; no bank transfer or online payment provider is installed.
 
 ## Ownership and entry points

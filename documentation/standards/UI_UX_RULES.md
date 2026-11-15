@@ -5,8 +5,11 @@ pages, components, layouts, or styles. Updated 2026-10-11.
 
 ## Identity and tokens
 
-Preserve the existing LubosMart logo, purple identity, orange logo accent, Instrument
-Sans typography, lavender surfaces, and rounded cards. Do not redesign the brand.
+Preserve the existing LubosMart logo, purple identity, orange logo accent, Poppins
+typography (user request dated 2026-11-14), lavender surfaces, and rounded cards. Do not redesign the brand.
+The existing homepage is the user's approved visual reference (2026-11-14).
+Preserve its design, category artwork, product presentation and navbar. Public
+pages linked from the homepage, including Marketplace, reuse that same navbar.
 `resources/css/app.css` owns semantic light and dark tokens through Tailwind v4
 `@theme`. Use `primary`, `background`, `foreground`, `card`, `muted`, `accent`,
 `destructive`, `success`, `warning`, `input`, and `ring` rather than arbitrary colors.
@@ -22,8 +25,10 @@ Respect the user's theme preference; a role must never overwrite it.
   money and operational metrics; format pesos with the existing `money` helper.
 - Use the Tailwind 4px spacing scale: 8px between labels and controls, 16px between
   related items, 24px between sections. Avoid arbitrary spacing without a reason.
-- Standard operational pages use `Page`: maximum width 72rem, 16px mobile gutters,
+- Standard operational pages use `Page`: full available width, 16px mobile gutters,
   24–32px desktop gutters, a clear title, purpose, and primary action.
+  Keep readable widths for individual forms, authentication, and focused onboarding.
+  Full-width pages follow the user requirement dated 2026-11-10.
 - Cards use quiet borders, modest shadows, rounded corners, and responsive padding.
   Keep long identifiers and user text from overflowing with wrapping and `min-w-0`.
 - Start with a single mobile column; add columns when content fits. Verify 320px
@@ -107,6 +112,17 @@ verification, expose private proof, broaden center access, or create unsupported
 payments, payouts, ratings, returns, or product variants. Keep COD and existing
 commission calculation intact. Authentication, onboarding, settings, and support
 must follow the same shared accessibility and feedback patterns.
+
+## Shared account settings reference (2026-11-14)
+
+Buyer, Seller, Rider and Logistics use the same settings presentation, with categories
+based on available role settings. Follow the user-supplied reference: personal details
+are read-only with full name, birthday, sex and age; submitted documents have private,
+expiring view links and a refresh action. Contact and security initially shows current
+email/contact and a Send verification code action; reveal editable contact fields after
+server-confirmed email verification. Keep Change password and My addresses in the shared
+navigation. Do not show photo-ID replacement or account-deletion panels in these role
+settings. Preserve backend authorization, approval and account-retention protections.
 
 ## Performance and validation
 
