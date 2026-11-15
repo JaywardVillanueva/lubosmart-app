@@ -9,10 +9,12 @@ export default function EmailCodeConfirmation({
     purpose,
     confirmed = false,
     codeSent = false,
+    compact = false,
 }: {
     purpose: 'password' | 'profile';
     confirmed?: boolean;
     codeSent?: boolean;
+    compact?: boolean;
 }) {
     const [sent, setSent] = useState(codeSent);
     const send = useForm({ purpose });
@@ -23,9 +25,11 @@ export default function EmailCodeConfirmation({
     };
 
     return (
-        <section className="bg-card grid gap-4 rounded-xl border p-4">
-            <h3 className="font-medium">Confirm with an email code</h3>
-            <p className="text-muted-foreground text-sm">Codes expire in 10 minutes. You can request 3 per hour; 5 wrong attempts lock a code.</p>
+        <section className={compact ? 'grid justify-items-start gap-4' : 'bg-card grid gap-4 rounded-xl border p-4'}>
+            {!compact && <h3 className="font-medium">Confirm with an email code</h3>}
+            {!compact && (
+                <p className="text-muted-foreground text-sm">Codes expire in 10 minutes. You can request 3 per hour; 5 wrong attempts lock a code.</p>
+            )}
             {confirmed && (
                 <p role="status" className="text-primary text-sm">
                     Email confirmed. Save your change within 10 minutes.
@@ -48,7 +52,13 @@ export default function EmailCodeConfirmation({
                             })
                         }
                     >
-                        {send.processing ? 'Sending code…' : sent ? 'Resend email code' : 'Send email code'}
+                        {send.processing
+                            ? 'Sending code…'
+                            : sent
+                              ? 'Resend verification code'
+                              : compact
+                                ? 'Send verification code'
+                                : 'Send email code'}
                     </Button>
                     <InputError message={(send.errors as Record<string, string>).code} />
                     {sent && (

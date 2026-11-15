@@ -19,17 +19,29 @@ class ShippingQuotes
 
     public function options(Address $address, Collection $items, Collection $products): array
     {
+        return $this->availability($address, $items, $products)['options'];
+    }
+
+    public function availability(Address $address, Collection $items, Collection $products): array
+    {
         $options = [];
+        $unavailable = [];
         foreach (LogisticsCenter::query()->operational()->orderBy('name')->orderBy('id')->get(['id', 'name']) as $center) {
             try {
                 $quotes = $this->quote($address, $items, $products, $center->id);
                 $options[] = ['id' => $center->id, 'name' => $center->name, 'total' => array_sum(array_column($quotes, 'fee_cents')) / 100, 'parcels' => array_values($quotes)];
-            } catch (ValidationException) {
-                // A carrier is selectable only if it can serve every parcel in the cart.
+            } catch (ValidationException $exception) {
+                $unavailable[] = ['id' => $center->id, 'name' => $center->name, 'reason' => collect($exception->errors())->flatten()->first()];
             }
         }
 
-        return $options;
+        return [
+            'options' => $options,
+            'unavailable' => $unavailable,
+            'message' => $options ? null : ($unavailable
+                ? 'No provider can currently ship every parcel in your bag. See the reasons below.'
+                : 'No logistics provider is currently operational. Contact support for help with shipping.'),
+        ];
     }
 
     public function quote(Address $address, Collection $items, Collection $products, ?int $centerId): array
@@ -71,14 +83,18 @@ class ShippingQuotes
         foreach ($groups as $storeId => $storeItems) {
             $firstProduct = $products->get($storeItems->first()->product_id);
             $pickup = ($pickupAddresses->get($firstProduct?->store?->user_id) ?? collect())->first();
-            if (! $pickup || ! $rates->contains(fn ($rate) => $matches($rate, $pickup))) {
-                throw ValidationException::withMessages(['logistics_center_id' => 'This provider does not cover one of the seller pickup addresses.']);
+            $storeName = $firstProduct?->store?->name ?? 'A seller';
+            if (! $pickup) {
+                throw ValidationException::withMessages(['logistics_center_id' => $storeName.' must add a pickup address before shipping can be quoted.']);
+            }
+            if (! $rates->contains(fn ($rate) => $matches($rate, $pickup))) {
+                throw ValidationException::withMessages(['logistics_center_id' => 'Shipping coverage is not configured for '.$storeName.'’s pickup location. The seller must arrange pickup coverage with this provider.']);
             }
             $weight = 0;
             foreach ($storeItems as $item) {
                 $grams = $products->get($item->product_id)?->weight_grams;
                 if (! $grams || $grams < 1) {
-                    throw ValidationException::withMessages(['shipping_fee' => 'A seller must add the packed product weight before shipping can be quoted.']);
+                    throw ValidationException::withMessages(['shipping_fee' => $storeName.' must add the packed product weight before shipping can be quoted.']);
                 }
                 $weight += $grams * $item->quantity;
             }

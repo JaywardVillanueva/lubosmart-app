@@ -237,7 +237,7 @@ test('parcel events share web custody cash proof and replay protections across r
     $delivery = $parcel->delivery;
     $endpoint = '/api/v1/deliveries/'.$delivery->id.'/events';
     $event = fn (string $action, array $data = []) => ['action' => $action, 'request_key' => (string) Str::uuid(), ...$data];
-    $scan = ['tracking_reference' => $delivery->tracking_reference, 'capture_method' => 'manual', 'reason' => 'Synthetic test handover'];
+    $scan = ['tracking_reference' => $delivery->tracking_reference, 'capture_method' => 'scanner', 'reason' => 'Synthetic test handover'];
 
     mobileClient($operator)->postJson($endpoint, $event('claim', ['logistics_center_id' => $center->id]))->assertOk();
     $this->postJson($endpoint, $event('assign', ['service_area_id' => $area, 'rider_id' => $rider->id]))->assertOk();
@@ -254,8 +254,8 @@ test('parcel events share web custody cash proof and replay protections across r
     $this->postJson($endpoint, $event('assign', [...$scan, 'service_area_id' => $area, 'rider_id' => $rider->id]))->assertOk();
     mobileClient($rider)->postJson($endpoint, $event('accept_dispatch', $scan))->assertOk();
     $this->postJson($endpoint, $event('out_for_delivery'))->assertOk();
-    $this->postJson($endpoint, $event('delivered', [...$scan, 'amount' => '250.50', 'recipient_name' => 'Synthetic Buyer']))->assertUnprocessable()->assertJsonValidationErrors('proof');
-    $delivered = $event('delivered', [...$scan, 'amount' => '250.50', 'recipient_name' => 'Synthetic Buyer']);
+    $this->postJson($endpoint, $event('delivered', ['note' => 'Received by buyer.', 'cod_confirmed' => true, ...$scan, 'amount' => '250.50', 'recipient_name' => 'Synthetic Buyer']))->assertUnprocessable()->assertJsonValidationErrors('proof');
+    $delivered = $event('delivered', ['note' => 'Received by buyer.', 'cod_confirmed' => true, ...$scan, 'amount' => '250.50', 'recipient_name' => 'Synthetic Buyer']);
     $proof = UploadedFile::fake()->createWithContent('proof.png', base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aG1sAAAAASUVORK5CYII='));
     $this->post($endpoint, [...$delivered, 'proof' => $proof], ['Accept' => 'application/json'])->assertOk();
     $this->assertDatabaseCount('cod_collections', 1);

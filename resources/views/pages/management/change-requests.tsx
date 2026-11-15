@@ -2,6 +2,7 @@ import { AccountChangeComparison } from '@/components/settings/account-change';
 import { Card, Notice, Page, Select, Textarea } from '@/components/shared/marketplace-ui';
 import { Button } from '@/components/ui/button';
 import { accountApi, type AccountChange, type Region } from '@/lib/account-api';
+import { ClipboardCheck } from 'lucide-react';
 import { useState } from 'react';
 import useSWR from 'swr';
 
@@ -29,18 +30,28 @@ export default function ChangeRequests() {
     }
     return (
         <Page title="Account change requests" description="Compare approved registration details with proposed changes before deciding.">
-            <Select
-                label="Request status"
-                value={status}
-                onChange={(event) => {
-                    setStatus(event.target.value);
-                    setPage(1);
-                }}
-            >
-                <option value="pending">Pending review</option>
-                <option value="approved">Approved</option>
-                <option value="rejected">Rejected</option>
-            </Select>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                <div className="w-full sm:w-64">
+                    <Select
+                        label="Request status"
+                        reserveFeedback={false}
+                        value={status}
+                        onChange={(event) => {
+                            setStatus(event.target.value);
+                            setPage(1);
+                        }}
+                    >
+                        <option value="pending">Pending review</option>
+                        <option value="approved">Approved</option>
+                        <option value="rejected">Rejected</option>
+                    </Select>
+                </div>
+                {data && !error && (
+                    <p role="status" className="text-muted-foreground text-sm tabular-nums sm:pb-3">
+                        {data.total} {data.total === 1 ? 'request' : 'requests'}
+                    </p>
+                )}
+            </div>
             {feedback && <Notice tone="error">{feedback}</Notice>}
             {isLoading && <p role="status">Loading change requests…</p>}
             {error && (
@@ -51,8 +62,21 @@ export default function ChangeRequests() {
                     </Button>
                 </Notice>
             )}
-            {data && <p className="text-muted-foreground text-sm">{data.total} requests</p>}
-            {data?.data.length === 0 && <Card>No {status} requests.</Card>}
+            {!isLoading && !error && data?.data.length === 0 && (
+                <Card className="flex flex-col items-center gap-4 py-8 text-center sm:py-10">
+                    <span className="bg-accent text-primary flex size-12 items-center justify-center rounded-full">
+                        <ClipboardCheck aria-hidden="true" className="size-6" />
+                    </span>
+                    <div className="space-y-2">
+                        <h2 className="text-lg font-semibold">No {status === 'pending' ? 'pending' : status} requests</h2>
+                        <p className="text-muted-foreground max-w-sm text-sm leading-relaxed">
+                            {status === 'pending'
+                                ? 'Account changes waiting for review will appear here.'
+                                : `No requests have been ${status} yet. Choose another status to view other requests.`}
+                        </p>
+                    </div>
+                </Card>
+            )}
             {data?.data.map((change) => (
                 <Card key={change.id} className="space-y-4">
                     <h2 className="text-lg font-semibold">

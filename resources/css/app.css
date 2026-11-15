@@ -1,5 +1,58 @@
 @import 'tailwindcss';
 
+/* Shared buttons and exported marketplace link styles use the same feedback. */
+.action-button,
+.auth-action-button {
+    --action-color: var(--primary);
+    -webkit-tap-highlight-color: transparent;
+    transition:
+        background-color 180ms ease,
+        color 180ms ease,
+        border-color 180ms ease,
+        box-shadow 180ms ease;
+}
+.action-button--danger {
+    --action-color: var(--destructive);
+}
+.action-button--solid,
+.auth-reference-primary.auth-action-button {
+    background-image: linear-gradient(165deg, rgb(255 255 255 / 12%), transparent 65%);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 18%),
+        0 3px 0 color-mix(in srgb, var(--action-color) 70%, var(--foreground)),
+        0 6px 12px -6px color-mix(in srgb, var(--action-color) 35%, transparent);
+}
+.action-button--outline,
+.action-button--soft {
+    box-shadow: 0 2px 3px color-mix(in srgb, var(--primary) 8%, transparent);
+}
+.action-button--outline:where(:hover, :focus-visible) {
+    border-color: var(--primary);
+}
+.action-button:where(:disabled, [aria-disabled='true'], [aria-busy='true']),
+.auth-action-button:disabled {
+    background-image: none;
+    box-shadow: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+    .action-button {
+        transition:
+            transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+            box-shadow 180ms ease,
+            background-color 180ms ease,
+            color 180ms ease,
+            border-color 180ms ease;
+    }
+    .action-button:not(:disabled, [aria-disabled='true'], [aria-busy='true'], .action-button--quiet):where(:hover, :focus-visible) {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 18px -8px color-mix(in srgb, var(--action-color) 45%, transparent);
+    }
+    .action-button:not(:disabled, [aria-disabled='true'], [aria-busy='true']):active {
+        transform: translateY(1px) scale(0.97);
+        box-shadow: none;
+    }
+}
+
 @keyframes registration-reveal {
     from {
         opacity: 0;
@@ -111,15 +164,67 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Workspace reference treatment, scoped away from storefront and auth pages. */
+.workspace-shell {
+    --background: hsl(263, 55%, 98%);
+    --border: hsl(263, 35%, 90%);
+    --accent: hsl(263, 70%, 94%);
+    --sidebar-border: var(--border);
+    --sidebar-accent: var(--accent);
+    --color-background: var(--background);
+    --color-card: var(--card);
+    --color-border: var(--border);
+    --color-accent: var(--accent);
+    --color-sidebar: var(--sidebar-background);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-accent: var(--sidebar-accent);
+    background: var(--background);
+}
+.dark .workspace-shell {
+    --background: hsl(260, 23%, 9%);
+    --card: hsl(260, 20%, 12%);
+    --border: hsl(260, 18%, 24%);
+    --accent: hsl(263, 30%, 22%);
+    --sidebar-background: var(--card);
+}
+.workspace-shell #main-content {
+    background: linear-gradient(135deg, var(--background), color-mix(in srgb, var(--accent) 30%, var(--background)));
+}
+.workspace-shell .workspace-card {
+    box-shadow: 0 2px 3px color-mix(in srgb, var(--primary) 4%, transparent);
+}
+.workspace-welcome {
+    background: linear-gradient(115deg, var(--card) 10%, var(--background) 55%, var(--accent));
+    border-color: color-mix(in srgb, var(--primary) 16%, transparent);
+}
+.workspace-shell [data-sidebar='group'] + [data-sidebar='group'] {
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+}
+.workspace-shell .workspace-priorities {
+    padding: 20px 24px;
+}
+@media (min-width: 768px) {
+    .workspace-shell .workspace-priorities > ul {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 16px;
+        border: 0;
+    }
+    .workspace-shell .workspace-priorities > ul > li {
+        border: 0;
+    }
+}
+
 @theme {
     --color-brand-orange: var(--brand-orange);
     --font-serif: Georgia, 'Times New Roman', serif;
-    --font-sans:
-        'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-sans: 'Poppins', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
 
     --radius-lg: var(--radius);
     --radius-md: calc(var(--radius) - 2px);
     --radius-sm: calc(var(--radius) - 4px);
+    --radius-control: 0.75rem;
 
     --color-background: var(--background);
     --color-foreground: var(--foreground);
@@ -291,6 +396,47 @@
     button:disabled {
         cursor: not-allowed;
     }
+
+    /* Keep native dropdown text and chevrons evenly inset across browsers. */
+    select:not([multiple]):not([size]),
+    select[size='1']:not([multiple]) {
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%237c7687' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 1rem center;
+    }
+}
+
+/* The arrow needs its own space even when a caller overrides horizontal padding. */
+select:not([multiple]):not([size]),
+select[size='1']:not([multiple]) {
+    padding-right: 2.75rem;
+}
+
+/* Keep the native search clear action aligned with the active brand theme. */
+input[type='search']::-webkit-search-cancel-button {
+    appearance: none;
+    width: 24px;
+    height: 24px;
+    margin-inline-start: 8px;
+    background-color: var(--primary);
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='m6 6 12 12M18 6 6 18' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E")
+        center / 16px 16px no-repeat;
+    cursor: pointer;
+}
+
+@media (forced-colors: active) {
+    input[type='search']::-webkit-search-cancel-button {
+        appearance: auto;
+        background-color: revert;
+        mask: none;
+    }
+
+    select:not([multiple]):not([size]),
+    select[size='1']:not([multiple]) {
+        appearance: auto;
+        background-image: none;
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -308,7 +454,7 @@
     display: inline-block;
     color: var(--app-wordmark-color, #000);
     text-shadow: none;
-    font-family: var(--font-serif);
+    font-family: var(--font-sans);
     font-variant-caps: normal;
     font-weight: 700;
     letter-spacing: 0.015em;
@@ -354,19 +500,39 @@
 }
 @media (min-width: 768px) {
     .product-grid {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
-}
-@media (min-width: 1100px) {
-    .product-grid {
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-    }
-}
-@media (min-width: 1600px) {
-    .product-grid {
-        grid-template-columns: repeat(5, minmax(0, 1fr));
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
     }
 }
 .product-card {
     font-family: var(--font-sans);
+}
+
+/* Shared discovery grids keep a normal card width even with one real listing. */
+.product-grid.marketplace-product-grid {
+    grid-template-columns: minmax(0, 320px);
+    align-items: stretch;
+    gap: 16px;
+    width: 100%;
+    max-width: none;
+}
+@media (min-width: 380px) {
+    .product-grid.marketplace-product-grid,
+    .reference-home .product-grid.marketplace-product-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+@media (min-width: 768px) {
+    .product-grid.marketplace-product-grid,
+    .reference-home .product-grid.marketplace-product-grid {
+        grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+    }
+}
+@media (min-width: 1600px) {
+    .product-grid.marketplace-product-grid,
+    .reference-home .product-grid.marketplace-product-grid {
+        grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+    }
+}
+.marketplace-product-grid .product-card {
+    max-width: 320px;
 }

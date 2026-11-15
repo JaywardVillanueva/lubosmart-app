@@ -170,6 +170,10 @@ class _RoleHomeState extends State<RoleHome> {
         CostsPage(api),
         AccountPage(session, widget.toggleTheme),
       ],
+      'logistics' => <Widget>[
+        DeliveriesPage(api),
+        AccountPage(session, widget.toggleTheme),
+      ],
       'rider' => <Widget>[
         DeliveriesPage(api),
         ReturnsPage(api),
@@ -181,11 +185,13 @@ class _RoleHomeState extends State<RoleHome> {
       ],
     };
     final labels = switch (session.role) {
+      'logistics' => ['Parcels', 'Account'],
       'buyer' => ['Discover', 'Purchases', 'Messages', 'Account'],
       'seller' => ['Orders', 'Inventory', 'Finance', 'Account'],
       _ => ['Parcels', 'Returns', 'Earnings', 'Account'],
     };
     final icons = switch (session.role) {
+      'logistics' => [Icons.local_shipping_outlined, Icons.person_outline],
       'buyer' => [
         Icons.storefront_outlined,
         Icons.shopping_bag_outlined,

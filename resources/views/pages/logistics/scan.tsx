@@ -43,18 +43,21 @@ export default function ScanParcel({ deliveries, centers, riders, areas, cod, fi
     const matches = searched !== '' && reference.trim().toUpperCase() === searched;
 
     return (
-        <Page title="Scan Parcel" description="Scan the attached waybill, review the parcel, then confirm receipt, sorting or dispatch.">
+        <Page
+            title="Scan Parcel"
+            description="Scan the attached waybill, review the parcel, then confirm physical receipt. Sorting and assignment need no further scan."
+        >
             <Card className="max-sm:p-4">
-                <div className="grid gap-6 lg:grid-cols-3">
-                    <div data-parcel-camera-region className="grid min-w-0 content-start gap-4">
-                        <div className="flex items-start gap-3">
-                            <div className="bg-primary/10 text-primary flex size-11 shrink-0 items-center justify-center rounded-xl">
+                <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+                    <div data-parcel-camera-region className="bg-accent/40 grid min-w-0 content-start gap-5 rounded-xl border p-5">
+                        <div className="flex flex-col items-start gap-3">
+                            <div className="bg-card text-primary flex size-11 shrink-0 items-center justify-center rounded-xl border">
                                 <Camera className="size-5" aria-hidden="true" />
                             </div>
                             <div className="min-w-0">
                                 <h2 className="text-lg font-semibold">Scan the waybill</h2>
                                 <p className="text-muted-foreground mt-1 text-sm leading-relaxed">
-                                    Point at the square QR or barcode. Review the parcel before confirming a handover.
+                                    Open your camera and point it at the waybill QR code or barcode.
                                 </p>
                             </div>
                         </div>
@@ -67,8 +70,11 @@ export default function ScanParcel({ deliveries, centers, riders, areas, cod, fi
                             }}
                         />
                     </div>
-                    <div className="min-w-0 border-t pt-5 lg:col-span-2 lg:border-t-0 lg:pt-0">
+                    <div className="min-w-0 py-1">
                         <h2 className="text-lg font-semibold">Tracking lookup</h2>
+                        <p className="text-muted-foreground mt-1 text-sm leading-relaxed">
+                            Use a USB / Bluetooth scanner or enter the printed reference.
+                        </p>
                         <ValidatedForm
                             className="mt-4 grid gap-4"
                             onSubmit={(event) => {
@@ -79,13 +85,13 @@ export default function ScanParcel({ deliveries, centers, riders, areas, cod, fi
                             <Field
                                 id="scan-reference"
                                 label="Parcel tracking reference"
+                                reserveFeedback={false}
                                 placeholder="Scan or enter the tracking reference"
                                 value={reference}
                                 onChange={(event) => setReference(event.target.value.toUpperCase())}
                                 maxLength={40}
                                 autoComplete="off"
                                 required
-                                hint="Use a USB / Bluetooth scanner, or type the printed reference."
                             />
                             <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
                                 <Select
@@ -145,17 +151,19 @@ export default function ScanParcel({ deliveries, centers, riders, areas, cod, fi
                 </section>
             ) : (
                 !loading && (
-                    <Card className="flex flex-col items-center gap-4 text-center sm:flex-row sm:text-left">
-                        <div className="bg-primary/10 text-primary flex size-14 shrink-0 items-center justify-center rounded-2xl">
-                            <PackageSearch className="size-6" aria-hidden="true" />
-                        </div>
-                        <div className="min-w-0">
-                            <h2 className="text-lg font-semibold tracking-tight">{searched && matches ? 'Parcel not found' : 'Ready to scan'}</h2>
-                            <p className="text-muted-foreground mt-1 max-w-xl text-sm leading-relaxed">
-                                {searched && matches
-                                    ? 'Check the printed tracking reference. Only parcels assigned to your operational centers can be opened here.'
-                                    : 'Find a parcel to view its details and available actions. Review the parcel before confirming receipt, sorting or dispatch.'}
-                            </p>
+                    <Card className="border-dashed bg-transparent py-8 shadow-none sm:py-10">
+                        <div className="mx-auto flex max-w-md flex-col items-center gap-4 text-center">
+                            <div className="bg-accent text-primary flex size-12 shrink-0 items-center justify-center rounded-2xl">
+                                <PackageSearch className="size-6" aria-hidden="true" />
+                            </div>
+                            <div className="min-w-0">
+                                <h2 className="text-lg font-semibold tracking-tight">{searched && matches ? 'Parcel not found' : 'Ready to scan'}</h2>
+                                <p className="text-muted-foreground mt-1 max-w-xl text-sm leading-relaxed">
+                                    {searched && matches
+                                        ? 'Check the printed tracking reference. Only parcels assigned to your operational centers can be opened here.'
+                                        : 'Scan a waybill or enter its tracking reference above. Parcel details and available actions will appear here.'}
+                                </p>
+                            </div>
                         </div>
                     </Card>
                 )

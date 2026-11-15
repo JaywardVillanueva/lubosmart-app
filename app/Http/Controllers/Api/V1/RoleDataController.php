@@ -14,6 +14,7 @@ use App\Models\SellerOrder;
 use App\Models\SellerPayout;
 use App\Models\StoreVoucher;
 use App\Models\SupportCase;
+use App\Services\Admin\AuditLogger;
 use App\Services\WorkspaceStatus;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -90,10 +91,12 @@ class RoleDataController extends Controller
             ->paginate(20, ['id', 'code', 'amount_cents', 'minimum_cents', 'usage_limit', 'expires_at', 'is_active'])]);
     }
 
-    public function waybill(Request $request, SellerOrder $sellerOrder)
+    public function waybill(Request $request, SellerOrder $sellerOrder, AuditLogger $audit)
     {
         abort_unless($sellerOrder->store_id === $request->user()->store?->id, 404);
         $sellerOrder->delivery?->ensureTrackingReference();
+        $audit->record(['actor_id' => $request->user()->id, 'subject_type' => 'waybill', 'subject_id' => $sellerOrder->id,
+            'action' => 'waybill_accessed', 'changes' => ['channel' => 'api', 'delivery_id' => $sellerOrder->delivery?->id]]);
 
         return new ParcelResource($sellerOrder->load('order', 'store', 'items', 'delivery'));
     }
@@ -117,7 +120,7 @@ class RoleDataController extends Controller
             ->with(['sellerOrder.store.user.addresses' => fn ($q) => $q->orderByDesc('is_default')->orderBy('id')]);
 
         return response()->json(['data' => $query->latest('id')->paginate(20)->through(fn ($return) => [
-            ...$return->only(['id', 'seller_order_id', 'status', 'reason', 'decision_reason', 'condition', 'restocked', 'collected_at', 'received_at']),
+            ...$return->only(['id', 'seller_order_id', 'status', 'reason', 'decision_reason', 'condition', 'restocked', 'collected_at', 'received_at', 'responsibility', 'responsibility_reason']),
             'refund_cents' => $user->role === 'rider' ? null : $return->refund_cents,
             'refund_reference' => $user->role === 'rider' ? null : $return->refund_reference,
             'parcel' => new ParcelResource($return->sellerOrder),
@@ -150,14 +153,14 @@ class RoleDataController extends Controller
     public function support(Request $request)
     {
         return response()->json(['data' => SupportCase::query()->whereHas('participants', fn ($q) => $q->where('users.id', $request->user()->id))
-            ->latest('updated_at')->orderByDesc('id')->paginate(20, ['id', 'seller_order_id', 'kind', 'subject', 'status', 'resolution', 'updated_at'])]);
+            ->latest('updated_at')->orderByDesc('id')->paginate(20, ['id', 'seller_order_id', 'kind', 'subject', 'status', 'resolution', 'updated_at', 'fulfillment_concern'])]);
     }
 
     public function conversation(Request $request, SupportCase $case)
     {
         Gate::authorize('view', $case);
 
-        return response()->json(['data' => ['case' => $case->only(['id', 'subject', 'kind', 'status', 'resolution']),
+        return response()->json(['data' => ['case' => $case->only(['id', 'subject', 'kind', 'status', 'resolution', 'fulfillment_concern']),
             'messages' => $case->messages()->with('author:id,name')->latest('id')->paginate(30)->through(fn ($message) => [
                 ...$message->only(['id', 'body', 'created_at']), 'author_name' => $message->author?->name,
                 'has_attachment' => (bool) $message->attachment_path,

@@ -1,0 +1,224 @@
+.shipping-label {
+    overflow-wrap: anywhere;
+    overflow: hidden;
+    border: 3px solid #000;
+    border-radius: 18px;
+    background: #fff;
+    color: #000;
+    font-size: 14px;
+    line-height: 1.4;
+}
+.shipping-label-header,
+.shipping-label-order,
+.shipping-label-contact,
+.shipping-label-collection {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+.shipping-label-header {
+    border-bottom: 2px solid #000;
+}
+.shipping-label-header > * {
+    padding: 16px;
+}
+.shipping-label-header > div {
+    border-left: 2px solid #000;
+    min-width: 32%;
+}
+.shipping-label-brand {
+    font-size: clamp(24px, 5vw, 38px);
+    font-weight: 800;
+    letter-spacing: -1.5px;
+}
+.shipping-label-header strong {
+    display: block;
+    font-size: 28px;
+}
+.shipping-label-caption {
+    display: block;
+    font-size: 12px;
+    font-weight: 500;
+}
+.shipping-label-order {
+    padding: 12px 16px;
+    border-bottom: 2px solid #000;
+}
+.shipping-label-order strong {
+    font-size: 22px;
+}
+.shipping-label-service {
+    padding: 6px 20px;
+    border: 2px solid #000;
+    border-radius: 8px;
+    font-weight: 800;
+    font-size: 18px;
+}
+.shipping-label-barcode figure {
+    margin: 0;
+    padding: 8px 16px 12px;
+}
+.shipping-label-barcode figcaption {
+    margin-top: 0;
+    color: #000;
+}
+.shipping-label-heading {
+    padding: 4px 16px;
+    background: #000;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    text-transform: uppercase;
+    print-color-adjust: exact;
+}
+.shipping-label-section {
+    padding: 12px 16px;
+}
+.shipping-label-contact {
+    flex-wrap: wrap;
+    gap: 4px 16px;
+    margin-bottom: 6px;
+}
+.shipping-label-contact h1,
+.shipping-label-contact strong {
+    font-size: 22px;
+    font-weight: 700;
+}
+.shipping-label-contact span {
+    font-size: 16px;
+}
+.shipping-label-details {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 8px 16px;
+    border-top: 2px solid #000;
+}
+.shipping-label-qr {
+    width: 136px;
+    flex-shrink: 0;
+}
+.shipping-label-qr figure {
+    margin: 0;
+    padding: 0;
+}
+.shipping-label-qr svg {
+    width: 136px;
+    height: 136px;
+}
+.shipping-label-qr figcaption {
+    font-size: 10px;
+}
+.shipping-label-facts {
+    display: grid;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+}
+.shipping-label-facts dt {
+    font-size: 11px;
+}
+.shipping-label-facts dd {
+    font-weight: 600;
+}
+.shipping-label-collection {
+    flex-wrap: wrap;
+    padding: 12px 16px;
+    border-top: 2px solid #000;
+    border-bottom: 2px solid #000;
+}
+.shipping-label-collection h2 {
+    font-size: 13px;
+    font-weight: 700;
+}
+.shipping-label-collection p {
+    font-size: 11px;
+}
+.shipping-label-collection > strong {
+    font-size: 28px;
+    font-variant-numeric: tabular-nums;
+}
+.shipping-label-items {
+    padding: 12px 16px;
+    font-size: 12px;
+}
+.shipping-label-items h2 {
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+.shipping-label-items li + li {
+    margin-top: 4px;
+}
+.shipping-label-footer {
+    border-top: 2px solid #000;
+    padding: 8px 16px;
+    font-size: 10px;
+    text-align: center;
+}
+@media (max-width: 380px) {
+    .shipping-label-header > * {
+        padding: 12px;
+    }
+    .shipping-label-brand {
+        font-size: 24px;
+    }
+    .shipping-label-header strong {
+        font-size: 22px;
+    }
+    .shipping-label-details {
+        flex-wrap: wrap;
+    }
+}
+@media print {
+    @page {
+        size: A5 portrait;
+        margin: 8mm;
+    }
+    html,
+    body {
+        background: #fff !important;
+        color: #000 !important;
+    }
+    .waybill-page {
+        max-width: none;
+        margin: 0;
+        padding: 0;
+    }
+    .shipping-label {
+        border-radius: 4mm;
+        font-size: 9pt;
+    }
+    .shipping-label-header > *,
+    .shipping-label-order,
+    .shipping-label-section,
+    .shipping-label-collection,
+    .shipping-label-items {
+        padding: 8px 12px;
+    }
+    .shipping-label-brand {
+        font-size: 28px;
+    }
+    .shipping-label-contact h1,
+    .shipping-label-contact strong {
+        font-size: 18px;
+    }
+    .shipping-label-contact span {
+        font-size: 14px;
+    }
+    .shipping-label-details {
+        padding: 4px 12px;
+    }
+    .shipping-label-header,
+    .shipping-label-order,
+    .shipping-label-barcode,
+    .shipping-label section,
+    .shipping-label-details,
+    .shipping-label-footer {
+        break-inside: avoid;
+    }
+    .shipping-label-qr svg {
+        width: 32mm;
+        height: 32mm;
+    }
+}

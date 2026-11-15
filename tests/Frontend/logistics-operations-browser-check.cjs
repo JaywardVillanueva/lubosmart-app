@@ -211,6 +211,88 @@ async function until(predicate, label) {
         await click('button[type=submit]');
         await until(() => evaluate('location.pathname !== "/login"'), 'login');
         await viewport(1280, 900);
+        if (process.env.LUBOSMART_RECORD_MENUS) {
+            await require('./record-menu-check.cjs')({
+                role: 'logistics',
+                navigate,
+                viewport,
+                evaluate,
+                until,
+                delay,
+                record,
+                screenshot,
+                click,
+                cdp,
+            });
+            assert.deepEqual(runtimeErrors, []);
+            assert.deepEqual(consoleErrors, []);
+            return;
+        }
+        if (process.env.LUBOSMART_BROWSER_ACCOUNT_ACTIONS) {
+            await navigate('/logistics/riders');
+            const trigger = 'main button[aria-label^="Actions for "]';
+            await until(() => evaluate(`!!document.querySelector('main button[aria-label^="Actions for "]')`), 'company rider actions');
+            const triggerName = await evaluate(`document.querySelector('main button[aria-label^="Actions for "]').getAttribute('aria-label')`);
+            await click(trigger);
+            await until(() => evaluate(`!!document.querySelector('[role="menu"]')`), 'rider action menu');
+            assert.equal(await evaluate(`[...document.querySelectorAll('[role="menuitem"]')].some(el=>el.textContent==='Manage access')`), true);
+            await evaluate(`[...document.querySelectorAll('[role="menuitem"]')].find(el=>el.textContent==='View details').click()`);
+            await until(() => evaluate(`!!document.querySelector('[role="dialog"] dl')`), 'rider details');
+            assert.equal(await evaluate(`document.querySelector('[role="dialog"]').textContent.includes('Rider account')`), true);
+            for (const [width, height] of [
+                [1280, 900],
+                [768, 1024],
+                [320, 800],
+                [844, 390],
+            ]) {
+                await viewport(width, height);
+                await delay(250);
+                assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'), true);
+                assert.equal(
+                    await evaluate(
+                        `(() => { const r=document.querySelector('[role="dialog"]').getBoundingClientRect(); return r.left>=-1 && r.right<=innerWidth+1 && r.top>=-1 && r.bottom<=innerHeight+1; })()`,
+                    ),
+                    true,
+                );
+                await screenshot('company-rider-details-' + width);
+            }
+            await viewport(320, 800);
+            await evaluate('document.documentElement.classList.add("dark")');
+            await delay(300);
+            await screenshot('company-rider-details-dark');
+            await evaluate(`[...document.querySelectorAll('[role="dialog"] button')].find(el=>el.textContent==='Role details').click()`);
+            assert.equal(await evaluate(`document.querySelector('[role="dialog"]').textContent.includes('Vehicle')`), true);
+            await evaluate(`[...document.querySelectorAll('[role="dialog"] button')].find(el=>el.textContent==='Close').click()`);
+            await until(() => evaluate(`!document.querySelector('[role="dialog"]')`), 'close rider details');
+            await delay(250);
+            assert.equal(await evaluate('document.activeElement.getAttribute("aria-label")'), triggerName);
+            record('Shared Logistics rider details', 'Company rider menu opens responsive shared profile, retains role data and restores focus');
+            await click(trigger);
+            await until(() => evaluate(`!!document.querySelector('[role="menu"]')`), 'rider history menu');
+            await evaluate(`[...document.querySelectorAll('[role="menuitem"]')].find(el=>el.textContent==='View activity history').click()`);
+            await until(() => evaluate(`!!document.querySelector('section[aria-label="Activity history"]')`), 'rider activity history');
+            await evaluate(`[...document.querySelectorAll('[role="dialog"] button')].find(el=>el.textContent==='Close').click()`);
+            await until(() => evaluate(`!document.querySelector('[role="dialog"]')`), 'close rider history');
+            await delay(250);
+            record('Logistics rider history', 'History opens directly through the company-authorized account endpoint');
+            await click(trigger);
+            await until(() => evaluate(`!!document.querySelector('[role="menu"]')`), 'rider access menu');
+            await evaluate(`[...document.querySelectorAll('[role="menuitem"]')].find(el=>el.textContent==='Manage access').click()`);
+            await until(() => evaluate(`document.querySelectorAll('[role="dialog"] select').length===2`), 'rider access form');
+            assert.equal(
+                await evaluate(`[...document.querySelectorAll('[role="dialog"] button')].find(el=>el.textContent==='Review Action').disabled`),
+                true,
+            );
+            await screenshot('company-rider-access-dark');
+            await evaluate(`[...document.querySelectorAll('[role="dialog"] button')].find(el=>el.textContent==='Close').click()`);
+            await until(() => evaluate(`!document.querySelector('[role="dialog"]')`), 'close rider access');
+            await delay(250);
+            assert.equal(await evaluate('document.activeElement.getAttribute("aria-label")'), triggerName);
+            record('Logistics rider access', 'Allowed actions and required reasons remain in the existing access dialog');
+            assert.deepEqual(runtimeErrors, []);
+            assert.deepEqual(consoleErrors, []);
+            return;
+        }
 
         await navigate('/dashboard/logistics');
         assert.equal(await evaluate(`document.querySelectorAll('nav[aria-label="Parcel queues"] a').length`), 8);
@@ -323,10 +405,46 @@ async function until(predicate, label) {
             true,
         );
         record('Manual tracking evidence', 'Manual capture reason reaches the server and appears in parcel history');
+        const sortingValues = () =>
+            evaluate(`(() => {
+            const section = document.querySelector('[data-scan-parcel]');
+            const byLabel = (text) => document.getElementById([...section.querySelectorAll('label')].find(el => el.textContent.includes(text)).htmlFor);
+            return { area: byLabel('Sorted destination area').value, route: byLabel('Destination bin').value };
+        })()`);
+        const defaults = await sortingValues();
+        assert.notEqual(defaults.area, '');
+        assert.equal(defaults.route, 'DEMO Sample Barangay - local testing only');
+        await screenshot('sorting-auto-suggestion-desktop');
+        await viewport(320, 800);
+        await evaluate('document.documentElement.classList.add("dark")');
+        assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true);
+        await screenshot('sorting-auto-suggestion-dark-320');
+        await evaluate(
+            '[...document.querySelectorAll("[data-scan-parcel] button")].find(el=>el.textContent.includes("Confirm Sorted for Destination")).click()',
+        );
+        await until(() => evaluate('!!document.querySelector("[role=dialog]")'), 'suggested sort confirmation');
+        assert.equal(await evaluate('document.querySelector("[data-scan-parcel]").innerText.includes("Assign Delivery Rider")'), false);
+        await evaluate('[...document.querySelectorAll("[role=dialog] button")].find(el=>el.textContent.trim()==="Confirm parcel action").click()');
+        await until(
+            () => evaluate('document.querySelector("[data-scan-parcel]").innerText.includes("Assign Delivery Rider")'),
+            'suggested sort submitted',
+        );
+        assert.equal(
+            await evaluate('document.querySelector("[data-scan-parcel] details").textContent.includes("DEMO Sample Barangay - local testing only")'),
+            true,
+        );
+        record(
+            'Automatic sorting suggestions',
+            'Destination and route prefilled after receipt; submitted unchanged only after staff confirmation; persisted route appears in handling history; fits dark 320px.',
+        );
+        await viewport(1280, 900);
+        await evaluate('document.documentElement.classList.remove("dark")');
         await set('select', 'scanner');
         const tracking = fixtures['sorting recipient'].tracking;
         await findParcel(tracking);
+        assert.equal((await sortingValues()).route, 'DEMO Sample Barangay - local testing only');
         await inputByLabel('Destination bin', 'Route A / Bin 1');
+        assert.equal((await sortingValues()).route, 'Route A / Bin 1');
         await evaluate(
             '[...document.querySelectorAll("[data-scan-parcel] button")].find(el=>el.textContent.includes("Confirm Sorted for Destination")).click()',
         );
@@ -338,6 +456,7 @@ async function until(predicate, label) {
             false,
         );
         record('Sorting form', 'Destination area, bin/route and reference submit from the scan workspace');
+        assert.equal(await evaluate('document.querySelector("[data-scan-parcel] details").textContent.includes("Route A / Bin 1")'), true);
         await screenshot('sorting-desktop');
         await viewport(320, 800);
         await evaluate('localStorage.setItem("appearance","dark");document.documentElement.classList.add("dark")');
@@ -526,7 +645,7 @@ async function until(predicate, label) {
             'A claimed legacy parcel moves into company ownership without losing its open assignment dialog.',
         );
         await navigate('/deliveries?stage=pickups&search=' + fixtures['pickups recipient'].tracking);
-        await evaluate('[...document.querySelectorAll("button")].find(el=>el.textContent.includes("View Parcel & Actions")).click()');
+        await click('button[aria-label^="View parcel #"]');
         await evaluate('[...document.querySelectorAll("button")].find(el=>el.textContent.trim()==="Approve Pickup Request").click()');
         await confirmParcelAction();
         await until(
@@ -550,7 +669,7 @@ async function until(predicate, label) {
         );
         await signInRole('operations@example.test');
         await navigate('/deliveries?stage=dispatch&search=' + fixtures['dispatch recipient'].tracking);
-        await evaluate('[...document.querySelectorAll("button")].find(el=>el.textContent.includes("View Parcel & Actions")).click()');
+        await click('button[aria-label^="View parcel #"]');
         await until(
             () => evaluate('[...document.querySelectorAll("button")].some(el=>el.textContent.trim()==="Assign Delivery Rider")'),
             'delivery assignment form available from queue',

@@ -20,6 +20,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -29,7 +30,7 @@ class ProfileController extends Controller
     /**
      * Show the user's profile settings page.
      */
-    public function edit(Request $request): Response
+    public function edit(Request $request, EmailSecurityCodes $codes): Response
     {
         if ($request->user()->role === 'logistics' && in_array($request->user()->status, ['approved', 'pending_reverification'], true)) {
             return Inertia::render('settings/account', ['logisticsRegistration' => $this->logisticsRegistration($request->user())]);
@@ -54,20 +55,31 @@ class ProfileController extends Controller
                     'sellerType' => $user->application?->seller_type,
                     'requiredDocuments' => SellerRules::documents($user->application?->seller_type ?? ''),
                 ] : []),
-                'sensitiveConfirmed' => $request->session()->has('profile_confirmation'),
+                'sensitiveConfirmed' => $codes->hasValidConfirmation($request->user(), 'profile', $request->session()->get('profile_confirmation')),
                 'googleOnly' => ! $user->password,
                 'documents' => $user->application?->documents()->latest('id')->get()->unique('kind')->values()->map(fn ($document) => [
                     'id' => $document->id, 'kind' => $document->kind,
+                    'url' => URL::temporarySignedRoute('account.documents', now()->addMinutes(5), ['document' => $document->id]),
                 ]) ?? [],
             ]);
         }
 
+        $buyerRegistration = $request->user()->role === 'buyer' ? $this->logisticsRegistration($request->user()) : null;
+
         return Inertia::render('settings/profile', [
+            ...($buyerRegistration ? [
+                'personalDetails' => $buyerRegistration['Personal details'],
+                'registeredAddress' => $buyerRegistration['Registered business address'],
+                'documents' => $request->user()->application?->documents()->latest('id')->get()->unique('kind')->values()->map(fn ($document) => [
+                    'id' => $document->id, 'kind' => $document->kind,
+                    'url' => URL::temporarySignedRoute('account.documents', now()->addMinutes(5), ['document' => $document->id]),
+                ]) ?? [],
+            ] : []),
             'mustVerifyEmail' => $request->user() instanceof MustVerifyEmail,
             'status' => $request->session()->get('status'),
             'googleConnected' => filled($request->user()->google_id),
             'googleOnly' => ! $request->user()->password,
-            'sensitiveConfirmed' => $request->session()->has('profile_confirmation'),
+            'sensitiveConfirmed' => $codes->hasValidConfirmation($request->user(), 'profile', $request->session()->get('profile_confirmation')),
             'businessName' => $request->user()->role === 'logistics' ? $request->user()->application?->business_name : $request->user()->store?->name,
             'bankAccount' => $request->user()->role === 'seller' ? $request->user()->store?->bank_account : $request->user()->bank_account,
             'plateNumber' => DB::table('rider_profiles')->where('user_id', $request->user()->id)->value('plate_number'),

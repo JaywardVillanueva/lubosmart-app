@@ -8,6 +8,14 @@ import 'work.dart';
 import 'buyer.dart';
 import 'seller.dart';
 
+const fulfillmentConcerns = {
+  'external_fulfillment': 'Unauthorized external fulfillment',
+  'direct_cod_arrangement': 'Direct Seller-to-Buyer COD arrangement',
+  'cancel_and_buy_outside': 'Request to cancel and purchase outside LubosMart',
+  'false_delivery': 'False delivery confirmation',
+  'custody_bypass': 'Unexplained fulfillment bypass attempt',
+};
+
 class SupportPage extends StatelessWidget {
   final Api api;
   const SupportPage(this.api, {super.key});
@@ -59,6 +67,13 @@ class SupportThread extends StatelessWidget {
             subtitle:
                 '${data['case']['status']}\n${data['case']['resolution'] ?? ''}',
           ),
+          if (data['case']['fulfillment_concern'] != null)
+            InfoCard(
+              'Reported concern',
+              subtitle:
+                  fulfillmentConcerns[data['case']['fulfillment_concern']] ??
+                  '${data['case']['fulfillment_concern']}',
+            ),
           for (final message in rows(data['messages']).reversed)
             InfoCard(
               '${message['author_name']}',
@@ -99,6 +114,7 @@ class _SupportComposerState extends State<SupportComposer> {
       body = TextEditingController(),
       parcel = TextEditingController();
   String kind = 'message';
+  String concern = '';
   String? evidence;
   @override
   void dispose() {
@@ -122,8 +138,39 @@ class _SupportComposerState extends State<SupportComposer> {
               DropdownMenuItem(value: 'message', child: Text('Message')),
               DropdownMenuItem(value: 'complaint', child: Text('Complaint')),
             ],
-            onChanged: (v) => kind = v!,
+            onChanged: (v) => setState(() {
+              kind = v!;
+              concern = '';
+            }),
           ),
+          if (kind == 'complaint') ...[
+            const SizedBox(height: 16),
+            DropdownButtonFormField<String>(
+              initialValue: concern,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: 'Fulfillment concern (optional)',
+              ),
+              items: [
+                const DropdownMenuItem(
+                  value: '',
+                  child: Text('No specific concern'),
+                ),
+                for (final entry in fulfillmentConcerns.entries)
+                  DropdownMenuItem(
+                    value: entry.key,
+                    child: Text(entry.value, overflow: TextOverflow.ellipsis),
+                  ),
+              ],
+              onChanged: (value) => setState(() => concern = value ?? ''),
+            ),
+            if (concern.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              const Text(
+                'Admin reviews reports. Parcel participants can read the conversation and attachments. A report does not change fulfillment, money or account status.',
+              ),
+            ],
+          ],
           const SizedBox(height: 16),
           TextField(
             controller: subject,
@@ -133,8 +180,10 @@ class _SupportComposerState extends State<SupportComposer> {
           TextField(
             controller: parcel,
             keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: 'Related parcel number (optional)',
+            decoration: InputDecoration(
+              labelText: concern.isEmpty
+                  ? 'Related parcel number (optional)'
+                  : 'Related parcel number (required)',
             ),
           ),
         ],
@@ -166,6 +215,14 @@ class _SupportComposerState extends State<SupportComposer> {
           if (body.text.trim().isEmpty) {
             throw const ApiFailure(422, 'Write your message first.');
           }
+          if (widget.caseId == null &&
+              concern.isNotEmpty &&
+              parcel.text.trim().isEmpty) {
+            throw const ApiFailure(
+              422,
+              'Enter the parcel number for this concern.',
+            );
+          }
           await widget.api.request(
             'POST',
             widget.caseId == null
@@ -176,6 +233,7 @@ class _SupportComposerState extends State<SupportComposer> {
               if (widget.caseId == null) ...{
                 'kind': kind,
                 'subject': subject.text,
+                if (concern.isNotEmpty) 'fulfillment_concern': concern,
                 if (parcel.text.isNotEmpty) 'seller_order_id': parcel.text,
               },
             },
@@ -406,6 +464,12 @@ class AccountPage extends StatelessWidget {
             title: const Text('Support and messages'),
             onTap: () => open(context, SupportPage(api)),
           ),
+          if (session.role != 'buyer')
+            ListTile(
+              leading: const Icon(Icons.account_balance_outlined),
+              title: const Text('Finance overview'),
+              onTap: () => open(context, FinancePage(api)),
+            ),
           if (session.role != 'buyer')
             ListTile(
               leading: const Icon(Icons.assessment_outlined),

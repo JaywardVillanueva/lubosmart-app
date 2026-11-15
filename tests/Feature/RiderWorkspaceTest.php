@@ -32,7 +32,7 @@ test('rider dashboard and notification queues are scoped to the assigned rider',
     $this->get('/deliveries?stage=monitoring')->assertInertia(fn (Assert $page) => $page->has('deliveries.data', 0));
     $this->get('/deliveries?stage=pickups')->assertInertia(fn (Assert $page) => $page->has('deliveries.data', 2)->where('deliveries.data.0.rider_id', $rider->id));
     $this->get('/deliveries?search='.$foreign->tracking_reference)->assertInertia(fn (Assert $page) => $page->has('deliveries.data', 0));
-    $this->post('/deliveries/'.$foreign->id, ['action' => 'failed_attempt', 'reason' => 'Test'])->assertForbidden();
+    $this->post('/deliveries/'.$foreign->id, ['action' => 'failed_attempt', 'note' => 'Other / Custom notes', 'reason' => 'Test'])->assertForbidden();
     foreach (['/logistics/notifications', '/logistics/scan', '/logistics/riders', '/reviews', '/accounts'] as $url) {
         $this->get($url)->assertForbidden();
     }
@@ -42,13 +42,13 @@ test('rider can accept demo dispatch and complete delivery with real proof and C
     Notification::fake();
     $rider = demoRider();
     $parcel = Delivery::query()->where('status', 'in_transit')->sole();
-    $identity = ['tracking_reference' => $parcel->tracking_reference, 'capture_method' => 'manual', 'reason' => 'Synthetic local test parcel'];
+    $identity = ['tracking_reference' => $parcel->tracking_reference, 'capture_method' => 'scanner', 'reason' => 'Synthetic local test parcel'];
 
     $this->actingAs($rider)->post('/deliveries/'.$parcel->id, ['action' => 'out_for_delivery'])->assertStatus(409);
     $this->post('/deliveries/'.$parcel->id, ['action' => 'accept_dispatch', ...$identity])->assertSessionHasNoErrors();
     $this->post('/deliveries/'.$parcel->id, ['action' => 'out_for_delivery'])->assertSessionHasNoErrors();
-    $this->post('/deliveries/'.$parcel->id, ['action' => 'delivered', ...$identity])->assertSessionHasErrors('proof');
-    $this->post('/deliveries/'.$parcel->id, ['action' => 'delivered', ...$identity, 'proof' => UploadedFile::fake()->createWithContent('demo-proof.png', base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aM1sAAAAASUVORK5CYII=')), 'amount' => '150.00', 'recipient_name' => 'DEMO Recipient'])->assertSessionHasNoErrors();
+    $this->post('/deliveries/'.$parcel->id, ['action' => 'delivered', 'note' => 'Received by buyer.', 'cod_confirmed' => true, ...$identity])->assertSessionHasErrors('proof');
+    $this->post('/deliveries/'.$parcel->id, ['action' => 'delivered', 'note' => 'Received by buyer.', 'cod_confirmed' => true, ...$identity, 'proof' => UploadedFile::fake()->createWithContent('demo-proof.png', base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aM1sAAAAASUVORK5CYII=')), 'amount' => '150.00', 'recipient_name' => 'DEMO Recipient'])->assertSessionHasNoErrors();
 
     expect($parcel->fresh()->status)->toBe('delivered');
     Storage::disk('local')->assertExists($parcel->fresh()->proof_photo_path);
@@ -66,8 +66,8 @@ test('delivery issues require a reason and remain visible to the assigned rider'
     $rider = demoRider();
     $parcel = Delivery::query()->where('status', 'out_for_delivery')->sole();
 
-    $this->actingAs($rider)->post('/deliveries/'.$parcel->id, ['action' => 'failed_attempt'])->assertSessionHasErrors('reason');
-    $this->post('/deliveries/'.$parcel->id, ['action' => 'failed_attempt', 'reason' => 'DEMO recipient unavailable'])->assertSessionHasNoErrors();
+    $this->actingAs($rider)->post('/deliveries/'.$parcel->id, ['action' => 'failed_attempt'])->assertSessionHasErrors('note');
+    $this->post('/deliveries/'.$parcel->id, ['action' => 'failed_attempt', 'note' => 'Other / Custom notes', 'reason' => 'DEMO recipient unavailable'])->assertSessionHasNoErrors();
     $this->get('/deliveries?stage=exceptions')->assertInertia(fn (Assert $page) => $page->has('deliveries.data', 1)->where('deliveries.data.0.exception_status', 'failed_attempt'));
     $this->get('/rider/notifications')->assertJsonPath('exceptions', 1)->assertJsonPath('monitoring', 0);
 });
@@ -87,7 +87,7 @@ test('rider demo reruns preserve passwords progress and private logins', functio
     $login = json_decode($ownerLogin, true, 512, JSON_THROW_ON_ERROR);
     expect(Hash::check($login['password'], User::query()->where('role', 'logistics')->sole()->password))->toBeTrue();
     $parcel = Delivery::query()->where('status', 'assigned')->sole();
-    $this->actingAs($rider)->post('/deliveries/'.$parcel->id, ['action' => 'picked_up', 'tracking_reference' => $parcel->tracking_reference, 'capture_method' => 'manual', 'reason' => 'Local demo pickup'])->assertSessionHasNoErrors();
+    $this->actingAs($rider)->post('/deliveries/'.$parcel->id, ['action' => 'picked_up', 'tracking_reference' => $parcel->tracking_reference, 'capture_method' => 'scanner', 'reason' => 'Local demo pickup'])->assertSessionHasNoErrors();
 
     $this->seed(RiderDemoSeeder::class);
 

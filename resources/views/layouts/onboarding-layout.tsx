@@ -1,9 +1,5 @@
-import AppWordmark from '@/components/branding/app-wordmark';
 import OnboardingSteps from '@/components/onboarding/onboarding-steps';
-import { secondaryClass } from '@/components/shared/marketplace-ui';
-import { SkipLink } from '@/components/shell/skip-link';
-import { assets } from '@/config/assets';
-import { Head, Link } from '@inertiajs/react';
+import AccountAccessLayout from '@/layouts/auth/account-access-layout';
 import type { ReactNode } from 'react';
 
 export default function OnboardingLayout({
@@ -18,28 +14,13 @@ export default function OnboardingLayout({
     authenticated?: boolean;
 }) {
     return (
-        <div className="bg-background min-h-svh">
-            <Head title={title} />
-            <SkipLink />
-            <header className="mx-auto flex max-w-4xl items-center justify-between gap-4 px-5 py-6">
-                <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
-                    <img src={assets.brand.logo} alt="" className="size-9" />
-                    <AppWordmark />
-                </Link>
-                {authenticated ? (
-                    <Link href={route('logout')} method="post" as="button" className={secondaryClass}>
-                        Log out
-                    </Link>
-                ) : (
-                    <Link href="/login" className={secondaryClass}>
-                        Sign in
-                    </Link>
-                )}
-            </header>
-            <main id="main-content" tabIndex={-1} className="mx-auto max-w-3xl space-y-7 px-4 pb-12 sm:px-6">
-                {step && <OnboardingSteps current={step} />}
-                <section className="bg-card rounded-2xl border p-5 shadow-sm sm:p-8">{children}</section>
-            </main>
-        </div>
+        <AccountAccessLayout title={title} description="" registering verification={authenticated} hideBackLink>
+            {step && (
+                <div className="mb-4">
+                    <OnboardingSteps current={step} />
+                </div>
+            )}
+            <div className="space-y-4 [&>h1]:hidden">{children}</div>
+        </AccountAccessLayout>
     );
 }

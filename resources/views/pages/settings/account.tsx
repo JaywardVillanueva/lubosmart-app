@@ -1,5 +1,6 @@
 import { AccountChangeComparison } from '@/components/settings/account-change';
 import PersonalDetails from '@/components/settings/personal-details';
+import RegisteredAddress from '@/components/settings/registered-address';
 import { roleSettingsItems, SettingsSections } from '@/components/settings/settings-sections';
 import { notify, useConfirmAction } from '@/components/shared/action-feedback';
 import { Badge, Card, Field, Notice, Page, Select } from '@/components/shared/marketplace-ui';
@@ -7,7 +8,7 @@ import ValidatedForm from '@/components/shared/validated-form';
 import { Button } from '@/components/ui/button';
 import { type AccountAddress, accountApi, type AccountChange, displayValue, type Region } from '@/lib/account-api';
 import { Link } from '@inertiajs/react';
-import { LockKeyhole } from 'lucide-react';
+import { ExternalLink, FileText, LockKeyhole } from 'lucide-react';
 import { type FormEvent, type ReactNode, useEffect, useState } from 'react';
 import useSWR from 'swr';
 
@@ -40,13 +41,18 @@ const categories = [
     { id: 'contact-details', title: 'Contact and security', field: null },
 ];
 
-function Section({ title, active, status = 'approved', children }: { title: string; active: boolean; status?: string; children: ReactNode }) {
+function Section({ title, active, status, children }: { title: string; active: boolean; status?: string; children: ReactNode }) {
     return (
         <div hidden={!active} id={categories.find((category) => category.title === title)?.id}>
             <Card className="space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                     <h2 className="text-lg font-semibold">{title}</h2>
-                    <Badge status={status} label={status === 'pending' ? 'Pending review' : status === 'missing' ? 'Needs re-upload' : undefined} />
+                    {status && (
+                        <Badge
+                            status={status}
+                            label={status === 'pending' ? 'Pending review' : status === 'missing' ? 'Needs re-upload' : undefined}
+                        />
+                    )}
                 </div>
                 {children}
             </Card>
@@ -67,7 +73,6 @@ export default function Account() {
         return () => window.removeEventListener('hashchange', update);
     }, []);
     const { data, error, isLoading, mutate } = useSWR<Settings>('/api/account/settings', accountApi, { revalidateOnFocus: true });
-    const [message, setMessage] = useState('');
     const [failure, setFailure] = useState('');
     const [busy, setBusy] = useState(false);
     const [revealed, setRevealed] = useState<string | null>(null);
@@ -83,6 +88,7 @@ export default function Account() {
         house_number: '',
         street: '',
     });
+    const [codeSent, setCodeSent] = useState(false);
     const [code, setCode] = useState('');
     const [otpToken, setOtpToken] = useState('');
     const {
@@ -93,16 +99,13 @@ export default function Account() {
     async function act(work: () => Promise<unknown>, success: string) {
         setBusy(true);
         setFailure('');
-        setMessage('');
         try {
             await work();
             await mutate();
-            setMessage(success);
             notify(success);
         } catch (err) {
             const message = err instanceof Error ? err.message : 'Unable to save.';
             setFailure(message);
-            notify(message, 'error');
         } finally {
             setBusy(false);
         }
@@ -161,7 +164,6 @@ export default function Account() {
     return (
         <Page title="Account settings" description="Your approved registration details. Request a review when your business information changes.">
             {failure && <Notice tone="error">{failure}</Notice>}
-            {message && <Notice>{message}</Notice>}
             {data.status === 'pending_reverification' && (
                 <Notice tone="warning">Your company is pending re-verification. Your approved registration remains visible below.</Notice>
             )}
@@ -170,7 +172,6 @@ export default function Account() {
                 onSelect={(target) => {
                     setCategory(target.split('#')[1] ?? 'personal-information');
                     setRevealed(null);
-                    setMessage('');
                     setFailure('');
                 }}
             >
@@ -226,7 +227,7 @@ export default function Account() {
                                         'Your new company details and documents will be reviewed. Operations remain subject to the account approval rules.',
                                     confirmLabel: 'Submit re-verification request',
                                 }}
-                                className="grid gap-4"
+                                className="grid max-w-3xl gap-4"
                                 onSubmit={(event) =>
                                     submit(event, (form) => accountApi('/api/account/reverification', 'POST', form), 'Re-verification requested.')
                                 }
@@ -255,7 +256,21 @@ export default function Account() {
                         )}
                     </Section>
                     <Section title="Registered address" active={category === 'registered-address'} status={status('registered_address')}>
-                        <p className="text-sm whitespace-pre-wrap">{displayValue(profile.registered_address)}</p>
+                        <RegisteredAddress
+                            details={{
+                                'Street and house / unit': [profile.registered_address?.house_number, profile.registered_address?.street]
+                                    .filter(Boolean)
+                                    .join(' '),
+                                Barangay: profile.registered_address?.barangay_name,
+                                'City / municipality': profile.registered_address?.city_name,
+                                Province: profile.registered_address?.province_name,
+                                Region: profile.registered_address?.region_name,
+                                'Postal code': profile.registered_address?.postal_code,
+                            }}
+                        />
+                        <p className="text-muted-foreground text-sm">
+                            Changes require administrative review. Saved delivery addresses do not change your registration.
+                        </p>
                         <Button variant="outline" onClick={() => setAddressOpen(!addressOpen)} aria-expanded={addressOpen}>
                             Request address change
                         </Button>
@@ -356,10 +371,44 @@ export default function Account() {
                             <LockKeyhole size={14} aria-hidden="true" />
                             {data.regions.find((region) => region.code === home)?.name} · Registered address
                         </p>
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            <div className="rounded-xl border p-4">
+                                <h3 className="text-sm font-semibold">Approved service areas</h3>
+                                <ul className="mt-3 space-y-2">
+                                    {profile.service_areas.map((area) => (
+                                        <li key={area.code} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                                            <span>{area.name}</span>
+                                            <Badge status="approved" />
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                            <div className="rounded-xl border p-4">
+                                <h3 className="text-sm font-semibold">Pending service area requests</h3>
+                                <ul className="mt-3 space-y-2">
+                                    {(Array.isArray(proposedAreas)
+                                        ? proposedAreas.filter(
+                                              (code): code is string =>
+                                                  typeof code === 'string' && !profile.service_areas.some((area) => area.code === code),
+                                          )
+                                        : []
+                                    ).map((code) => (
+                                        <li key={code} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                                            <span>{data.regions.find((region) => region.code === code)?.name ?? code}</span>
+                                            <Badge status="pending" />
+                                        </li>
+                                    ))}
+                                </ul>
+                                {!Array.isArray(proposedAreas) && <p className="text-muted-foreground mt-3 text-sm">No requests awaiting review.</p>}
+                            </div>
+                        </div>
                         <fieldset className="grid gap-2 sm:grid-cols-2">
-                            <legend className="mb-2 text-sm font-medium">Choose service regions</legend>
+                            <legend className="mb-2 text-sm font-medium">Manage coverage and request available regions</legend>
                             {data.regions.map((region) => (
-                                <label key={region.code} className="flex min-h-11 items-center gap-3 text-sm">
+                                <label
+                                    key={region.code}
+                                    className="focus-within:ring-ring flex min-h-11 items-center gap-3 rounded-xl border p-3 text-sm focus-within:ring-2"
+                                >
                                     <input
                                         type="checkbox"
                                         checked={areas.includes(region.code)}
@@ -368,7 +417,16 @@ export default function Account() {
                                             setSelected(event.target.checked ? [...areas, region.code] : areas.filter((code) => code !== region.code))
                                         }
                                     />
-                                    {region.name}
+                                    <span>
+                                        {region.name}
+                                        <span className="text-muted-foreground block text-xs">
+                                            {profile.service_areas.some((area) => area.code === region.code)
+                                                ? 'Approved'
+                                                : Array.isArray(proposedAreas) && proposedAreas.includes(region.code)
+                                                  ? 'Pending review'
+                                                  : 'Available to request'}
+                                        </span>
+                                    </span>
                                 </label>
                             ))}
                         </fieldset>
@@ -405,9 +463,19 @@ export default function Account() {
                         {profile.documents.length ? (
                             <ul className="grid gap-3">
                                 {profile.documents.map((doc) => (
-                                    <li key={doc.id}>
-                                        <a className="text-primary underline" href={doc.url}>
+                                    <li key={doc.id} className="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-xl border p-4">
+                                        <span className="flex items-center gap-3 text-sm font-medium">
+                                            <FileText aria-hidden="true" className="text-primary size-5 shrink-0" />
                                             {doc.kind.replaceAll('_', ' ')}
+                                        </span>
+                                        <a
+                                            className="text-primary focus-visible:ring-ring inline-flex min-h-11 items-center gap-2 rounded text-sm font-medium underline focus-visible:ring-2"
+                                            href={doc.url}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                        >
+                                            View document <ExternalLink aria-hidden="true" className="size-4" />
+                                            <span className="sr-only"> (opens in a new tab)</span>
                                         </a>
                                     </li>
                                 ))}
@@ -415,39 +483,56 @@ export default function Account() {
                         ) : (
                             <p>No submitted documents are available. Request re-verification to upload them.</p>
                         )}
-                        <p className="text-muted-foreground text-sm">Document links expire after five minutes. Refresh this page for new links.</p>
+                        <p className="text-muted-foreground text-sm">
+                            Private document links expire after five minutes. Refresh links before opening an expired document.
+                        </p>
+                        <Button variant="outline" disabled={busy} onClick={() => void act(() => mutate(), 'Document links refreshed.')}>
+                            Refresh document links
+                        </Button>
                     </Section>
                     <Section title="Contact and security" active={category === 'contact-details'}>
                         <p className="text-sm">Verify a code sent to your current registered email before changing email or contact number.</p>
                         <Button
                             variant="outline"
                             disabled={busy}
-                            onClick={() => void act(() => accountApi('/api/account/otp', 'POST', {}), 'Verification code sent.')}
-                        >
-                            Send verification code
-                        </Button>
-                        <Field
-                            label="Email verification code"
-                            autoComplete="one-time-code"
-                            inputMode="numeric"
-                            maxLength={6}
-                            value={code}
-                            onChange={(event) => setCode(event.target.value)}
-                        />
-                        <Button
-                            variant="outline"
-                            disabled={busy || code.length !== 6}
                             onClick={() =>
                                 void act(async () => {
-                                    const result = await accountApi<{ token: string }>('/api/account/otp/verify', 'POST', { code });
-                                    setOtpToken(result.token);
-                                }, 'Code verified. Save within ten minutes.')
+                                    await accountApi('/api/account/otp', 'POST', {});
+                                    setCodeSent(true);
+                                }, 'Verification code sent.')
                             }
                         >
-                            Verify code
+                            {codeSent ? 'Resend verification code' : 'Send verification code'}
                         </Button>
+                        {codeSent && !otpToken && (
+                            <>
+                                <Field
+                                    label="Email verification code"
+                                    autoComplete="one-time-code"
+                                    inputMode="numeric"
+                                    maxLength={6}
+                                    value={code}
+                                    onChange={(event) => setCode(event.target.value)}
+                                />
+                                <Button
+                                    variant="outline"
+                                    disabled={busy || code.length !== 6}
+                                    onClick={() =>
+                                        void act(async () => {
+                                            const result = await accountApi<{ token: string }>('/api/account/otp/verify', 'POST', { code });
+                                            setOtpToken(result.token);
+                                        }, 'Code verified. Save within ten minutes.')
+                                    }
+                                >
+                                    Verify code
+                                </Button>
+                            </>
+                        )}
+                        <p className="text-muted-foreground text-sm">
+                            Current email: {data.contact.email} / Contact: {data.contact.phone || 'Not provided'}
+                        </p>
                         <ValidatedForm
-                            className="grid gap-4"
+                            className={otpToken ? 'grid max-w-3xl gap-4' : 'hidden'}
                             key={`${data.contact.email}-${data.contact.phone}`}
                             onSubmit={(event) =>
                                 submit(

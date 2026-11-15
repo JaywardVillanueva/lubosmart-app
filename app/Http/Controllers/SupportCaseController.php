@@ -21,18 +21,23 @@ class SupportCaseController extends Controller
 {
     public function index(Request $request)
     {
-        $filters = $request->validate(['kind' => ['nullable', Rule::in(['complaint', 'message'])], 'status' => ['nullable', Rule::in(['open', 'in_review', 'resolved'])]]);
-        $query = SupportCase::query()->with('participants:id,name,role');
-        if ($request->expectsJson()) {
-            $query->with('latestMessage.author:id,name');
-        }
+        $filters = $request->validate(['kind' => ['nullable', Rule::in(['complaint', 'message'])], 'status' => ['nullable', Rule::in(['open', 'in_review', 'resolved'])], 'search' => 'nullable|string|max:100', 'unread' => 'nullable|boolean', 'fulfillment_concern' => ['nullable', Rule::in(array_keys(SupportCase::FULFILLMENT_CONCERNS))]]);
+        $unread = fn ($q) => $q->where('user_id', '!=', $request->user()->id)
+            ->when($request->user()->role === 'admin', fn ($q) => $q->whereHas('author', fn ($author) => $author->where('role', '!=', 'admin')))
+            ->whereRaw('support_case_messages.id > COALESCE((SELECT last_read_message_id FROM support_case_reads WHERE support_case_reads.support_case_id = support_cases.id AND support_case_reads.user_id = ?), 0)', [$request->user()->id]);
+        $query = SupportCase::query()->with(['participants:id,name,role', 'latestMessage.author:id,name'])->withCount(['messages as unread_count' => $unread])->withMax('messages', 'created_at');
         if ($request->user()->role !== 'admin') {
             $query->whereHas('participants', fn ($q) => $q->where('users.id', $request->user()->id));
         }
         $query->when($filters['kind'] ?? null, fn ($q, $kind) => $q->where('kind', $kind));
         $query->when($filters['status'] ?? null, fn ($q, $status) => $q->where('status', $status));
+        $query->when($filters['fulfillment_concern'] ?? null, fn ($q, $concern) => $q->where('fulfillment_concern', $concern));
+        $query->when($filters['unread'] ?? false, fn ($q) => $q->whereHas('messages', $unread));
+        $query->when($filters['search'] ?? null, fn ($q, $search) => $q->where(fn ($q) => $q->where('subject', 'like', '%'.$search.'%')
+            ->orWhereHas('participants', fn ($q) => $q->where('name', 'like', '%'.$search.'%'))
+            ->orWhere('seller_order_id', is_numeric($search) ? (int) $search : 0)));
 
-        $data = ['cases' => $query->latest('updated_at')->orderByDesc('id')->paginate(15)->withQueryString(), 'filters' => $filters];
+        $data = ['cases' => $query->orderByDesc('messages_max_created_at')->orderByDesc('id')->paginate(15)->withQueryString(), 'filters' => $filters];
 
         return $request->expectsJson() ? response()->json($data)->header('Cache-Control', 'private, no-store') : Inertia::render('support/index', $data);
     }
@@ -55,9 +60,17 @@ class SupportCaseController extends Controller
         return response()->json(compact('recipients', 'orders'))->header('Cache-Control', 'private, no-store');
     }
 
-    public function store(Request $request)
+    public function reportOptions()
     {
-        $data = $request->validate(['kind' => ['required', Rule::in(['complaint', 'message'])], 'subject' => 'required|string|max:160', 'body' => 'required|string|max:5000', 'seller_order_id' => 'nullable|integer|exists:seller_orders,id', 'recipient_email' => 'nullable|email|max:160', 'attachment' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120']);
+        return response()->json(['fulfillment_concerns' => SupportCase::FULFILLMENT_CONCERNS])->header('Cache-Control', 'private, no-store');
+    }
+
+    public function store(Request $request, AuditLogger $audit)
+    {
+        $data = $request->validate(['kind' => ['required', Rule::in(['complaint', 'message'])], 'subject' => 'required|string|max:160', 'body' => 'required|string|max:5000',
+            'seller_order_id' => [Rule::requiredIf($request->filled('fulfillment_concern')), 'nullable', 'integer', 'exists:seller_orders,id'],
+            'fulfillment_concern' => ['nullable', Rule::in(array_keys(SupportCase::FULFILLMENT_CONCERNS)), Rule::prohibitedIf($request->input('kind') !== 'complaint')],
+            'recipient_email' => 'nullable|email|max:160', 'attachment' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120']);
         $user = $request->user();
         $participants = [$user->id];
         if (! empty($data['seller_order_id'])) {
@@ -68,7 +81,7 @@ class SupportCaseController extends Controller
         }
         if (! empty($data['recipient_email'])) {
             abort_unless(in_array($user->role, ['admin', 'logistics'], true), 403);
-            $recipient = ($user->role === 'logistics' ? app(LogisticsContacts::class)->recipients($user) : User::query()->where('role', '!=', 'admin'))->where('email', strtolower(trim($data['recipient_email'])))->first();
+            $recipient = ($user->role === 'logistics' ? app(LogisticsContacts::class)->recipients($user) : User::query()->where('role', '!=', 'admin')->where('status', 'approved')->whereNotNull('email_verified_at'))->where('email', strtolower(trim($data['recipient_email'])))->first();
             if (! $recipient) {
                 throw ValidationException::withMessages(['recipient_email' => 'No account found for this email.']);
             }
@@ -79,10 +92,15 @@ class SupportCaseController extends Controller
         }
         $path = $request->hasFile('attachment') ? $request->file('attachment')->store('support-evidence', 'local') : null;
         try {
-            $case = DB::transaction(function () use ($request, $data, $participants, $path) {
-                $case = SupportCase::query()->create(['opened_by' => $request->user()->id, 'kind' => $data['kind'], 'subject' => $data['subject'], 'seller_order_id' => $data['seller_order_id'] ?? null]);
+            $case = DB::transaction(function () use ($request, $data, $participants, $path, $audit) {
+                $case = SupportCase::query()->create(['opened_by' => $request->user()->id, 'kind' => $data['kind'], 'subject' => $data['subject'], 'seller_order_id' => $data['seller_order_id'] ?? null, 'fulfillment_concern' => $data['fulfillment_concern'] ?? null]);
                 $case->participants()->attach(array_unique($participants));
                 $case->messages()->create(['user_id' => $request->user()->id, 'body' => $data['body'], 'attachment_path' => $path, 'attachment_name' => $path ? 'evidence.'.strtolower($request->file('attachment')->extension()) : null]);
+                if ($case->fulfillment_concern) {
+                    $audit->record(['actor_id' => $request->user()->id, 'subject_type' => 'support_case', 'subject_id' => $case->id,
+                        'action' => 'fulfillment_concern_reported', 'changes' => ['seller_order_id' => $case->seller_order_id,
+                            'fulfillment_concern' => $case->fulfillment_concern, 'status' => 'open']]);
+                }
 
                 return $case;
             });
@@ -107,11 +125,13 @@ class SupportCaseController extends Controller
     public function show(Request $request, SupportCase $case)
     {
         Gate::authorize('view', $case);
-        if ($request->user()->role === 'admin') {
-            DB::table('support_case_reads')->updateOrInsert(['support_case_id' => $case->id, 'user_id' => $request->user()->id], ['read_at' => now(), 'last_read_message_id' => $case->messages()->max('id')]);
-        }
-
         $data = ['case' => $case->load('participants:id,name,role'), 'messages' => $case->messages()->with('author:id,name,role')->latest('id')->paginate(30)];
+        // Only acknowledge messages included in the latest page, never unseen history.
+        if ($data['messages']->currentPage() === 1 && $data['messages']->count()) {
+            DB::table('support_case_reads')->upsert([
+                ['support_case_id' => $case->id, 'user_id' => $request->user()->id, 'read_at' => now(), 'last_read_message_id' => $data['messages']->first()->id],
+            ], ['support_case_id', 'user_id'], ['read_at', 'last_read_message_id']);
+        }
 
         return $request->expectsJson() ? response()->json($data)->header('Cache-Control', 'private, no-store') : Inertia::render('support/show', $data);
     }
@@ -148,8 +168,9 @@ class SupportCaseController extends Controller
         $data = $request->validate(['status' => ['required', Rule::in(['open', 'in_review', 'resolved'])], 'resolution' => 'required_if:status,resolved|nullable|string|max:5000']);
         DB::transaction(function () use ($request, $case, $data) {
             $case = SupportCase::query()->whereKey($case->id)->lockForUpdate()->firstOrFail();
+            $previousStatus = $case->status;
             $case->update($data + ['resolved_by' => $data['status'] === 'resolved' ? $request->user()->id : null, 'resolved_at' => $data['status'] === 'resolved' ? now() : null]);
-            app(AuditLogger::class)->record(['actor_id' => $request->user()->id, 'subject_type' => 'support_case', 'subject_id' => $case->id, 'action' => $data['status'], 'changes' => json_encode($data), 'occurred_at' => now()]);
+            app(AuditLogger::class)->record(['actor_id' => $request->user()->id, 'subject_type' => 'support_case', 'subject_id' => $case->id, 'action' => $data['status'], 'changes' => [...$data, 'from' => $previousStatus, 'to' => $data['status']], 'occurred_at' => now()]);
         });
 
         return back()->with('status', 'Case updated.');
@@ -160,6 +181,6 @@ class SupportCaseController extends Controller
         Gate::authorize('view', $case);
         abort_unless($message->support_case_id === $case->id && $message->attachment_path, 404);
 
-        return Storage::disk('local')->download($message->attachment_path, $message->attachment_name);
+        return Storage::disk('local')->download($message->attachment_path, $message->attachment_name, ['Cache-Control' => 'private, no-store']);
     }
 }

@@ -1,0 +1,1416 @@
+/* Homepage composition from the supplied desktop and mobile reference. */
+.home-delivery-strip {
+    position: absolute;
+    inset: auto 0 0;
+    z-index: 2;
+    height: 108px;
+    color: var(--primary);
+}
+.home-delivery-road {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+.home-delivery-road::after {
+    content: '';
+    position: absolute;
+    inset: auto 0 7px;
+    border-bottom: 1px dashed color-mix(in srgb, var(--primary) 20%, transparent);
+}
+.home-delivery-traveler {
+    position: absolute;
+    bottom: 5px;
+    left: calc(50% - 120px);
+    width: 100%;
+}
+.home-delivery-truck {
+    display: block;
+    overflow: visible;
+}
+.home-delivery-smoke {
+    opacity: 0;
+    transform-box: fill-box;
+    transform-origin: center;
+}
+@media (prefers-reduced-motion: no-preference) {
+    .home-delivery-traveler {
+        left: 0;
+        animation: home-delivery-drive 14s linear infinite;
+    }
+    .home-delivery-body {
+        animation: home-delivery-bounce 0.65s ease-in-out infinite alternate;
+    }
+    .home-delivery-wheel {
+        animation: home-delivery-roll 0.8s linear infinite;
+    }
+    .home-delivery-smoke {
+        animation: home-delivery-smoke 1.8s ease-out infinite;
+    }
+}
+@keyframes home-delivery-drive {
+    from {
+        transform: translateX(-240px);
+    }
+    to {
+        transform: translateX(100%);
+    }
+}
+@keyframes home-delivery-bounce {
+    to {
+        transform: translateY(-1.5px);
+    }
+}
+@keyframes home-delivery-roll {
+    to {
+        transform: rotate(360deg);
+    }
+}
+@keyframes home-delivery-smoke {
+    0% {
+        opacity: 0;
+        transform: translate(0, 0) scale(0.5);
+    }
+    15% {
+        opacity: 0.4;
+    }
+    100% {
+        opacity: 0;
+        transform: translate(-46px, -18px) scale(2.4);
+    }
+}
+.reference-home .home-hero-tagline {
+    position: absolute;
+    inset: 8px 0 auto;
+    z-index: 2;
+    overflow: hidden;
+    padding-block: 8px;
+    color: var(--muted-foreground);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+.reference-home .home-hero-tagline-bottom {
+    inset: auto 0 8px;
+}
+.home-tagline-track {
+    display: flex;
+    width: max-content;
+}
+.home-tagline-group {
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    width: max(100cqw, 720px);
+    flex-shrink: 0;
+}
+.home-tagline-group > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 24px;
+}
+.home-hero-tagline .home-tagline-star {
+    color: var(--primary);
+}
+.reference-home > .reference-header .app-wordmark {
+    font-family: var(--font-sans);
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    text-transform: none;
+    text-shadow: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+    .home-tagline-track {
+        animation: home-tagline-scroll 28s linear infinite;
+    }
+    .home-hero-tagline-bottom .home-tagline-track {
+        animation-direction: reverse;
+    }
+    .reference-hero:focus-within .home-tagline-track {
+        animation-play-state: paused;
+    }
+}
+@keyframes home-tagline-scroll {
+    from {
+        transform: translateX(0);
+    }
+    to {
+        transform: translateX(-50%);
+    }
+}
+.reference-home > .reference-header .reference-account > button {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--accent);
+    color: var(--foreground);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--foreground) 8%, transparent);
+}
+.reference-home > .reference-header .reference-account > button:hover {
+    background: color-mix(in srgb, var(--primary) 16%, var(--accent));
+    border-color: var(--primary);
+}
+:is(.reference-home, .reference-catalog) {
+    width: 100%;
+    max-width: 1440px;
+    container-type: inline-size;
+}
+.reference-page.reference-home {
+    max-width: none;
+}
+.reference-home > .reference-header .home-navbar-search {
+    display: flex;
+    align-items: center;
+    flex: 1;
+    min-width: 200px;
+    max-width: 550px;
+    gap: 8px;
+    margin-left: auto;
+    padding: 4px 4px 4px 12px;
+    border: 1px solid var(--input);
+    border-radius: 16px;
+    background: var(--card);
+    color: var(--muted-foreground);
+}
+.home-navbar-search > svg {
+    flex-shrink: 0;
+}
+.home-navbar-search input {
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    font-size: 16px;
+    color: var(--foreground);
+    background: transparent;
+    outline: none;
+}
+.reference-home .home-navbar-search:focus-within {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 15%, transparent);
+}
+.reference-home .home-navbar-search input:focus-visible {
+    outline: none;
+}
+.home-navbar-search .reference-button {
+    min-height: 44px;
+    flex-shrink: 0;
+    padding: 8px 16px;
+}
+@media (max-width: 1100px) {
+    .reference-home > .reference-header .home-navbar-search {
+        order: 4;
+        flex: 1 0 100%;
+        max-width: none;
+        margin-left: 0;
+    }
+}
+@media (max-width: 700px) {
+    .reference-page.reference-home > .reference-header {
+        flex-wrap: wrap;
+    }
+}
+.reference-home {
+    --background: hsl(270, 100%, 99%);
+    --accent: hsl(270, 85%, 96%);
+    --border: hsl(270, 45%, 91%);
+    background: linear-gradient(135deg, var(--card), var(--background));
+}
+.dark .reference-home {
+    --background: hsl(265, 28%, 9%);
+    --card: hsl(265, 23%, 13%);
+    --accent: hsl(270, 30%, 23%);
+    --border: hsl(265, 20%, 24%);
+}
+.reference-home h1,
+.reference-home h2,
+.reference-home h3,
+.reference-home .home-footer-group > summary {
+    font-family: var(--font-sans);
+}
+:is(.reference-home, .reference-catalog) > .reference-header {
+    min-height: 76px;
+    padding: 12px 3%;
+    gap: 20px;
+}
+:is(.reference-home, .reference-catalog) .reference-nav {
+    gap: 2px;
+}
+:is(.reference-home, .reference-catalog) .reference-nav a {
+    padding-inline: 12px;
+}
+:is(.reference-home, .reference-catalog) .reference-account {
+    gap: 8px;
+}
+:is(.reference-home, .reference-catalog) .home-menu-toggle,
+:is(.reference-home, .reference-catalog) .home-mobile-account {
+    display: none;
+}
+.reference-home-main {
+    padding: 16px 3% 24px;
+    gap: 24px;
+}
+.reference-home .reference-hero {
+    min-height: 340px;
+    grid-template-columns: 1.1fr 1fr;
+    padding: 48px 6%;
+    gap: 16px;
+    border: 0;
+    border-radius: 20px;
+    background:
+        radial-gradient(ellipse at 85% 20%, color-mix(in srgb, var(--primary) 24%, transparent), transparent 70%),
+        linear-gradient(110deg, var(--background), var(--accent));
+}
+.reference-home .reference-hero > div {
+    position: relative;
+    z-index: 1;
+    min-width: 0;
+}
+.reference-home .reference-hero h1 {
+    font-size: clamp(36px, 3.8cqw, 60px);
+    font-weight: 800;
+    line-height: 1.02;
+    letter-spacing: -0.055em;
+    margin: 10px 0 16px;
+}
+.reference-home .reference-hero p:not(.reference-eyebrow) {
+    font-size: 16px;
+    line-height: 1.4;
+    color: var(--foreground);
+}
+.reference-home .reference-hero img {
+    height: 320px;
+    width: 100%;
+    object-fit: contain;
+    filter: drop-shadow(0 12px 12px color-mix(in srgb, var(--primary) 15%, transparent));
+}
+.reference-home .reference-actions {
+    margin-top: 20px;
+    gap: 12px;
+}
+.reference-home .reference-actions .reference-button {
+    min-width: 128px;
+    min-height: 44px;
+    padding: 10px 20px;
+    border: 1px solid var(--primary);
+    border-radius: 12px;
+    color: var(--primary-foreground);
+    background: var(--primary);
+    box-shadow: 0 4px 12px -8px var(--primary);
+}
+.reference-home .reference-actions .reference-button:hover,
+.reference-home .home-search-panel .home-hero-search .reference-button:hover {
+    background: color-mix(in srgb, var(--primary) 85%, var(--foreground));
+    text-decoration: none;
+}
+.reference-home .reference-actions .reference-button-outline {
+    background: color-mix(in srgb, var(--card) 80%, transparent);
+    border-color: color-mix(in srgb, var(--primary) 65%, var(--card));
+    color: var(--foreground);
+    box-shadow: none;
+}
+.reference-home .reference-actions .reference-button-outline:hover {
+    background: var(--accent);
+    border-color: var(--primary);
+    color: var(--foreground);
+}
+@media (prefers-reduced-motion: no-preference) {
+    .reference-home .reference-actions .reference-button,
+    .reference-home .home-hero-search .reference-button,
+    .reference-home .home-seller .reference-button {
+        transition:
+            background-color 160ms ease,
+            color 160ms ease,
+            border-color 160ms ease,
+            box-shadow 180ms ease,
+            transform 180ms ease;
+    }
+    .reference-home .home-hero-search {
+        transition:
+            border-color 160ms ease,
+            box-shadow 180ms ease;
+    }
+    .reference-home .home-seller .reference-button svg {
+        transition: transform 180ms ease;
+    }
+    .reference-home :is(.reference-actions, .home-seller) .reference-button:focus-visible {
+        transform: translateY(-2px);
+    }
+    .reference-home .home-seller .reference-button:focus-visible svg {
+        transform: translateX(3px);
+    }
+    @media (hover: hover) and (pointer: fine) {
+        .reference-home :is(.reference-actions, .home-seller) .reference-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px -10px var(--primary);
+        }
+        .reference-home .home-seller .reference-button:hover svg {
+            transform: translateX(3px);
+        }
+        .reference-home .home-hero-search .reference-button:hover {
+            box-shadow: 0 3px 10px -6px var(--primary);
+        }
+    }
+    .reference-home :is(.reference-actions, .home-seller, .home-hero-search) .reference-button:active {
+        transform: translateY(0) scale(0.98);
+        box-shadow: none;
+    }
+    .reference-home .home-seller .reference-button:active svg {
+        transform: translateX(0);
+    }
+}
+.reference-home summary:focus-visible {
+    outline: 3px solid var(--ring);
+    outline-offset: 4px;
+}
+.reference-home .reference-button {
+    border-radius: 10px;
+}
+.home-search-panel {
+    margin-top: 16px;
+    font-size: 14px;
+    color: var(--primary);
+}
+.home-search-panel > label:not(.sr-only) {
+    min-height: 24px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: fit-content;
+}
+.reference-home .home-search-panel .home-hero-search {
+    margin-top: 8px;
+    max-width: 440px;
+    gap: 8px;
+    padding: 4px 4px 4px 12px;
+    border-color: var(--input);
+    border-radius: 16px;
+    box-shadow: 0 4px 16px -12px var(--primary);
+}
+.reference-home .home-search-panel .home-hero-search:focus-within {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 15%, transparent);
+}
+.reference-home .home-search-panel .home-hero-search input {
+    min-height: 44px;
+    font-size: 16px;
+}
+.reference-home .home-search-panel .home-hero-search .reference-button {
+    min-height: 44px;
+    padding: 8px 16px;
+    border-radius: 12px;
+    background: var(--primary);
+    width: auto;
+    flex-shrink: 0;
+}
+.reference-home .reference-services {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    padding: 16px;
+    gap: 16px;
+    border: 1px solid color-mix(in srgb, var(--primary) 5%, var(--border));
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--accent) 35%, var(--card));
+}
+.reference-home .reference-services > div + div {
+    border-left: 1px solid var(--border);
+    padding-left: 16px;
+}
+.reference-home .reference-services p {
+    font-size: 12px;
+    line-height: 1.4;
+}
+.reference-home .reference-services h2 {
+    font-size: 14px;
+}
+.reference-home .reference-section-heading {
+    margin-bottom: 12px;
+    flex-wrap: nowrap;
+}
+.reference-home .reference-categories {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 12px;
+}
+.reference-home .reference-categories a {
+    min-width: 0;
+    min-height: 128px;
+    gap: 4px;
+    padding: 8px 4px 12px;
+    border-color: color-mix(in srgb, var(--primary) 15%, var(--card));
+    background: linear-gradient(145deg, var(--accent), var(--background));
+    box-shadow: 0 2px 3px color-mix(in srgb, var(--primary) 5%, transparent);
+}
+.dark .reference-home .reference-categories a {
+    background: linear-gradient(145deg, var(--accent), var(--card));
+}
+.reference-home .reference-categories a:hover {
+    border-color: var(--primary);
+    background: var(--accent);
+}
+.reference-home .reference-categories a:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 3px;
+}
+.reference-home .home-category-more {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 80px;
+    height: 80px;
+    max-width: 100%;
+}
+.reference-home .home-category-more svg {
+    width: 32px;
+    height: 32px;
+}
+.dark .reference-home .home-category-more svg {
+    color: var(--foreground);
+}
+.reference-home .reference-offer {
+    min-height: 108px;
+    padding: 16px 24px;
+    background: linear-gradient(
+        110deg,
+        color-mix(in srgb, var(--brand-orange) 18%, var(--card)),
+        color-mix(in srgb, var(--brand-orange) 7%, var(--card)) 55%,
+        color-mix(in srgb, var(--brand-orange) 48%, var(--card))
+    );
+}
+.reference-home .reference-offer h2 {
+    font-size: 24px;
+}
+.reference-home .reference-offer-bag {
+    padding: 12px;
+    width: 88px;
+    height: 88px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 70%, var(--foreground)));
+    color: var(--primary-foreground);
+    filter: drop-shadow(6px 8px 4px color-mix(in srgb, var(--primary) 20%, transparent));
+}
+.reference-home .home-how {
+    order: 9;
+    padding: 12px 16px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+}
+.home-how > summary {
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    min-height: 24px;
+}
+.home-how[open] .reference-section-heading {
+    margin-top: 24px;
+}
+.reference-home .home-seller {
+    isolation: isolate;
+    grid-template-columns: 1fr;
+    min-height: 360px;
+    padding: 32px 6%;
+    border-radius: 20px;
+    color: var(--foreground);
+    background: var(--accent);
+}
+.reference-home .home-seller > div {
+    z-index: 1;
+    max-width: 48%;
+}
+.reference-home .home-seller::after {
+    display: block;
+    inset: 0;
+    width: 70%;
+    height: 100%;
+    border: 0;
+    border-radius: 0;
+    z-index: 0;
+    background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 95%, transparent) 60%, transparent);
+}
+.reference-home .home-seller img {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center top;
+}
+.reference-home .home-seller h2 {
+    font-size: clamp(24px, 2.5cqw, 36px);
+    margin: 10px 0;
+    font-weight: 800;
+}
+.reference-home .home-seller h2 + p {
+    font-size: 14px;
+    line-height: 1.4;
+    opacity: 1;
+}
+.reference-home .home-seller .reference-eyebrow {
+    color: var(--primary);
+    opacity: 1;
+}
+.reference-home .home-seller .reference-button {
+    margin-top: 24px;
+    min-height: 48px;
+    background: var(--primary);
+    border-color: var(--primary);
+    color: var(--primary-foreground);
+    border-radius: 12px;
+}
+.reference-home .home-seller .reference-button:hover {
+    background: color-mix(in srgb, var(--primary) 85%, var(--foreground));
+}
+.reference-home .home-footer {
+    padding: 24px 5% 0;
+    background: linear-gradient(120deg, hsl(270, 42%, 20%), hsl(270, 65%, 12%));
+    color: white;
+}
+.reference-home .home-footer-main {
+    gap: 32px;
+    padding-bottom: 24px;
+}
+.reference-home .home-footer-about {
+    grid-column: auto;
+}
+.reference-home .home-footer .app-wordmark {
+    --app-wordmark-color: white;
+    font-size: 18px;
+}
+.reference-home .home-footer-about > p {
+    font-size: 13px;
+    line-height: 1.5;
+    margin-top: 12px;
+}
+.reference-home .home-footer-payment {
+    margin-top: 12px;
+}
+.reference-home .home-footer nav h2 {
+    margin-bottom: 8px;
+    font-size: 14px;
+}
+.reference-home .home-footer nav a {
+    font-size: 12px;
+    min-height: 28px;
+    opacity: 0.9;
+}
+.reference-home .home-footer-bottom {
+    min-height: 52px;
+    padding-block: 8px;
+    font-size: 12px;
+}
+.dark .reference-home .reference-hero {
+    background:
+        radial-gradient(ellipse at 85% 30%, color-mix(in srgb, var(--primary) 40%, transparent), transparent 70%),
+        linear-gradient(110deg, var(--card), var(--accent));
+}
+.dark .reference-home .home-seller {
+    color: var(--foreground);
+}
+.dark .reference-home .home-seller img {
+    opacity: 0.85;
+}
+.dark .reference-home .home-seller::after {
+    display: block;
+    inset: 0;
+    width: 65%;
+    height: 100%;
+    border: 0;
+    border-radius: 0;
+    z-index: 0;
+    background: linear-gradient(90deg, var(--accent), var(--accent) 65%, transparent);
+}
+.dark .reference-home .home-seller .reference-eyebrow {
+    color: var(--primary);
+}
+@media (max-width: 1100px) and (min-width: 701px) {
+    :is(.reference-home, .reference-catalog) > .reference-header {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    :is(.reference-home, .reference-catalog) .reference-nav {
+        order: 3;
+        width: 100%;
+        border: 0;
+        padding: 0;
+    }
+    .reference-home .reference-services > div {
+        gap: 8px;
+    }
+    .reference-home .reference-services > div + div {
+        padding-left: 8px;
+    }
+    .reference-home .reference-services p {
+        display: none;
+    }
+    .reference-home .reference-categories span {
+        font-size: 10px;
+    }
+    .reference-home .home-footer-main {
+        grid-template-columns: 1.2fr 1fr 1fr 1fr;
+        gap: 16px;
+    }
+}
+@media (max-width: 700px) {
+    :is(.reference-home, .reference-catalog) > .reference-header {
+        padding: 8px 12px;
+        gap: 8px;
+        min-height: 64px;
+        position: relative;
+        flex-wrap: nowrap;
+    }
+    :is(.reference-home, .reference-catalog) .home-menu-toggle {
+        display: grid;
+        width: 32px;
+        height: 44px;
+        flex-shrink: 0;
+    }
+    :is(.reference-home, .reference-catalog) .reference-brand {
+        gap: 4px;
+    }
+    :is(.reference-home, .reference-catalog) .reference-brand img {
+        width: 32px;
+        height: 32px;
+    }
+    :is(.reference-home, .reference-catalog) .reference-brand .app-wordmark {
+        font-size: 15px;
+    }
+    :is(.reference-home, .reference-catalog) .reference-account {
+        gap: 4px;
+        flex-wrap: nowrap;
+    }
+    :is(.reference-home, .reference-catalog) .reference-account > .reference-button,
+    :is(.reference-home, .reference-catalog) .reference-account > a[aria-label='Search products'] {
+        display: none;
+    }
+    :is(.reference-home, .reference-catalog) .reference-account > .reference-icon {
+        display: grid;
+        width: 36px;
+        height: 44px;
+    }
+    :is(.reference-home, .reference-catalog) .reference-account > button {
+        width: 36px;
+        height: 44px;
+        border: 0;
+        border-radius: 50%;
+        background: var(--accent);
+    }
+    :is(.reference-home, .reference-catalog) .reference-nav {
+        display: none;
+        position: absolute;
+        left: 12px;
+        right: 12px;
+        top: calc(100% - 4px);
+        z-index: 20;
+        width: auto;
+        padding: 8px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--card);
+        box-shadow: 0 12px 24px color-mix(in srgb, var(--foreground) 12%, transparent);
+    }
+    :is(.reference-home, .reference-catalog) .reference-nav.is-open {
+        display: grid;
+    }
+    :is(.reference-home, .reference-catalog) .reference-nav a {
+        min-height: 44px;
+    }
+    :is(.reference-home, .reference-catalog) .home-mobile-account {
+        display: inline-flex;
+    }
+    .reference-home-main {
+        padding: 12px;
+        gap: 20px;
+    }
+    .reference-home .reference-hero {
+        min-height: 240px;
+        grid-template-columns: 1.05fr 1fr;
+        padding: 48px 16px;
+        gap: 0;
+        border-radius: 16px;
+        align-items: start;
+    }
+    .reference-home .reference-hero h1 {
+        font-size: clamp(22px, 5vw, 36px);
+        margin: 8px 0 12px;
+        max-width: 65%;
+    }
+    .reference-home .reference-eyebrow {
+        font-size: 10px;
+        letter-spacing: 0.04em;
+    }
+    .reference-home .reference-hero p:not(.reference-eyebrow) {
+        font-size: 11px;
+        line-height: 1.4;
+    }
+    .reference-home .reference-hero img {
+        height: 152px;
+        position: absolute;
+        right: 0;
+        top: 44px;
+        bottom: auto;
+        width: 45%;
+        margin-top: 0;
+        transform: scale(1.1);
+        transform-origin: right center;
+    }
+    .reference-home .reference-hero > div {
+        position: static;
+        grid-column: 1 / -1;
+        width: 100%;
+    }
+    .reference-home .reference-hero p:not(.reference-eyebrow) {
+        max-width: 60%;
+        font-size: 10px;
+    }
+    .reference-home .reference-actions {
+        position: static;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin: 24px 0 0;
+    }
+    .reference-home .reference-actions .reference-button {
+        min-width: 0;
+        font-size: 14px;
+        min-height: 44px;
+        padding: 8px;
+    }
+    .reference-home .home-search-panel {
+        margin-top: 48px;
+    }
+    .reference-home .home-search-panel .home-hero-search {
+        position: relative;
+        width: 100%;
+        flex-wrap: nowrap;
+    }
+    .reference-home .reference-services {
+        padding: 0;
+        gap: 8px;
+        background: transparent;
+        border: 0;
+    }
+    .reference-home .reference-services > div {
+        flex-direction: column;
+        justify-content: flex-start;
+        gap: 6px;
+        padding: 8px 4px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--background);
+        text-align: center;
+    }
+    .reference-home .reference-services > div + div {
+        border: 1px solid var(--border);
+        padding-left: 4px;
+    }
+    .reference-home .reference-services > div > span {
+        width: 28px;
+        height: 28px;
+        background: transparent;
+    }
+    .reference-home .reference-services svg {
+        width: 24px;
+        height: 24px;
+    }
+    .reference-home .reference-services h2 {
+        font-size: 10px;
+        line-height: 1.25;
+    }
+    .reference-home .reference-services p {
+        display: none;
+    }
+    .reference-home .reference-section-heading {
+        gap: 8px;
+        margin-bottom: 8px;
+    }
+    .reference-home .reference-section-heading h2 {
+        font-size: 17px;
+    }
+    .reference-home .reference-section-heading a {
+        font-size: 10px;
+        text-align: right;
+    }
+    .reference-home .reference-categories {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+    }
+    .reference-home .reference-categories a {
+        min-height: 100px;
+        gap: 4px;
+        padding: 8px 3px;
+        border-radius: 12px;
+    }
+    .reference-home .reference-categories svg {
+        width: 24px;
+        height: 24px;
+    }
+    .reference-home .home-category-more {
+        width: 64px;
+        height: 64px;
+    }
+    .reference-home .reference-categories span {
+        font-size: 9px;
+        line-height: 1.2;
+    }
+    .reference-home .reference-offer {
+        min-height: 88px;
+        padding: 12px;
+        gap: 8px;
+        flex-wrap: nowrap;
+    }
+    .reference-home .reference-offer h2 {
+        font-size: 15px;
+    }
+    .reference-home .reference-offer h2 svg {
+        width: 16px;
+    }
+    .reference-home .reference-offer p {
+        font-size: 10px;
+    }
+    .reference-home .reference-offer > .reference-button {
+        font-size: 10px;
+        min-height: 40px;
+        padding: 8px;
+        margin-left: auto;
+    }
+    .reference-home .reference-offer > .reference-button svg {
+        display: none;
+    }
+    .reference-home .reference-offer-bag {
+        display: block;
+        width: 48px;
+        height: 56px;
+        padding: 8px;
+        flex-shrink: 0;
+        margin-left: 4px;
+    }
+    .reference-home .home-seller {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        min-height: 0;
+        padding: 0;
+        gap: 0;
+        border-radius: 20px;
+    }
+    .reference-home .home-seller::after,
+    .dark .reference-home .home-seller::after {
+        display: none;
+    }
+    .reference-home .home-seller > div {
+        max-width: 100%;
+        padding: 24px;
+    }
+    .reference-home .home-seller h2 {
+        font-size: 26px;
+        line-height: 1.2;
+        margin: 12px 0;
+    }
+    .reference-home .home-seller h2 + p {
+        display: block;
+        font-size: 14px;
+        line-height: 1.6;
+    }
+    .reference-home .home-seller img {
+        position: relative;
+        inset: auto;
+        z-index: auto;
+        height: 220px;
+        object-position: right top;
+    }
+    .reference-home .home-seller .reference-button {
+        font-size: 14px;
+        padding: 12px 20px;
+        min-height: 48px;
+        margin-top: 20px;
+    }
+    .reference-home .home-seller .reference-button svg {
+        display: block;
+    }
+    .reference-home .home-footer {
+        padding: 16px 20px 0;
+    }
+    .reference-home .home-footer-main {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 16px;
+        padding-bottom: 16px;
+    }
+    .reference-home .home-footer nav:last-child {
+        grid-column: auto;
+    }
+    .reference-home .home-footer nav a {
+        min-height: 36px;
+    }
+    .reference-home .home-footer nav {
+        border-top: 1px solid color-mix(in srgb, white 20%, transparent);
+        padding-top: 12px;
+    }
+    .reference-home .home-footer-bottom {
+        flex-direction: row;
+        align-items: center;
+        font-size: 10px;
+        gap: 8px;
+    }
+}
+.reference-home .home-footer-group {
+    width: 100%;
+}
+.home-footer-group > summary {
+    font-size: 14px;
+    font-weight: 700;
+    min-height: 32px;
+    cursor: pointer;
+}
+.home-footer-group > div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+@media (min-width: 701px) {
+    .home-footer-group > summary {
+        list-style: none;
+    }
+    .home-footer-group > summary::-webkit-details-marker {
+        display: none;
+    }
+}
+
+@media (max-width: 700px) {
+    .home-footer-group > summary {
+        min-height: 36px;
+    }
+}
+
+/* Restored homepage rules from its saved pre-redesign build. */
+.reference-home .product-grid {
+    margin-top: 0;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 200px));
+    gap: 16px;
+}
+.reference-home .product-card > div:first-child {
+    height: 120px;
+    margin: 10px 10px 0;
+    border-radius: 10px;
+}
+.reference-home .product-card h2 {
+    font-size: 13px;
+}
+.reference-home .product-card {
+    border-radius: 14px;
+}
+@media (max-width: 1100px) {
+    .reference-home .product-grid {
+        grid-template-columns: repeat(auto-fill, minmax(160px, 200px));
+    }
+}
+@media (max-width: 700px) {
+    .reference-home .product-grid {
+        grid-template-columns: repeat(2, minmax(0, 200px));
+        gap: 10px;
+    }
+}
+@media (max-width: 700px) {
+    .reference-home .product-card > div:first-child {
+        height: 96px;
+    }
+}
+@media (max-width: 380px) {
+    .reference-home .product-grid {
+        grid-template-columns: repeat(2, minmax(0, 200px));
+    }
+}
+.reference-home .product-card .reference-button {
+    padding-inline: 8px;
+    font-size: 12px;
+}
+.reference-home .product-card > div:last-child > p[role='status']:empty {
+    display: none;
+}
+.reference-home .product-card > div:first-child {
+    aspect-ratio: auto;
+}
+.reference-home .product-card > div:first-child > a,
+.reference-home .product-card > div:first-child > button {
+    width: 32px;
+    height: 32px;
+    top: 4px;
+    right: 4px;
+    box-shadow: none;
+    background: var(--card);
+}
+.reference-home .product-card > div:last-child {
+    gap: 4px;
+    padding: 8px;
+}
+.reference-home .product-card .text-primary.text-lg {
+    font-size: 16px;
+}
+.reference-home .product-card .reference-button {
+    min-height: 44px;
+    padding: 8px;
+    border-radius: 8px;
+}
+.reference-home .product-card .reference-button svg {
+    width: 16px;
+    height: 16px;
+}
+.reference-home .home-category-art,
+.reference-home .home-category-more {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 80px;
+    height: 80px;
+    max-width: 100%;
+}
+.reference-home .home-category-art {
+    background-image: url(/images/categories/category-atlas-v1.png);
+    background-size: 300% 200%;
+    background-repeat: no-repeat;
+}
+.home-category-art-groceries {
+    background-position: 0 0;
+}
+.home-category-art-electronics {
+    background-position: 50% 0;
+}
+.home-category-art-fashion {
+    background-position: 100% 0;
+}
+.home-category-art-home {
+    background-position: 0 100%;
+}
+.home-category-art-beauty {
+    background-position: 50% 100%;
+}
+.home-category-art-sports {
+    background-position: 100% 100%;
+}
+.reference-home .product-grid {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 16px;
+}
+.reference-home .product-card {
+    background: linear-gradient(145deg, var(--card), var(--background));
+}
+.reference-home .product-card > div:first-child {
+    height: auto;
+    aspect-ratio: 1;
+    margin: 0;
+    background: color-mix(in srgb, var(--accent) 35%, var(--card));
+}
+.reference-home .product-card img {
+    object-fit: contain;
+}
+.reference-home .product-card h2 {
+    height: 40px;
+    font-size: 14px;
+}
+.reference-home .product-card > div:last-child {
+    padding: 8px 12px 12px;
+}
+.reference-home .product-card .reference-button {
+    background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 80%, var(--accent)), var(--primary));
+}
+.reference-home .product-card .text-primary.text-lg {
+    color: var(--foreground);
+    font-weight: 800;
+}
+@media (max-width: 700px) {
+    .reference-home .home-category-art,
+    .reference-home .home-category-more {
+        width: 64px;
+        height: 64px;
+    }
+}
+@media (max-width: 700px) {
+    .reference-home .product-grid {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 12px;
+    }
+}
+@media (max-width: 700px) {
+    .reference-home .product-card > div:first-child {
+        height: auto;
+        margin: 0;
+    }
+}
+@media (max-width: 700px) {
+    .reference-home .product-card > div:last-child {
+        padding: 8px;
+    }
+}
+@media (max-width: 700px) {
+    .reference-home .product-card h2 {
+        font-size: 14px;
+        line-height: 20px;
+    }
+}
+@media (max-width: 700px) {
+    .reference-home .product-card .reference-button {
+        font-size: 12px;
+        gap: 4px;
+        padding: 6px 4px;
+    }
+}
+@media (max-width: 700px) {
+    .reference-home .product-card .text-primary.text-lg {
+        font-size: 15px;
+    }
+}
+@media (max-width: 700px) {
+    .reference-home .product-card .text-muted-foreground {
+        font-size: 12px;
+    }
+}
+@media (min-width: 380px) and (max-width: 700px) {
+    .reference-home .product-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+/* Homepage motion stays scoped so shared catalog and auth layouts keep their behavior. */
+@media (prefers-reduced-motion: no-preference) {
+    .home-motion .home-hero-art {
+        animation: home-shopping-float 6s ease-in-out infinite;
+    }
+    .home-motion .reference-hero h1 > span {
+        display: inline-block;
+        animation: home-title-settle 950ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+    .home-motion .home-tagline-star {
+        display: inline-block;
+        animation: home-star-turn 1400ms ease-in-out 2 alternate;
+    }
+    .home-motion :is(.reference-services > div, .reference-categories > a, .product-card) {
+        transition:
+            transform 240ms ease,
+            box-shadow 240ms ease,
+            border-color 240ms ease;
+    }
+    .home-motion :is(.home-category-art, .home-category-more, .reference-services > div > span, .product-card img, .home-seller img) {
+        transition: transform 400ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .home-motion .reference-categories > a:focus-visible :is(.home-category-art, .home-category-more) {
+        transform: translateY(-5px) rotate(-5deg) scale(1.06);
+    }
+    .home-motion .product-card:focus-within {
+        border-color: var(--primary);
+    }
+    @media (hover: hover) and (pointer: fine) {
+        .home-motion :is(.reference-services > div, .reference-categories > a, .product-card):hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 24px -16px color-mix(in srgb, var(--primary) 55%, transparent);
+        }
+        .home-motion .reference-categories > a:hover :is(.home-category-art, .home-category-more) {
+            transform: rotate(-5deg) scale(1.08);
+        }
+        .home-motion .reference-services > div:hover > span {
+            transform: rotate(8deg) scale(1.12);
+        }
+        .home-motion .product-card:hover img {
+            transform: scale(1.06);
+        }
+        .home-motion .home-seller:hover img {
+            transform: scale(1.025);
+        }
+    }
+}
+@keyframes home-shopping-float {
+    0%,
+    100% {
+        translate: 0 0;
+    }
+    50% {
+        translate: 0 -10px;
+    }
+}
+
+/* Keep hero copy readable and let the artwork stack on narrow screens. */
+.reference-home .reference-hero p:not(.reference-eyebrow) {
+    max-width: 36ch;
+    line-height: 1.6;
+}
+@media (max-width: 700px) {
+    .reference-home .reference-hero {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 24px;
+        padding: 56px 24px;
+    }
+    .reference-home .reference-hero > div {
+        position: relative;
+    }
+    .reference-home .reference-hero h1 {
+        max-width: none;
+        font-size: clamp(28px, 7vw, 42px);
+    }
+    .reference-home .reference-hero p:not(.reference-eyebrow) {
+        max-width: 36ch;
+        font-size: 14px;
+    }
+    .reference-home .reference-hero img {
+        position: static;
+        width: 100%;
+        height: 224px;
+        transform: none;
+    }
+    .reference-home .reference-actions {
+        display: flex;
+        flex-wrap: wrap;
+    }
+    .reference-home .reference-actions .reference-button {
+        flex: 1 1 160px;
+    }
+}
+@keyframes home-title-settle {
+    from {
+        opacity: 0;
+        transform: translateY(12px) rotate(-3deg);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) rotate(0);
+    }
+}
+@keyframes home-star-turn {
+    from {
+        transform: rotate(0) scale(1);
+    }
+    to {
+        transform: rotate(120deg) scale(1.2);
+    }
+}
+
+/* Small shopping details fill the space around the existing hero illustration. */
+.home-shopping-scene {
+    position: relative;
+    display: grid;
+    place-items: center;
+    min-width: 0;
+    width: 100%;
+    margin: 0;
+    isolation: isolate;
+}
+.home-scene-orbit {
+    position: absolute;
+    inset: 8% 4%;
+    z-index: -1;
+    border: 1px dashed color-mix(in srgb, var(--primary) 28%, transparent);
+    border-radius: 50%;
+    rotate: -18deg;
+    background: radial-gradient(ellipse, color-mix(in srgb, var(--primary) 12%, transparent), transparent 70%);
+}
+.home-scene-badge {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    max-width: 100%;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--card);
+    color: var(--foreground);
+    box-shadow: 0 12px 28px -16px color-mix(in srgb, var(--primary) 45%, transparent);
+}
+.home-scene-badge-local {
+    left: -4%;
+    top: 16%;
+    rotate: -5deg;
+}
+.home-scene-badge-cod {
+    right: -4%;
+    bottom: 12%;
+    rotate: 5deg;
+}
+.home-scene-icon {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
+    background: var(--accent);
+    color: var(--primary);
+}
+.home-scene-badge small,
+.home-scene-badge strong {
+    display: block;
+}
+.home-scene-badge small {
+    font-size: 10px;
+    color: var(--muted-foreground);
+}
+.home-scene-badge strong {
+    font-size: 12px;
+    font-weight: 600;
+}
+.home-scene-spark {
+    position: absolute;
+    color: var(--primary);
+    width: 28px;
+    height: 28px;
+}
+.home-scene-spark-top {
+    right: 10%;
+    top: 2%;
+    rotate: 12deg;
+}
+.home-scene-spark-bottom {
+    left: 12%;
+    bottom: 5%;
+    width: 20px;
+    height: 20px;
+}
+.home-scene-dot {
+    position: absolute;
+    right: 4%;
+    top: 40%;
+    width: 12px;
+    height: 12px;
+    border: 3px solid var(--primary);
+    border-radius: 50%;
+}
+@media (prefers-reduced-motion: no-preference) {
+    .home-scene-badge {
+        animation: home-shopping-float 7s ease-in-out infinite;
+    }
+    .home-scene-badge-cod {
+        animation-delay: -3s;
+    }
+    .home-scene-spark {
+        animation: home-star-turn 3s ease-in-out infinite alternate;
+    }
+}
+@media (max-width: 1000px) {
+    .home-scene-badge {
+        padding: 8px;
+        gap: 8px;
+    }
+    .home-scene-badge-local {
+        left: 0;
+        top: 4%;
+    }
+    .home-scene-badge-cod {
+        right: 0;
+        bottom: 2%;
+    }
+}
+@media (max-width: 700px) {
+    .home-shopping-scene {
+        min-height: 288px;
+    }
+    .home-scene-badge-local {
+        top: 0;
+    }
+    .home-scene-badge-cod {
+        bottom: 0;
+    }
+    .home-scene-badge {
+        rotate: 0deg;
+    }
+}
+
+/* Reserve the delivery lane below hero content at every breakpoint. */
+.reference-home .reference-hero {
+    padding-bottom: 120px;
+}

@@ -10,7 +10,7 @@ import { Check, Save, ShieldCheck } from 'lucide-react';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 
 type Option = { id: number; name: string };
-type Location = { code: string; name: string };
+type Location = { code: string; name: string; postal_code?: string | null };
 type Document = { id: number; kind: string };
 type Step = 'personal' | 'role' | 'address' | 'documents' | 'review';
 type Form = {
@@ -248,6 +248,10 @@ export default function ApplicationPage({
                 aria-invalid={!!form.errors[key]}
                 aria-describedby={form.errors[key] ? `${key}-error` : undefined}
                 type={type}
+                maxLength={key === 'zip' ? 4 : undefined}
+                pattern={key === 'zip' ? '[0-9]{4}' : undefined}
+                inputMode={key === 'zip' ? 'numeric' : undefined}
+                autoComplete={key === 'zip' ? 'postal-code' : undefined}
                 value={form.data[key]}
                 required={required}
                 onChange={(event) => form.setData(key, event.target.value)}
@@ -280,8 +284,12 @@ export default function ApplicationPage({
                     if (key === 'province_code') {
                         form.setData('city_code', '');
                         form.setData('barangay_code', '');
+                        form.setData('zip', '');
                     }
-                    if (key === 'city_code') form.setData('barangay_code', '');
+                    if (key === 'city_code') {
+                        form.setData('barangay_code', '');
+                        form.setData('zip', cities.find((item) => item.code === event.target.value)?.postal_code ?? '');
+                    }
                 }}
             >
                 <option value="">Select</option>
@@ -445,6 +453,10 @@ export default function ApplicationPage({
                             {field('house_number', 'House / building number')}
                             {field('street', 'Street')}
                             {field('zip', 'Postal code')}
+                            <p className="text-muted-foreground text-sm sm:col-span-2">
+                                Postal code fills automatically when a city match is available. Confirm it for your address; some cities have several
+                                ZIP codes.
+                            </p>
                             {locationError && (
                                 <div role="alert" className="text-destructive text-sm sm:col-span-2">
                                     {locationError}{' '}

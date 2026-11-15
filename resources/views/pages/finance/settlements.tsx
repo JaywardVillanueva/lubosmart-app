@@ -42,6 +42,7 @@ export default function Settlements({ role, parcels }: { role: string; parcels: 
                     )}
                     {role === 'admin' && parcel.can_pay && (
                         <RecordAction
+                            forceDialog
                             title="Record seller payout"
                             description={`Confirm you have actually paid ${money(parcel.amount_cents / 100)} to this seller. This records the full remaining settlement and does not send a bank transfer.`}
                             url={`/settlements/${parcel.id}`}

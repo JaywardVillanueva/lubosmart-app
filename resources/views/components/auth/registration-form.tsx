@@ -1,7 +1,9 @@
 import AuthFeedback from '@/components/auth/auth-feedback';
 import MotorcycleIcon from '@/components/auth/motorcycle-icon';
 import PhilippineFlag from '@/components/auth/philippine-flag';
+import RegistrationFooter from '@/components/auth/registration-footer';
 import RegistrationPolicy from '@/components/auth/registration-policy';
+import RegistrationProgress from '@/components/auth/registration-progress';
 import RequiredMark from '@/components/auth/required-mark';
 import RiderRegistrationFields, { emptyRiderDetails, type RiderDetails } from '@/components/auth/rider-registration-fields';
 import SellerRegistrationFields, {
@@ -11,13 +13,13 @@ import SellerRegistrationFields, {
     type SellerDetails,
     Upload,
 } from '@/components/auth/seller-registration-fields';
-import { buttonClass, inputClass, Select } from '@/components/shared/marketplace-ui';
+import { inputClass, Select } from '@/components/shared/marketplace-ui';
 import { useAuthRequestFeedback } from '@/hooks/use-auth-request-feedback';
 import { passwordRequirements, registrationErrors, registrationFieldError } from '@/lib/registration-validation';
 import type { SharedData } from '@/types';
 import { useForm, usePage } from '@inertiajs/react';
-import { Eye, EyeOff, LoaderCircle, ShoppingCart, Store, Warehouse } from 'lucide-react';
-import { type InputHTMLAttributes, useRef, useState } from 'react';
+import { Eye, EyeOff, ShoppingCart, Store, Warehouse } from 'lucide-react';
+import { type InputHTMLAttributes, type ReactNode, useEffect, useRef, useState } from 'react';
 
 export type RegistrationRole = 'buyer' | 'seller' | 'rider' | 'logistics';
 export const authInputClass = inputClass;
@@ -54,6 +56,8 @@ export function AuthInput({
     valid = false,
     phonePrefix = false,
     reserveFeedback = true,
+    inlineFeedback = true,
+    leadingIcon,
     ...props
 }: InputHTMLAttributes<HTMLInputElement> & {
     label: string;
@@ -62,6 +66,8 @@ export function AuthInput({
     valid?: boolean;
     phonePrefix?: boolean;
     reserveFeedback?: boolean;
+    inlineFeedback?: boolean;
+    leadingIcon?: ReactNode;
 }) {
     return (
         <div className="grid content-start gap-2 self-start">
@@ -70,6 +76,11 @@ export function AuthInput({
                 {props.required && <RequiredMark />}
             </label>
             <div className="relative">
+                {leadingIcon && (
+                    <span className="auth-reference-input-icon" aria-hidden="true">
+                        {leadingIcon}
+                    </span>
+                )}
                 {phonePrefix && (
                     <span
                         className="text-muted-foreground pointer-events-none absolute inset-y-0 left-0 flex items-center border-r px-3 text-sm"
@@ -80,7 +91,7 @@ export function AuthInput({
                     </span>
                 )}
                 <input
-                    className={`${authInputClass} ${phonePrefix ? 'pl-24' : ''} ${valid && !error ? 'border-success' : ''}`}
+                    className={`${authInputClass} ${phonePrefix ? 'pl-24' : leadingIcon ? 'pl-11' : ''} ${valid && !error ? 'border-success' : ''}`}
                     {...props}
                     aria-invalid={!!error}
                     aria-describedby={error ? `${props.id}-error` : hint ? `${props.id}-hint` : undefined}
@@ -91,7 +102,13 @@ export function AuthInput({
                     {hint}
                 </p>
             )}
-            {(reserveFeedback || error) && <AuthFeedback reserveSpace id={`${props.id}-error`} message={error} />}
+            {inlineFeedback ? (
+                (reserveFeedback || error) && <AuthFeedback reserveSpace id={`${props.id}-error`} message={error} />
+            ) : error ? (
+                <span id={`${props.id}-error`} className="sr-only">
+                    {error}
+                </span>
+            ) : null}
         </div>
     );
 }
@@ -101,32 +118,54 @@ export function Password({
     error,
     valid = false,
     reserveFeedback = true,
+    inlineFeedback = true,
+    leadingIcon,
+    labelAction,
+    textToggle = false,
     ...props
-}: InputHTMLAttributes<HTMLInputElement> & { label: string; hint?: string; error?: string; valid?: boolean; reserveFeedback?: boolean }) {
+}: InputHTMLAttributes<HTMLInputElement> & {
+    label: string;
+    hint?: string;
+    error?: string;
+    valid?: boolean;
+    reserveFeedback?: boolean;
+    inlineFeedback?: boolean;
+    leadingIcon?: ReactNode;
+    labelAction?: ReactNode;
+    textToggle?: boolean;
+}) {
     const [visible, setVisible] = useState(false);
     return (
         <div className="grid content-start gap-2 self-start">
-            <label htmlFor={props.id} className="min-h-5 text-sm font-medium">
-                {label}
-                {props.required && <RequiredMark />}
-            </label>
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                <label htmlFor={props.id} className="min-h-5 text-sm font-medium">
+                    {label}
+                    {props.required && <RequiredMark />}
+                </label>
+                {labelAction}
+            </div>
             <div className="relative">
+                {leadingIcon && (
+                    <span className="auth-reference-input-icon" aria-hidden="true">
+                        {leadingIcon}
+                    </span>
+                )}
                 <input
                     {...props}
                     type={visible ? 'text' : 'password'}
-                    className={`${authInputClass} pr-12 ${valid && !error ? 'border-success' : ''}`}
+                    className={`${authInputClass} ${textToggle ? 'pr-16' : 'pr-12'} ${leadingIcon ? 'pl-11' : ''} ${valid && !error ? 'border-success' : ''}`}
                     aria-invalid={!!error}
                     aria-describedby={error ? `${props.id}-error` : hint ? `${props.id}-hint` : undefined}
                 />
                 <button
                     type="button"
-                    className="text-muted-foreground absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-xl"
+                    className={`absolute inset-y-0 right-0 flex items-center justify-center rounded-r-xl ${textToggle ? 'text-primary w-16 text-sm font-medium' : 'text-muted-foreground w-11'}`}
                     aria-label={`${visible ? 'Hide' : 'Show'} ${label.toLowerCase()}`}
                     aria-pressed={visible}
                     disabled={props.disabled}
                     onClick={() => setVisible(!visible)}
                 >
-                    {visible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                    {textToggle ? visible ? 'Hide' : 'Show' : visible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                 </button>
             </div>
             {hint && (
@@ -134,7 +173,13 @@ export function Password({
                     {hint}
                 </p>
             )}
-            {(reserveFeedback || error) && <AuthFeedback reserveSpace id={`${props.id}-error`} message={error} />}
+            {inlineFeedback ? (
+                (reserveFeedback || error) && <AuthFeedback reserveSpace id={`${props.id}-error`} message={error} />
+            ) : error ? (
+                <span id={`${props.id}-error`} className="sr-only">
+                    {error}
+                </span>
+            ) : null}
         </div>
     );
 }
@@ -143,10 +188,12 @@ export default function RegistrationForm({
     initialRole = 'buyer',
     compact = false,
     fixedRole = false,
+    onStepChange,
 }: {
     initialRole?: RegistrationRole;
     compact?: boolean;
     fixedRole?: boolean;
+    onStepChange?: (step: number) => void;
 }) {
     const {
         riderCenters = [],
@@ -162,6 +209,10 @@ export default function RegistrationForm({
     const [localErrors, setLocalErrors] = useState<Record<string, string>>({});
     const [touched, setTouched] = useState<Record<string, boolean>>({});
     const [step, setStep] = useState(0);
+    const [reviewSelections, setReviewSelections] = useState<Record<string, string>>({});
+    useEffect(() => {
+        onStepChange?.(step);
+    }, [step, onStepChange]);
     const form = useForm<Details>({
         ...emptySellerDetails,
         ...emptyRiderDetails,
@@ -238,6 +289,18 @@ export default function RegistrationForm({
         });
     };
     const changeStep = (next: number) => {
+        if (next === 2) {
+            const selections: Record<string, string> = {};
+            formRef.current?.querySelectorAll<HTMLSelectElement>('select[name]').forEach((select) => {
+                selections[select.name] = select.selectedOptions[0]?.textContent ?? '';
+            });
+            const areas = Array.from(formRef.current?.querySelectorAll<HTMLInputElement>('input[name="service_regions"]:checked') ?? []);
+            selections.service_regions = areas
+                .map((area) => area.closest('label')?.textContent?.trim())
+                .filter(Boolean)
+                .join(', ');
+            setReviewSelections(selections);
+        }
         setStep(next);
         requestAnimationFrame(() => {
             const section = formRef.current?.querySelector<HTMLElement>(`[data-registration-step="${next}"]`);
@@ -276,7 +339,7 @@ export default function RegistrationForm({
     return (
         <form
             ref={formRef}
-            className={compact ? 'space-y-5' : 'space-y-6'}
+            className="space-y-3"
             aria-busy={busy}
             noValidate
             onBlurCapture={(event) => {
@@ -365,31 +428,7 @@ export default function RegistrationForm({
                 </div>
                 <AuthFeedback message={error('role')} />
             </fieldset>
-            {
-                <ol
-                    aria-label={selectedRole === 'rider' ? 'Rider registration progress' : 'Registration progress'}
-                    className="grid grid-cols-3 gap-3 border-b pb-6"
-                >
-                    {steps.map((label, index) => (
-                        <li key={label} className="min-w-0 text-center">
-                            <button
-                                type="button"
-                                disabled={busy || index > step}
-                                aria-current={index === step ? 'step' : undefined}
-                                onClick={() => changeStep(index)}
-                                className="flex min-h-11 w-full flex-col items-center gap-2 text-xs sm:text-sm"
-                            >
-                                <span
-                                    className={`auth-step-indicator flex size-9 items-center justify-center rounded-full border font-semibold ${index === step ? 'bg-primary text-primary-foreground border-primary' : 'text-muted-foreground'}`}
-                                >
-                                    {index + 1}
-                                </span>
-                                <span>{label}</span>
-                            </button>
-                        </li>
-                    ))}
-                </ol>
-            }
+            <RegistrationProgress steps={steps} current={step} busy={busy} onSelect={changeStep} />
             <>
                 <AuthFeedback message={connectionError} />
                 <div
@@ -397,15 +436,15 @@ export default function RegistrationForm({
                     tabIndex={-1}
                     aria-label="Personal and contact information"
                     hidden={step !== 0}
-                    className="registration-section space-y-5 focus:outline-none"
+                    className="registration-section space-y-3 focus:outline-none"
                 >
-                    <div className="border-b pb-4">
+                    <div className="border-b pb-2">
                         <h2 className="font-semibold">Personal and contact information</h2>
                         <p className="text-muted-foreground mt-1 text-sm">
                             Fields marked * are required. Your email and mobile number must be unique.
                         </p>
                     </div>
-                    <div className="grid items-start gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                    <div className="grid items-start gap-x-4 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
                         <div className="contents">
                             {(['first_name', 'middle_initial', 'last_name'] as const).map((field) => (
                                 <AuthInput
@@ -483,8 +522,8 @@ export default function RegistrationForm({
                                 valid={valid('birthday')}
                             />
                         }
-                        <AuthInput label="Age" id="register-age" value={age} readOnly />
-                        <div className="grid items-start gap-3 sm:col-span-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-5">
+                        <AuthInput label="Age (calculated)" id="register-age" value={age} placeholder="Auto-calculated" readOnly />
+                        <div className="sm:col-span-2">
                             <AuthInput
                                 label="Email address"
                                 id="auth-register-email"
@@ -505,11 +544,6 @@ export default function RegistrationForm({
                                 error={error('email')}
                                 valid={valid('email')}
                             />
-                            <div className="flex justify-end sm:pt-7">
-                                <button type="button" disabled={busy} onClick={advance} className={`auth-action-button ${buttonClass}`}>
-                                    Continue
-                                </button>
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -562,21 +596,6 @@ export default function RegistrationForm({
                         />
                     </section>
                 )}
-                {step === 1 && (
-                    <div className="flex flex-wrap gap-3">
-                        <button
-                            type="button"
-                            disabled={busy}
-                            onClick={() => changeStep(0)}
-                            className="text-primary inline-flex min-h-11 items-center gap-2 rounded-xl border px-5"
-                        >
-                            Back
-                        </button>
-                        <button type="button" disabled={busy} onClick={advance} className={buttonClass + ' auth-action-button ml-auto'}>
-                            Continue
-                        </button>
-                    </div>
-                )}
                 <div
                     data-registration-step="2"
                     tabIndex={-1}
@@ -586,6 +605,12 @@ export default function RegistrationForm({
                 >
                     {
                         <section className="bg-accent/40 grid gap-3 rounded-xl border p-4 text-sm sm:grid-cols-2" aria-label="Registration review">
+                            <div className="flex flex-wrap items-center justify-between gap-2 sm:col-span-2">
+                                <h2 className="font-semibold">Personal and contact information</h2>
+                                <button type="button" className="text-primary min-h-11 underline underline-offset-4" onClick={() => changeStep(0)}>
+                                    Edit personal information
+                                </button>
+                            </div>
                             <p>
                                 <span className="text-muted-foreground block text-xs">Name</span>
                                 {form.data.first_name} {form.data.middle_initial} {form.data.last_name}
@@ -612,30 +637,71 @@ export default function RegistrationForm({
                                 <span className="text-muted-foreground block text-xs">Date of birth / age</span>
                                 {form.data.birthday} / {age}
                             </p>
-                            {selectedRole === 'buyer' && (
-                                <p className="break-all">
-                                    <span className="text-muted-foreground block text-xs">Identity document</span>
-                                    {form.data.identity?.name ?? 'Not provided'}
-                                </p>
-                            )}
-                            <p className="break-words">
-                                <span className="text-muted-foreground block text-xs">
-                                    {selectedRole === 'buyer'
-                                        ? 'Address'
-                                        : selectedRole === 'rider'
-                                          ? 'Vehicle / plate'
-                                          : selectedRole === 'seller'
-                                            ? 'Shop'
-                                            : 'Company'}
-                                </span>
-                                {selectedRole === 'buyer'
-                                    ? `${form.data.line1}, ${form.data.zip}`
-                                    : selectedRole === 'rider'
-                                      ? `${form.data.vehicle_type} / ${form.data.plate_number}`
-                                      : form.data.business_name}
-                            </p>
                         </section>
                     }
+                    <section className="space-y-3 rounded-xl border p-4" aria-label="Address, role details and documents">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                            <h2 className="font-semibold">
+                                {selectedRole === 'buyer'
+                                    ? 'Address and documents'
+                                    : selectedRole === 'rider'
+                                      ? 'Rider details and documents'
+                                      : 'Business information and documents'}
+                            </h2>
+                            <button
+                                type="button"
+                                className="text-primary min-h-11 text-sm underline underline-offset-4"
+                                onClick={() => changeStep(1)}
+                            >
+                                Edit requirements
+                            </button>
+                        </div>
+                        <dl className="grid gap-4 text-sm sm:grid-cols-2">
+                            {Object.entries(form.data)
+                                .filter(
+                                    ([key, value]) =>
+                                        ![...personalFields, ...securityFields, 'role', 'line1'].includes(key) &&
+                                        value !== null &&
+                                        value !== '' &&
+                                        (!Array.isArray(value) || value.length > 0),
+                                )
+                                .map(([key, value]) => (
+                                    <div key={key} className="min-w-0">
+                                        <dt className="text-muted-foreground text-xs">
+                                            {(
+                                                {
+                                                    business_name: 'Business name',
+                                                    business_category_id: 'Business category',
+                                                    seller_type: 'Seller type',
+                                                    tin: 'TIN',
+                                                    sec_number: 'SEC registration number',
+                                                    position: 'Contact person position',
+                                                    service_regions: 'Service areas',
+                                                    logistics_center_id: 'Logistics company',
+                                                    house_number: 'House / unit number',
+                                                    zip: 'Postal code',
+                                                    bir_2303: 'BIR form 2303',
+                                                    identity: 'Government ID',
+                                                    dti_certificate: 'DTI certificate',
+                                                    sec_certificate: 'SEC certificate',
+                                                    business_permit: 'Business permit',
+                                                    license: 'Driver license',
+                                                    vehicle_registration: 'Vehicle registration',
+                                                } as Record<string, string>
+                                            )[key] ??
+                                                key
+                                                    .replaceAll('_', ' ')
+                                                    .replace(/ code$/, '')
+                                                    .replace(/^./, (letter) => letter.toUpperCase())}
+                                        </dt>
+                                        <dd className="mt-1 break-words">
+                                            {reviewSelections[key] ||
+                                                (value instanceof File ? value.name : Array.isArray(value) ? value.join(', ') : String(value))}
+                                        </dd>
+                                    </div>
+                                ))}
+                        </dl>
+                    </section>
                     <div className="border-b pb-4">
                         <h2 className="font-semibold">Account security</h2>
                         <p className="text-muted-foreground mt-1 text-sm">Choose a password you do not use elsewhere.</p>
@@ -710,21 +776,12 @@ export default function RegistrationForm({
                         />
                     </div>
                 </div>
-                <div hidden={step !== 2}>
-                    <div className="space-y-4">
-                        <button type="submit" className={`auth-action-button ${buttonClass} w-full`} disabled={busy}>
-                            {form.processing ? <LoaderCircle className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : null}
-                            {form.processing ? 'Creating your account…' : 'Create my account'}
-                        </button>
-                        {form.processing && (
-                            <p role="status" className="text-muted-foreground text-center text-sm">
-                                {form.progress
-                                    ? `Uploading your requirements: ${form.progress.percentage ?? 0}%`
-                                    : 'Saving your registration and requirements…'}
-                            </p>
-                        )}
-                    </div>
-                </div>
+                {busy && (
+                    <p role="status" className="text-muted-foreground text-sm">
+                        {form.progress ? `Uploading requirements: ${form.progress.percentage ?? 0}%` : 'Saving your registration...'}
+                    </p>
+                )}
+                <RegistrationFooter current={step} total={steps.length} busy={busy} onContinue={advance} />
             </>
         </form>
     );

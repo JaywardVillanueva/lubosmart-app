@@ -232,10 +232,12 @@ class ActionButton extends StatefulWidget {
   final String label;
   final Future<void> Function() action;
   final bool outlined;
+  final bool enabled;
   const ActionButton(
     this.label,
     this.action, {
     this.outlined = false,
+    this.enabled = true,
     super.key,
   });
   @override
@@ -261,11 +263,11 @@ class _ActionButtonState extends State<ActionButton> {
     padding: const EdgeInsets.only(bottom: 8),
     child: widget.outlined
         ? OutlinedButton(
-            onPressed: busy ? null : run,
+            onPressed: busy || !widget.enabled ? null : run,
             child: Text(busy ? 'Please wait…' : widget.label),
           )
         : FilledButton(
-            onPressed: busy ? null : run,
+            onPressed: busy || !widget.enabled ? null : run,
             child: Text(busy ? 'Please wait…' : widget.label),
           ),
   );

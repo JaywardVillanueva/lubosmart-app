@@ -1,15 +1,9 @@
+import AccountRoleOptions from '@/components/auth/account-role-options';
 import InputError from '@/components/auth/input-error';
 import { Button } from '@/components/ui/button';
-import AuthLayout from '@/layouts/auth-layout';
+import AuthLayout from '@/layouts/auth/account-access-layout';
 import { Head, useForm } from '@inertiajs/react';
 import { type FormEvent } from 'react';
-
-const roles = [
-    { value: 'buyer', title: 'Buyer', description: 'Browse local products and shop after registration approval.' },
-    { value: 'seller', title: 'Seller', description: 'Submit business documents to open your store.' },
-    { value: 'rider', title: 'Rider', description: 'Submit rider requirements for your Logistics company to approve.' },
-    { value: 'logistics', title: 'Logistics', description: 'Submit company documents to manage your logistics company.' },
-];
 
 export default function ChooseRole() {
     const form = useForm({ role: '' });
@@ -21,32 +15,12 @@ export default function ChooseRole() {
     return (
         <AuthLayout title="Choose your role" description="Finish setting up your existing account, then complete your application for review.">
             <Head title="Choose your role" />
-            <form onSubmit={submit} className="grid gap-4">
-                <fieldset className="grid gap-3" disabled={form.processing}>
-                    <legend className="sr-only">Account role</legend>
-                    {roles.map((role) => (
-                        <label
-                            key={role.value}
-                            className="bg-card has-checked:border-primary flex cursor-pointer items-start gap-3 rounded-xl border p-4"
-                        >
-                            <input
-                                type="radio"
-                                name="role"
-                                value={role.value}
-                                checked={form.data.role === role.value}
-                                onChange={() => form.setData('role', role.value)}
-                                required
-                                className="mt-1"
-                            />
-                            <span>
-                                <span className="block font-semibold">{role.title}</span>
-                                <span className="text-muted-foreground text-sm">{role.description}</span>
-                            </span>
-                        </label>
-                    ))}
-                </fieldset>
+            <form noValidate onSubmit={submit} className="grid gap-4">
+                <AccountRoleOptions value={form.data.role} disabled={form.processing} onChange={(role) => form.setData('role', role)} />
                 <InputError message={form.errors.role} />
-                <Button disabled={form.processing || !form.data.role}>Continue</Button>
+                <Button type="submit" disabled={form.processing || !form.data.role}>
+                    Continue
+                </Button>
             </form>
         </AuthLayout>
     );

@@ -1,7 +1,7 @@
 import { LogisticsCharts } from '@/components/logistics/logistics-charts';
 import SellerNavigation from '@/components/seller/seller-navigation';
 import { Badge, buttonClass, Card, Empty, money, Page, secondaryClass } from '@/components/shared/marketplace-ui';
-import { DashboardMetric } from '@/components/workspace/dashboard-panels';
+import { DashboardMetric, DashboardWelcome } from '@/components/workspace/dashboard-panels';
 import type { SharedData } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
 import { Boxes, ClipboardCheck, MessageCircle, Package, PackageCheck, Truck, Wallet } from 'lucide-react';
@@ -47,52 +47,43 @@ export default function SellerDashboard({
     ];
     return (
         <Page title="Seller dashboard" headerInNavbar description="Your inventory, order preparation, deliveries, and sales.">
-            <section
-                aria-label="Welcome and priorities"
-                className="border-primary/15 from-accent via-card to-background rounded-2xl border bg-linear-to-br p-6 sm:p-8"
+            <DashboardWelcome
+                label="Store overview"
+                title={'Welcome back, ' + auth.user.name.trim().split(/\s+/)[0] + '.'}
+                description="Keep stock current, prepare incoming orders, and follow each parcel through delivery."
+                context={store?.name ?? 'Your store'}
+                icon={Package}
             >
-                <div className="grid items-center gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-                    <div className="min-w-0">
-                        <p className="text-primary text-xs font-semibold tracking-widest uppercase">Store overview</p>
-                        <h2 className="mt-3 text-2xl font-semibold tracking-tight break-words sm:text-3xl">
-                            Welcome back, {auth.user.name.trim().split(/\s+/)[0]}.
-                        </h2>
-                        <p className="text-muted-foreground mt-3 text-sm break-words">{store?.name ?? 'Your store'}</p>
-                        <p className="text-muted-foreground mt-2 text-sm leading-relaxed">
-                            Keep stock current, prepare incoming orders, and follow each parcel through delivery.
-                        </p>
-                        <div className="mt-5 flex flex-wrap gap-3">
-                            <Link href="/orders?stage=pending" className={buttonClass}>
-                                Prepare orders
-                            </Link>
-                            <Link href="/inventory" className={secondaryClass}>
-                                Manage inventory
-                            </Link>
-                        </div>
-                    </div>
-                    <div className="bg-card/90 rounded-xl border p-5">
-                        <h3 className="text-sm font-semibold">Needs attention</h3>
-                        <p className="text-muted-foreground mt-1 text-xs">Current store tasks</p>
-                        <ul className="mt-3 divide-y">
-                            {[
-                                { label: 'New orders', value: queues.pending, href: '/orders?stage=pending' },
-                                { label: 'Low stock (under 5)', value: queues.lowStock, href: '/inventory?status=low-stock' },
-                                { label: 'Delivery issues', value: queues.issues, href: '/orders?stage=issues' },
-                            ].map((item) => (
-                                <li key={item.label}>
-                                    <Link
-                                        href={item.href}
-                                        className="hover:text-primary focus-visible:ring-ring flex min-h-11 items-center justify-between gap-3 rounded px-1 text-sm focus-visible:ring-2"
-                                    >
-                                        <span>{item.label}</span>
-                                        <span className="font-semibold tabular-nums">{item.value.toLocaleString()}</span>
-                                    </Link>
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
+                <div className="flex flex-wrap gap-3">
+                    <Link href="/orders?stage=pending" className={buttonClass}>
+                        Prepare orders
+                    </Link>
+                    <Link href="/inventory" className={secondaryClass}>
+                        Manage inventory
+                    </Link>
                 </div>
-            </section>
+            </DashboardWelcome>
+            <div className="workspace-priorities bg-card rounded-xl border p-5">
+                <h3 className="text-sm font-semibold">Needs attention</h3>
+                <p className="text-muted-foreground mt-1 text-xs">Current store tasks</p>
+                <ul className="mt-3 divide-y">
+                    {[
+                        { label: 'New orders', value: queues.pending, href: '/orders?stage=pending' },
+                        { label: 'Low stock (under 5)', value: queues.lowStock, href: '/inventory?status=low-stock' },
+                        { label: 'Delivery issues', value: queues.issues, href: '/orders?stage=issues' },
+                    ].map((item) => (
+                        <li key={item.label}>
+                            <Link
+                                href={item.href}
+                                className="hover:text-primary focus-visible:ring-ring flex min-h-11 items-center justify-between gap-3 rounded px-1 text-sm focus-visible:ring-2"
+                            >
+                                <span>{item.label}</span>
+                                <span className="font-semibold tabular-nums">{item.value.toLocaleString()}</span>
+                            </Link>
+                        </li>
+                    ))}
+                </ul>
+            </div>
             {!store || store.status !== 'approved' ? (
                 <Empty
                     title="Store approval required"

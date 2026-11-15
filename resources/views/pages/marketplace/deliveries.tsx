@@ -1,3 +1,4 @@
+import DeliveryProofCamera from '@/components/logistics/delivery-proof-camera';
 import ParcelCamera from '@/components/logistics/parcel-camera';
 import ParcelNextStep from '@/components/logistics/parcel-next-step';
 import RiderServiceAreaForm from '@/components/logistics/rider-service-area-form';
@@ -16,12 +17,16 @@ import {
     money,
     secondaryClass,
 } from '@/components/shared/marketplace-ui';
+import { RecordDisclosure, RecordHeader, openRecordSection } from '@/components/shared/record-header';
 import ValidatedForm from '@/components/shared/validated-form';
-import { Link, useForm } from '@inertiajs/react';
-import { MapPin, Truck } from 'lucide-react';
+import { Link, useForm, usePage } from '@inertiajs/react';
+import { Download, History, MapPin, Truck } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { type SellerOrder } from './orders';
 
 export type Delivery = {
+    fulfillment_status?: string;
+    delivery_notes?: string | null;
     tracking_reference: string | null;
     service_area_id: number | null;
     receipt_condition: string | null;
@@ -30,7 +35,7 @@ export type Delivery = {
     dispatch_reference: string | null;
     dispatch_accepted_at: string | null;
     exception_status: string | null;
-    events?: { id: number; type: string; actor_name: string; occurred_at: string; notes: string | null; details: string[] }[];
+    events?: { has_proof?: boolean; id: number; type: string; actor_name: string; occurred_at: string; notes: string | null; details: string[] }[];
     pickup_approved_at: string | null;
     received_at: string | null;
     sorted_at: string | null;
@@ -71,6 +76,9 @@ export function Parcel({
     available?: boolean;
     scanEntry?: ScanEntry;
 }) {
+    const { noteSuggestions } = usePage<{ noteSuggestions: Record<string, string[]> }>().props;
+    const [deliveryAction, setDeliveryAction] = useState('');
+    const historyRef = useRef<HTMLDetailsElement>(null);
     const order = parcel.seller_order;
     const pickup = order.shipping_quote?.pickup_address ?? order.store.pickup_address;
     const pickupAssignment = parcel.status === 'unassigned';
@@ -87,22 +95,40 @@ export function Parcel({
                     area.barangay_name?.trim().toLowerCase() === assignmentAddress.barangay.trim().toLowerCase())) &&
             (pickupAssignment || !parcel.sorted_at || area.id === parcel.service_area_id),
     );
+    const sortingArea = destinationAreas.find((area) => area.id === parcel.service_area_id) ?? destinationAreas[0];
+    const sortingReady = !parcel.exception_status && ['picked_up', 'in_transit'].includes(parcel.status) && !!parcel.received_at && !parcel.sorted_at;
+    const sortingDefaultsApplied = useRef(false);
     const form = useForm({
         action: '',
         logistics_center_id: centers[0]?.id.toString() ?? '',
         rider_id: '',
-        service_area_id: pickupAssignment ? (destinationAreas[0]?.id.toString() ?? '') : (parcel.service_area_id?.toString() ?? ''),
+        service_area_id: pickupAssignment ? (destinationAreas[0]?.id.toString() ?? '') : (sortingArea?.id.toString() ?? ''),
         proof: null as File | null,
         tracking_reference: scanEntry?.reference ?? '',
         capture_method: 'scanner',
         reason: '',
         receipt_condition: 'intact',
-        sorting_bin: '',
+        sorting_bin: parcel.sorting_bin ?? (!pickupAssignment && sortingArea ? sortingArea.name.slice(0, 80) : ''),
         amount: '',
         handover_reference: '',
         recipient_name: '',
+        note: '',
+        remarks: '',
+        cod_confirmed: false as boolean,
         request_key: crypto.randomUUID(),
     });
+    const setFormData = form.setData;
+    const suggestedAreaId = sortingArea?.id.toString() ?? '';
+    const suggestedRoute = sortingArea?.name.slice(0, 80) ?? '';
+    useEffect(() => {
+        if (!sortingReady || !suggestedAreaId || sortingDefaultsApplied.current) return;
+        sortingDefaultsApplied.current = true;
+        setFormData((data) => ({
+            ...data,
+            service_area_id: suggestedAreaId,
+            sorting_bin: data.sorting_bin || suggestedRoute,
+        }));
+    }, [sortingReady, suggestedAreaId, suggestedRoute, setFormData]);
     const confirm = useConfirmAction();
     const send = async (action: string) => {
         if (form.processing) return;
@@ -147,14 +173,30 @@ export function Parcel({
                     Updating parcel...
                 </p>
             )}
-            <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                    <p className="text-muted-foreground text-xs">Parcel #{parcel.id}</p>
-                    <p className="mt-2 font-mono text-xs break-all">{parcel.tracking_reference}</p>
-                    <h2 className="mt-1 font-semibold">{order.store.name}</h2>
-                </div>
-                <Badge status={parcel.status} />
-            </div>
+            <RecordHeader
+                label={`Parcel #${parcel.id}`}
+                title={order.store.name}
+                reference={parcel.tracking_reference}
+                status={<Badge status={parcel.status} label={(parcel.fulfillment_status ?? parcel.status).replaceAll('_', ' ')} />}
+                actions={[
+                    {
+                        id: 'history',
+                        label: 'View handling history',
+                        icon: History,
+                        visible: !!parcel.events?.length,
+                        onSelect: () => openRecordSection(historyRef.current),
+                    },
+                    {
+                        id: 'proof',
+                        label: 'Download delivery proof',
+                        icon: Download,
+                        visible: !!parcel.proof_photo_path,
+                        href: '/deliveries/' + parcel.id + '/proof',
+                        download: true,
+                    },
+                ]}
+            />
+            {parcel.delivery_notes && <p className="my-4 text-sm break-words">Delivery notes: {parcel.delivery_notes}</p>}
             {['logistics', 'rider'].includes(role) && <ParcelNextStep parcel={parcel} role={role} scanning={!!scanEntry} />}
             {Object.keys(form.errors).length > 0 && (
                 <div role="alert" className="text-destructive my-4 space-y-1 text-sm">
@@ -172,10 +214,10 @@ export function Parcel({
                 <div className="my-5 grid gap-4">
                     {!scanEntry && (
                         <Link href="/logistics/scan" className={secondaryClass}>
-                            Open Scan Parcel for receipt, sorting and dispatch
+                            Open scanner for hub receipt
                         </Link>
                     )}
-                    {(!parcel.sorted_at || scanEntry) && (
+                    {(!parcel.sorted_at || scanEntry || !!parcel.exception_status) && (
                         <Textarea
                             label="Handling notes / exception reason"
                             value={form.data.reason}
@@ -186,7 +228,7 @@ export function Parcel({
                     )}
                 </div>
             )}
-            {(role === 'rider' || (role === 'logistics' && parcel.sorted_at && !scanEntry)) && !available && parcel.status !== 'delivered' && (
+            {role === 'rider' && !available && (parcel.status === 'assigned' || (!!parcel.dispatch_prepared_at && !parcel.dispatch_accepted_at)) && (
                 <div className="my-5 grid gap-4 rounded-xl border p-4">
                     <ParcelCamera
                         onScan={(reference) => {
@@ -208,7 +250,7 @@ export function Parcel({
                         onChange={(e) => form.setData('capture_method', e.target.value)}
                     >
                         <option value="scanner">USB / Bluetooth scanner</option>
-                        <option value="manual">Manual entry (reason required)</option>
+                        <option value="manual">Manual lookup only (cannot confirm checkpoint)</option>
                     </Select>
                     <Textarea
                         label="Handling notes / exception or manual entry reason"
@@ -363,6 +405,14 @@ export function Parcel({
             {role === 'logistics' && !available && (
                 <div className="mb-5 space-y-3">
                     {parcel.exception_status && (
+                        <Select label="Return to logistics note" value={form.data.note} onChange={(e) => form.setData('note', e.target.value)}>
+                            <option value="">Choose a note before requesting return</option>
+                            {(noteSuggestions?.return_to_center ?? []).map((note) => (
+                                <option key={note}>{note}</option>
+                            ))}
+                        </Select>
+                    )}
+                    {parcel.exception_status && (
                         <div className="space-y-3 rounded-xl border p-4">
                             <p role="status" className="font-medium">
                                 Exception: {parcel.exception_status.replaceAll('_', ' ')}
@@ -374,7 +424,7 @@ export function Parcel({
                                 {['failed_attempt', 'held', 'returned_to_center'].includes(parcel.exception_status) &&
                                     parcel.receipt_condition !== 'damaged' && (
                                         <button className={secondaryClass} disabled={form.processing} onClick={() => send('retry')}>
-                                            Authorize retry
+                                            Confirm re-handover and authorize retry
                                         </button>
                                     )}
                                 {['failed_attempt', 'held'].includes(parcel.exception_status) &&
@@ -419,39 +469,57 @@ export function Parcel({
                             Confirm Center Receipt
                         </button>
                     )}
-                    {scanEntry &&
-                        !parcel.exception_status &&
-                        ['picked_up', 'in_transit'].includes(parcel.status) &&
-                        parcel.received_at &&
-                        !parcel.sorted_at && (
-                            <div className="grid gap-4">
-                                <Select
-                                    label="Sorted destination area"
-                                    value={form.data.service_area_id}
-                                    onChange={(e) => form.setData('service_area_id', e.target.value)}
-                                    error={form.errors.service_area_id}
-                                >
-                                    <option value="">Choose destination area</option>
-                                    {areas
-                                        .filter((area) => area.logistics_center_id === parcel.logistics_center_id)
-                                        .map((area) => (
-                                            <option key={area.id} value={area.id}>
-                                                {area.name}
-                                            </option>
-                                        ))}
-                                </Select>
-                                <Field
-                                    label="Destination bin / route"
-                                    value={form.data.sorting_bin}
-                                    maxLength={80}
-                                    onChange={(e) => form.setData('sorting_bin', e.target.value)}
-                                    error={form.errors.sorting_bin}
-                                />
-                                <button className={buttonClass} disabled={form.processing} onClick={() => send('sort')}>
-                                    Confirm Sorted for Destination
-                                </button>
-                            </div>
-                        )}
+                    {sortingReady && (
+                        <div className="grid gap-4">
+                            <Select
+                                label="Sorted destination area"
+                                required
+                                value={form.data.service_area_id}
+                                onChange={(e) => {
+                                    const area = destinationAreas.find((area) => area.id.toString() === e.target.value);
+                                    form.setData((data) => ({
+                                        ...data,
+                                        service_area_id: e.target.value,
+                                        sorting_bin:
+                                            !data.sorting_bin ||
+                                            data.sorting_bin ===
+                                                destinationAreas.find((item) => item.id.toString() === data.service_area_id)?.name.slice(0, 80)
+                                                ? (area?.name.slice(0, 80) ?? '')
+                                                : data.sorting_bin,
+                                    }));
+                                }}
+                                error={form.errors.service_area_id}
+                            >
+                                <option value="">Choose destination area</option>
+                                {destinationAreas.map((area) => (
+                                    <option key={area.id} value={area.id}>
+                                        {area.name}
+                                    </option>
+                                ))}
+                            </Select>
+                            <Field
+                                label="Destination bin / route"
+                                value={form.data.sorting_bin}
+                                maxLength={80}
+                                onChange={(e) => form.setData('sorting_bin', e.target.value)}
+                                error={form.errors.sorting_bin}
+                                required
+                                hint="Suggested from the delivery destination. Change it to your actual bin or route, then confirm after placing the parcel there."
+                            />
+                            {!destinationAreas.length && (
+                                <p role="status" className="text-destructive text-sm">
+                                    No active service area matches this delivery address. Configure destination coverage before sorting.
+                                </p>
+                            )}
+                            <button
+                                className={buttonClass}
+                                disabled={form.processing || !form.data.service_area_id || !form.data.sorting_bin.trim() || !destinationAreas.length}
+                                onClick={() => send('sort')}
+                            >
+                                Confirm Sorted for Destination
+                            </button>
+                        </div>
+                    )}
                     <div className="text-muted-foreground flex flex-wrap gap-2 text-xs">
                         {[
                             ['Pickup Approved', parcel.pickup_approved_at],
@@ -476,29 +544,71 @@ export function Parcel({
                     )}
                     {parcel.status === 'out_for_delivery' && (
                         <>
-                            <Field
-                                label="Recipient who received the parcel"
-                                value={form.data.recipient_name}
-                                maxLength={150}
-                                onChange={(e) => form.setData('recipient_name', e.target.value)}
-                                error={form.errors.recipient_name}
+                            <h2 className="text-xl font-semibold">
+                                {deliveryAction === 'failed_attempt' ? 'Report failed delivery' : 'Complete delivery'}
+                            </h2>
+                            <Select
+                                label="Delivery action"
+                                value={deliveryAction}
+                                onChange={(e) => {
+                                    setDeliveryAction(e.target.value);
+                                    form.setData('proof', null);
+                                    form.setData('cod_confirmed', false);
+                                    form.setData('note', '');
+                                    form.setData('reason', '');
+                                }}
+                            >
+                                <option value="">Choose delivery action</option>
+                                <option value="delivered">Successful delivery</option>
+                                <option value="failed_attempt">Failed delivery</option>
+                            </Select>
+                            {deliveryAction && (
+                                <DeliveryProofCamera
+                                    key={deliveryAction}
+                                    required={deliveryAction === 'delivered'}
+                                    onCapture={(file) => form.setData('proof', file)}
+                                />
+                            )}
+                            <Select
+                                label="Delivery notes (required)"
+                                value={form.data.note}
+                                onChange={(e) => form.setData('note', e.target.value)}
+                                error={form.errors.note}
+                            >
+                                <option value="">Choose a note</option>
+                                {(noteSuggestions?.[deliveryAction] ?? []).map((note) => (
+                                    <option key={note} value={note}>
+                                        {note}
+                                    </option>
+                                ))}
+                            </Select>
+                            {form.data.note === 'Other / Custom notes' && (
+                                <Textarea
+                                    label="Custom delivery notes (required)"
+                                    value={form.data.reason}
+                                    maxLength={1000}
+                                    onChange={(e) => form.setData('reason', e.target.value)}
+                                    error={form.errors.reason}
+                                />
+                            )}
+                            <Textarea
+                                label="Additional remarks (optional)"
+                                value={form.data.remarks}
+                                maxLength={500}
+                                onChange={(e) => form.setData('remarks', e.target.value)}
                             />
-                            <Field
-                                label="Actual COD collected (PHP)"
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={form.data.amount}
-                                onChange={(e) => form.setData('amount', e.target.value)}
-                                error={form.errors.amount}
-                            />
-                            <Field
-                                label="Delivery proof photo (JPG or PNG, up to 5 MB)"
-                                type="file"
-                                accept="image/jpeg,image/png"
-                                onChange={(e) => form.setData('proof', e.target.files?.[0] ?? null)}
-                                error={form.errors.proof}
-                            />
+                            {deliveryAction === 'delivered' && (
+                                <label className="flex min-h-11 items-start gap-3 text-sm">
+                                    <input
+                                        type="checkbox"
+                                        className="mt-1 size-5"
+                                        checked={form.data.cod_confirmed}
+                                        onChange={(e) => form.setData('cod_confirmed', e.target.checked)}
+                                    />
+                                    I confirm that the full COD payment of {money(Number(order.subtotal) + Number(order.shipping_fee))} has been
+                                    received.
+                                </label>
+                            )}
                             <p className="text-muted-foreground text-xs">
                                 Confirm delivery only after the recipient receives the parcel and pays the displayed COD amount.
                             </p>
@@ -509,12 +619,16 @@ export function Parcel({
                         disabled={
                             form.processing ||
                             (Boolean(parcel.sorted_at) && !parcel.dispatch_accepted_at) ||
-                            (parcel.status === 'out_for_delivery' && !form.data.proof) ||
+                            (parcel.status === 'out_for_delivery' &&
+                                (!deliveryAction ||
+                                    !form.data.note ||
+                                    (form.data.note === 'Other / Custom notes' && !form.data.reason.trim()) ||
+                                    (deliveryAction === 'delivered' && (!form.data.proof || !form.data.cod_confirmed)))) ||
                             (parcel.status === 'picked_up' && !parcel.sorted_at)
                         }
                         onClick={() =>
                             send(
-                                { assigned: 'picked_up', picked_up: 'in_transit', in_transit: 'out_for_delivery', out_for_delivery: 'delivered' }[
+                                { assigned: 'picked_up', picked_up: 'in_transit', in_transit: 'out_for_delivery', out_for_delivery: deliveryAction }[
                                     parcel.status
                                 ] ?? '',
                             )
@@ -525,16 +639,11 @@ export function Parcel({
                             {
                                 assigned: 'Confirm pickup',
                                 picked_up: 'Waiting for center receipt and dispatch',
-                                in_transit: 'Mark out for delivery',
-                                out_for_delivery: 'Confirm delivered & COD collected',
+                                in_transit: 'Start delivery',
+                                out_for_delivery: deliveryAction === 'delivered' ? 'Confirm delivery' : 'Report failed delivery',
                             }[parcel.status]
                         }
                     </button>
-                    {parcel.status === 'out_for_delivery' && (
-                        <button className={secondaryClass} disabled={form.processing} onClick={() => send('failed_attempt')}>
-                            Record failed delivery attempt
-                        </button>
-                    )}
                     {parcel.status === 'picked_up' && !parcel.sorted_at && (
                         <p className="text-muted-foreground text-xs">
                             Return the parcel to the center. Dispatch becomes available after receipt and sorting.
@@ -614,7 +723,7 @@ export function Parcel({
                 </div>
             )}
             {parcel.events && parcel.events.length > 0 && (
-                <details className="mt-5 border-t pt-4">
+                <RecordDisclosure ref={historyRef} data-parcel-history className="mt-5 border-t pt-4">
                     <summary className="min-h-11 cursor-pointer text-sm font-medium">Parcel handling history ({parcel.events.length})</summary>
                     <ol className="mt-3 space-y-3 text-sm">
                         {parcel.events.map((event) => (
@@ -623,6 +732,11 @@ export function Parcel({
                                 <p className="text-muted-foreground">
                                     {event.actor_name} · {new Date(event.occurred_at).toLocaleString('en-PH')}
                                 </p>
+                                {event.has_proof && (
+                                    <a className={secondaryClass} href={'/deliveries/' + parcel.id + '/proof?event=' + event.id}>
+                                        View supporting photo
+                                    </a>
+                                )}
                                 {event.details?.map((detail, index) => (
                                     <p key={index} className="mt-2 text-sm break-words">
                                         {detail}
@@ -631,12 +745,7 @@ export function Parcel({
                             </li>
                         ))}
                     </ol>
-                </details>
-            )}
-            {parcel.proof_photo_path && (
-                <a href={`/deliveries/${parcel.id}/proof`} className={`${secondaryClass} mt-4`}>
-                    Download proof
-                </a>
+                </RecordDisclosure>
             )}
         </Card>
     );

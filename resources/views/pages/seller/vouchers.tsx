@@ -38,7 +38,16 @@ function VoucherRow({ voucher }: { voucher: Voucher }) {
         </Card>
     );
 }
-export default function Vouchers({ vouchers, storeApproved }: { vouchers: Pagination<Voucher>; storeApproved: boolean }) {
+type Redemption = { id: number; voucher_code: string; discount_amount: string; status: string; created_at: string };
+export default function Vouchers({
+    vouchers,
+    history,
+    storeApproved,
+}: {
+    vouchers: Pagination<Voucher>;
+    history: Pagination<Redemption>;
+    storeApproved: boolean;
+}) {
     const form = useForm({ code: '', amount: '', minimum: '0', usage_limit: 100, expires_at: '' });
     return (
         <Page
@@ -126,6 +135,23 @@ export default function Vouchers({ vouchers, storeApproved }: { vouchers: Pagina
                 <VoucherRow key={voucher.id} voucher={voucher} />
             ))}
             <Pager links={vouchers.links} />
+            <Card>
+                <h2 className="text-lg font-semibold">Voucher usage history</h2>
+                <p className="text-muted-foreground mt-2 text-sm">
+                    Cancelled parcels release the use. Returned parcels retain the original discount snapshot.
+                </p>
+                {!history.data.length && <p className="mt-4 text-sm">No recorded voucher redemptions.</p>}
+                <ul className="mt-4 space-y-4">
+                    {history.data.map((entry) => (
+                        <li key={entry.id} className="text-sm break-words tabular-nums">
+                            Parcel #{entry.id} · {entry.voucher_code} · {money(entry.discount_amount)} discount ·{' '}
+                            {entry.status === 'cancelled' ? 'Cancelled — use released' : 'Use retained'} ·{' '}
+                            {new Date(entry.created_at).toLocaleString()}
+                        </li>
+                    ))}
+                </ul>
+                <Pager links={history.links} />
+            </Card>
         </Page>
     );
 }

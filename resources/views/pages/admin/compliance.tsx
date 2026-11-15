@@ -1,8 +1,13 @@
+import { ActionDropdown } from '@/components/shared/action-dropdown';
+import AutoFilterForm from '@/components/shared/auto-filter-form';
+import { FilterToolbar } from '@/components/shared/filter-toolbar';
 import { Badge, Card, Empty, Field, Page, Pager, Select, buttonClass, money, type Pagination } from '@/components/shared/marketplace-ui';
 import { ReasonConfirmation } from '@/components/shared/reason-confirmation';
 import ValidatedForm from '@/components/shared/validated-form';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Link, useForm } from '@inertiajs/react';
-import { useState } from 'react';
+import { EyeOff, ShieldAlert, ShieldCheck, UserX } from 'lucide-react';
+import { useRef, useState } from 'react';
 type Product = {
     id: number;
     name: string;
@@ -15,8 +20,12 @@ type Product = {
 };
 type Review = { id: number; action: string; reason: string; created_at: string };
 function Listing({ product, history }: { product: Product; history: Review[] }) {
+    const trigger = useRef<HTMLButtonElement>(null);
+    const [editing, setEditing] = useState(false);
     const [confirming, setConfirming] = useState(false);
-    const form = useForm({ action: 'warn', reason: '' });
+    const form = useForm<{ action: 'warn' | 'hide' | 'restore' | 'suspend'; reason: string }>({ action: 'warn', reason: '' });
+    const labels = { warn: 'Send a Warning', hide: 'Block Listing', restore: 'Restore Listing', suspend: 'Block Listing and Suspend Seller' };
+    const icons = { warn: ShieldAlert, hide: EyeOff, restore: ShieldCheck, suspend: UserX };
     const mismatch = product.store.business_category_id && product.store.business_category_id !== (product.category.parent_id ?? product.category.id);
     return (
         <Card>
@@ -33,6 +42,22 @@ function Listing({ product, history }: { product: Product; history: Review[] }) 
                         <Badge status={product.blocked_at ? 'blocked' : product.status} />
                     </div>
                 </div>
+                <ActionDropdown
+                    label={`Review actions for ${product.name}`}
+                    triggerRef={trigger}
+                    actions={(Object.keys(labels) as (keyof typeof labels)[]).map((action) => ({
+                        id: action,
+                        label: labels[action],
+                        icon: icons[action],
+                        destructive: action === 'hide' || action === 'suspend',
+                        disabled: form.processing,
+                        onSelect: () => {
+                            form.setData({ action, reason: '' });
+                            form.clearErrors();
+                            setEditing(true);
+                        },
+                    }))}
+                />
             </div>
             <dl className="mt-5 grid gap-3 text-sm sm:grid-cols-2">
                 <div>
@@ -45,49 +70,62 @@ function Listing({ product, history }: { product: Product; history: Review[] }) 
                 </div>
             </dl>
             {mismatch && <p className="bg-accent text-primary mt-4 rounded-xl p-3 text-sm">Category does not match the registered department.</p>}
-            <ValidatedForm
-                noValidate
-                className="mt-5 grid gap-4"
-                onSubmit={(e) => {
-                    e.preventDefault();
-                    setConfirming(true);
+            <Dialog
+                open={editing}
+                onOpenChange={(value) => {
+                    if (!form.processing) setEditing(value);
                 }}
             >
-                <Select
-                    label="Review Action"
-                    value={form.data.action}
-                    onChange={(e) => form.setData('action', e.target.value)}
-                    error={form.errors.action}
+                <DialogContent
+                    onCloseAutoFocus={(event) => {
+                        event.preventDefault();
+                        (trigger.current ?? document.getElementById('main-content'))?.focus();
+                    }}
                 >
-                    <option value="warn">Send a Warning</option>
-                    <option value="hide">Block Listing</option>
-                    <option value="restore">Restore Listing</option>
-                    <option value="suspend">Block Listing and Suspend Seller</option>
-                </Select>
-                <Select
-                    label="Reason"
-                    required
-                    value={form.data.reason}
-                    onChange={(event) => form.setData('reason', event.target.value)}
-                    error={form.errors.reason}
-                >
-                    <option value="">Select a Reason</option>
-                    {(form.data.action === 'restore'
-                        ? ['Listing corrected and category verified', 'Compliance review completed']
-                        : [
-                              'Product outside the registered category',
-                              'Prohibited or inappropriate product',
-                              'Misleading product information',
-                              'Repeated platform policy violations',
-                          ]
-                    ).map((reason) => (
-                        <option key={reason}>{reason}</option>
-                    ))}
-                </Select>
-                <button className={buttonClass} disabled={form.processing}>
-                    {form.processing ? 'Saving…' : 'Save Review'}
-                </button>
-            </ValidatedForm>
+                    <DialogHeader>
+                        <DialogTitle className="[overflow-wrap:anywhere]">{labels[form.data.action]}</DialogTitle>
+                        <DialogDescription className="[overflow-wrap:anywhere]">
+                            {product.name}. Choose a reason, then review the decision before saving.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <ValidatedForm
+                        className="mt-5 grid gap-4"
+                        onSubmit={(e) => {
+                            e.preventDefault();
+                            if (!form.processing && form.data.reason.trim()) setConfirming(true);
+                        }}
+                    >
+                        {form.errors.action && (
+                            <p role="alert" className="text-destructive text-sm">
+                                {form.errors.action}
+                            </p>
+                        )}
+                        <Select
+                            label="Reason"
+                            required
+                            value={form.data.reason}
+                            onChange={(event) => form.setData('reason', event.target.value)}
+                            error={form.errors.reason}
+                        >
+                            <option value="">Select a Reason</option>
+                            {(form.data.action === 'restore'
+                                ? ['Listing corrected and category verified', 'Compliance review completed']
+                                : [
+                                      'Product outside the registered category',
+                                      'Prohibited or inappropriate product',
+                                      'Misleading product information',
+                                      'Repeated platform policy violations',
+                                  ]
+                            ).map((reason) => (
+                                <option key={reason}>{reason}</option>
+                            ))}
+                        </Select>
+                        <button className={buttonClass} disabled={form.processing || !form.data.reason.trim()}>
+                            {form.processing ? 'Saving…' : 'Review Action'}
+                        </button>
+                    </ValidatedForm>
+                </DialogContent>
+            </Dialog>
             <ReasonConfirmation
                 open={confirming}
                 onOpenChange={setConfirming}
@@ -101,6 +139,7 @@ function Listing({ product, history }: { product: Product; history: Review[] }) 
                         onSuccess: () => {
                             form.reset('reason');
                             setConfirming(false);
+                            setEditing(false);
                         },
                         onError: () => setConfirming(false),
                     })
@@ -142,34 +181,55 @@ export default function Compliance({
                 </Link>
             }
         >
-            <Card>
-                <ValidatedForm
-                    className="grid items-end gap-4 sm:grid-cols-[1fr_220px_auto]"
+            <Card className="!p-4">
+                <AutoFilterForm
+                    processing={search.processing}
+                    cancel={search.cancel}
+                    className="relative"
                     onSubmit={(e) => {
                         e.preventDefault();
-                        search.get('/admin/compliance', { preserveState: true });
+                        search.get('/admin/compliance', { preserveState: true, preserveScroll: true, replace: true });
                     }}
                 >
-                    <Field label="Search listings" value={search.data.search} onChange={(e) => search.setData('search', e.target.value)} />
-                    <Select label="Show" value={search.data.status} onChange={(e) => search.setData('status', e.target.value)}>
-                        <option value="all">All listings</option>
-                        <option value="mismatch">Category mismatches</option>
-                        <option value="blocked">Blocked listings</option>
-                    </Select>
-                    <button className={buttonClass} disabled={search.processing}>
-                        Apply Filters
-                    </button>
-                </ValidatedForm>
+                    <FilterToolbar
+                        hasErrors={Object.keys(search.errors).length > 0}
+                        primary={
+                            <Field
+                                reserveFeedback={false}
+                                label="Search listings"
+                                value={search.data.search}
+                                onChange={(e) => search.setData('search', e.target.value)}
+                            />
+                        }
+                        activeFilters={[
+                            { key: 'search', label: 'Search', value: search.data.search ?? '', onRemove: () => search.setData('search', '') },
+                            { key: 'status', label: 'Status', value: search.data.status ?? '', onRemove: () => search.setData('status', 'all') },
+                        ].filter(
+                            (filter) =>
+                                !!filter.value &&
+                                !(filter.key === 'sort' && filter.value === 'name') &&
+                                !(filter.key === 'status' && filter.value === 'all') &&
+                                !(filter.key === 'stage' && filter.value === 'all'),
+                        )}
+                    >
+                        <Select
+                            reserveFeedback={false}
+                            label="Show"
+                            value={search.data.status}
+                            onChange={(e) => search.setData('status', e.target.value)}
+                        >
+                            <option value="all">All listings</option>
+                            <option value="mismatch">Category mismatches</option>
+                            <option value="blocked">Blocked listings</option>
+                        </Select>
+                    </FilterToolbar>
+                </AutoFilterForm>
             </Card>
             <p className="text-muted-foreground text-sm">{products.total} listings</p>
             {products.data.length ? (
                 <div className="grid items-start gap-5 lg:grid-cols-2">
                     {products.data.map((product) => (
-                        <Listing
-                            key={`${product.id}-${product.status}-${product.blocked_at}`}
-                            product={product}
-                            history={history[product.id] ?? []}
-                        />
+                        <Listing key={product.id} product={product} history={history[product.id] ?? []} />
                     ))}
                 </div>
             ) : (

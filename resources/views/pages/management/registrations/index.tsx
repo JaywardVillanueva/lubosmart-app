@@ -25,6 +25,7 @@ export default function Reviews({
                 <div className="w-full sm:max-w-xs">
                     <Select
                         label="Application status"
+                        reserveFeedback={false}
                         value={filters.status}
                         onChange={(event) => router.get('/reviews', { status: event.target.value })}
                     >

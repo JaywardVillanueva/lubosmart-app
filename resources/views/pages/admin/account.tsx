@@ -1,6 +1,8 @@
 import { AccountAccess } from '@/components/shared/account-access';
+import { AccountHistory } from '@/components/shared/account-history';
 import { InfoModal } from '@/components/shared/info-modal';
 import { Badge, Card, Page, roleLabel, secondaryClass } from '@/components/shared/marketplace-ui';
+import { useInitials } from '@/hooks/use-initials';
 import { type User } from '@/types';
 import { Link } from '@inertiajs/react';
 
@@ -35,6 +37,15 @@ export default function Account({
     applicationId: number | null;
     history: { id: number; actor_id: number | null; actor_name?: string | null; action: string; changes: string; occurred_at: string }[];
 }) {
+    const getInitials = useInitials();
+    const birthday = profile?.birthday ? new Date(profile.birthday) : null;
+    const today = new Date();
+    const age =
+        birthday && !Number.isNaN(birthday.getTime())
+            ? today.getFullYear() -
+              birthday.getFullYear() -
+              (today.getMonth() < birthday.getMonth() || (today.getMonth() === birthday.getMonth() && today.getDate() < birthday.getDate()) ? 1 : 0)
+            : null;
     return (
         <Page
             embedded={embedded}
@@ -50,21 +61,32 @@ export default function Account({
         >
             <Card>
                 <div className="mb-5 flex items-center gap-3">
-                    <span className="bg-accent text-primary flex size-12 items-center justify-center rounded-xl text-lg font-semibold">
-                        {account.name.charAt(0).toUpperCase()}
+                    <span className="bg-accent text-primary flex size-12 shrink-0 items-center justify-center rounded-xl text-lg font-semibold">
+                        {getInitials(account.name)}
                     </span>
                     <Badge status={account.status} />
                 </div>
                 <dl className="grid gap-5 sm:grid-cols-2">
                     {[
+                        ['Full name', account.name],
+                        ['Registered', account.created_at ? new Date(account.created_at).toLocaleDateString('en-PH') : 'Not Provided'],
                         ['Email', account.email],
                         ['Role', roleLabel(account.role)],
                         ['Phone', account.phone ?? 'Not Provided'],
                         ['Email Verification', account.email_verified_at ? 'Verified' : 'Not verified'],
                         ...(applicationId ? [['Registration application', '#' + applicationId]] : []),
                         ['First Name', profile?.first_name ?? 'Not Provided'],
+                        ['Middle initial (optional)', profile?.middle_initial ?? 'Not Provided'],
                         ['Last Name', profile?.last_name ?? 'Not Provided'],
-                        ...(account.role === 'seller' ? [['Store', store?.name ?? 'Not Provided']] : []),
+                        ['Birthday', profile?.birthday ?? 'Not Provided'],
+                        ['Age', age === null ? 'Not Provided' : String(age)],
+                        ['Sex', profile?.sex?.replaceAll('_', ' ') ?? 'Not Provided'],
+                        ...(account.role === 'seller'
+                            ? [
+                                  ['Store', store?.name ?? 'Not Provided'],
+                                  ['Store status', store?.status ?? 'Not Provided'],
+                              ]
+                            : []),
                         ...(account.role === 'rider'
                             ? [
                                   ['Vehicle', rider?.vehicle_type ?? 'Not Provided'],
@@ -81,7 +103,7 @@ export default function Account({
                     ].map(([label, value]) => (
                         <div key={label}>
                             <dt className="text-muted-foreground text-sm">{label}</dt>
-                            <dd className="mt-1 text-sm font-medium break-words">{value}</dd>
+                            <dd className="mt-1 text-sm font-medium [overflow-wrap:anywhere]">{value}</dd>
                         </div>
                     ))}
                 </dl>
@@ -101,26 +123,7 @@ export default function Account({
             {!verificationOnly && (
                 <Card>
                     <h2 className="font-semibold">Access History</h2>
-                    {history.length ? (
-                        <ul className="mt-4 divide-y">
-                            {history.map((item) => {
-                                const changes = JSON.parse(item.changes ?? '{}');
-                                return (
-                                    <li key={item.id} className="py-4 text-sm">
-                                        <p className="text-muted-foreground">
-                                            {new Date(item.occurred_at).toLocaleString()} · {item.actor_name ?? 'System'}
-                                        </p>
-                                        <p className="font-medium capitalize">
-                                            {changes.from ?? item.action.replaceAll('_', ' ')} → {changes.to ?? ''}
-                                        </p>
-                                        <p className="text-muted-foreground mt-1 break-words whitespace-pre-wrap">{changes.reason}</p>
-                                    </li>
-                                );
-                            })}
-                        </ul>
-                    ) : (
-                        <p className="text-muted-foreground mt-4 text-sm">No status changes recorded.</p>
-                    )}
+                    <AccountHistory history={history} />
                 </Card>
             )}
         </Page>

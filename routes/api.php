@@ -3,7 +3,10 @@
 use App\Http\Controllers\Api\V1\DeviceTokenController;
 use App\Http\Controllers\Api\V1\MarketplaceReadController;
 use App\Http\Controllers\DeliveryController;
+use App\Http\Controllers\FinanceController;
+use App\Http\Controllers\LogisticsSettlementController;
 use App\Http\Controllers\MarketplaceController;
+use App\Http\Controllers\NotificationInboxController;
 use App\Http\Controllers\OrderController;
 use Illuminate\Support\Facades\Route;
 
@@ -16,9 +19,16 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
     });
 
     Route::middleware(['auth:sanctum', 'throttle:mobile-api'])->group(function () {
+        Route::middleware('mobile.token')->controller(NotificationInboxController::class)->group(function () {
+            Route::get('notifications', 'index')->name('notifications.index');
+            Route::get('notifications/unread-count', 'count')->name('notifications.count');
+            Route::patch('notifications/read-all', 'readAll')->name('notifications.read-all');
+            Route::patch('notifications/{notification}/read', 'read')->whereUuid('notification')->name('notifications.read');
+        });
         Route::delete('auth/token', [DeviceTokenController::class, 'destroy'])->middleware('mobile.token:logout')->name('tokens.destroy');
         Route::delete('auth/tokens', [DeviceTokenController::class, 'destroyAll'])->middleware('mobile.token:logout')->name('tokens.destroy-all');
         Route::get('me', [MarketplaceReadController::class, 'me'])->middleware('mobile.token')->name('me');
+        Route::get('finance', [FinanceController::class, 'index'])->middleware(['mobile.token', 'role:admin,seller,logistics,rider'])->name('finance');
         Route::middleware('mobile.token:buyer')->group(function () {
             Route::get('cart', [MarketplaceReadController::class, 'cart'])->name('cart.show');
             Route::put('cart/items/{product}', [MarketplaceController::class, 'updateCart'])->name('cart.update');
@@ -35,6 +45,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
             Route::patch('seller/orders/{sellerOrder}', [OrderController::class, 'prepare'])->name('seller.prepare');
         });
         Route::middleware('mobile.token:logistics')->group(function () {
+            Route::get('logistics/settlements', [LogisticsSettlementController::class, 'index'])->name('logistics.settlements');
             Route::get('logistics/configuration', [MarketplaceReadController::class, 'logisticsConfiguration'])->name('logistics.configuration');
             Route::get('logistics/available-pickups', [MarketplaceReadController::class, 'availablePickups'])->name('logistics.available-pickups');
         });

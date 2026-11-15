@@ -1,14 +1,15 @@
 import { UserMenuContent } from '@/components/navigation/user-menu-content';
 import { inputClass, secondaryClass } from '@/components/shared/marketplace-ui';
+import { NotificationBell } from '@/components/shared/notification-inbox';
 import ValidatedForm from '@/components/shared/validated-form';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useWorkspaceStatus } from '@/components/workspace/workspace-runtime';
 import { useInitials } from '@/hooks/use-initials';
 import type { SharedData } from '@/types';
 import { Link, router, usePage } from '@inertiajs/react';
-import { Bell, MessageCircle, Search, ShoppingCart } from 'lucide-react';
+import { MessageCircle, Search, ShoppingCart } from 'lucide-react';
 import { useState } from 'react';
 
 export function WorkspaceToolbar() {
@@ -18,24 +19,9 @@ export function WorkspaceToolbar() {
     const [open, setOpen] = useState(false);
     const [search, setSearch] = useState('');
     const buyer = auth.user.role === 'buyer';
-    const seller = auth.user.role === 'seller';
-    const queues = buyer
-        ? [
-              { label: 'Your orders', url: '/orders' },
-              { label: 'Shopping bag', url: '/cart' },
-          ]
-        : seller
-          ? [
-                { label: 'Fulfillment', url: '/orders' },
-                { label: 'Inventory', url: '/inventory' },
-                { label: 'Sales reports', url: '/reports' },
-            ]
-          : [
-                { label: 'Your assigned deliveries', url: '/deliveries' },
-                { label: 'Delivery reports', url: '/reports' },
-            ];
     return (
         <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+            <NotificationBell />
             {buyer && (
                 <button
                     type="button"
@@ -70,26 +56,6 @@ export function WorkspaceToolbar() {
             >
                 <MessageCircle className="size-5" aria-hidden="true" />
             </Link>
-            <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <button
-                        type="button"
-                        aria-label="Open workspace queues"
-                        className="text-muted-foreground hover:bg-accent hover:text-primary flex size-11 items-center justify-center rounded-xl"
-                    >
-                        <Bell className="size-5" aria-hidden="true" />
-                    </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-64">
-                    {queues.map((queue) => (
-                        <DropdownMenuItem key={queue.url} asChild>
-                            <Link href={queue.url} className="min-h-11">
-                                {queue.label}
-                            </Link>
-                        </DropdownMenuItem>
-                    ))}
-                </DropdownMenuContent>
-            </DropdownMenu>
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                     <button

@@ -1,312 +1,343 @@
 import AuthFeedback from '@/components/auth/auth-feedback';
 import AppWordmark from '@/components/branding/app-wordmark';
+import HomeDeliveryTruck from '@/components/marketplace/home-delivery-truck';
 import HomeDiscovery from '@/components/marketplace/home-discovery';
-import { ThemeToggle } from '@/components/navigation/theme-toggle';
-import { assets } from '@/config/assets';
-import { Head, Link, router, usePage } from '@inertiajs/react';
-import { MapPin, Package, PackageCheck, Search, ShoppingBag, Sparkles, Store, Wallet } from 'lucide-react';
-import { useEffect, useRef, type MouseEvent } from 'react';
-
+import PublicHeader from '@/components/navigation/public-header';
 import { SkipLink } from '@/components/shell/skip-link';
 import type { SharedData } from '@/types';
-import '../../../css/storefront.css';
+import { Head, Link, usePage } from '@inertiajs/react';
+import { ArrowRight, Grid2X2, Headphones, ShieldCheck, ShoppingBag, Sparkles, Truck, Wallet } from 'lucide-react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import '../../../css/reference-marketplace.css';
+import '../../../css/storefront-home-reference.css';
 
-type PublicRole = 'buyer' | 'seller' | 'rider' | 'logistics';
+type HomeProduct = {
+    id: number;
+    name: string;
+    price: string;
+    stock?: number;
+    description?: string | null;
+    image_url: string;
+    store: { name: string };
+    category: { name: string };
+};
 
-function scrollToSection(event: MouseEvent<HTMLAnchorElement>, id: string) {
-    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-    const section = document.getElementById(id);
-    if (!section) return;
-
-    event.preventDefault();
-    if (window.location.hash) {
-        window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search);
-    }
-    section.focus({ preventScroll: true });
-    section.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' });
-}
-
-export default function Welcome({
-    announcements = [],
-    products = [],
-    favoriteIds = [],
-}: {
-    favoriteIds?: number[];
-    announcements?: { id: number; title: string; body: string }[];
-    products?: {
-        id: number;
-        name: string;
-        price: string;
-        stock?: number;
-        description?: string | null;
-        image_url: string;
-        store: { name: string };
-        category: { name: string };
-    }[];
-}) {
-    const { auth, errors: sharedErrors } = usePage<SharedData>().props;
-    const benefitsRef = useRef<HTMLElement>(null);
-    useEffect(() => {
-        const section = benefitsRef.current;
-        if (!section || !('IntersectionObserver' in window)) return;
-        const observer = new IntersectionObserver(
-            (entries) => {
-                if (entries.some((entry) => entry.isIntersecting)) {
-                    section.classList.add('storefront__benefits--visible');
-                    observer.disconnect();
-                }
-            },
-            { threshold: 0.15 },
+function HeroTagline({ bottom = false }: { bottom?: boolean }) {
+    if (bottom) {
+        return (
+            <aside className="home-delivery-strip" aria-hidden="true">
+                <div className="home-delivery-road" aria-hidden="true">
+                    <div className="home-delivery-traveler">
+                        <HomeDeliveryTruck />
+                    </div>
+                </div>
+            </aside>
         );
-        observer.observe(section);
-        return () => observer.disconnect();
-    }, []);
-
-    const discoveryProducts = products.map((product) => ({
-        ...product,
-        key: 'live-' + product.id,
-        seller: product.store.name,
-        category: product.category.name,
-    }));
-
-    const openRegistration = (role?: PublicRole) => {
-        if (auth.user) {
-            router.visit(route('dashboard'));
-            return;
-        }
-        router.visit(role ? route('register', { role }) : route('register'));
-    };
+    }
+    const labels = ['Local finds', 'Everyday favorites', 'Shop local', 'Pay on delivery'];
 
     return (
-        <>
-            <Head title="Home">
-                <meta name="description" content="Discover local finds, support neighborhood sellers, and shop with LubosMart." />
-            </Head>
-            <SkipLink />
-            <main className="storefront">
-                <header className="storefront__header">
-                    <a className="storefront__brand" href="/" aria-label="LubosMart home">
-                        <img src={assets.brand.logo} className="size-10" alt="" />
-                        <AppWordmark />
-                    </a>
-                    <nav className="storefront__nav" aria-label="Main navigation">
-                        <ThemeToggle />
-                        <a className="storefront__nav-link" href="#shop-categories" onClick={(event) => scrollToSection(event, 'shop-categories')}>
-                            Discover
-                        </a>
-                        <a className="storefront__nav-link" href="#how-it-works" onClick={(event) => scrollToSection(event, 'how-it-works')}>
-                            How it works
-                        </a>
-                        {auth.user ? (
-                            <a className="storefront__button storefront__button--outline" href={route('dashboard')}>
-                                Dashboard
-                            </a>
-                        ) : (
-                            <>
-                                <Link className="storefront__nav-link" href={route('login')}>
-                                    Sign In
-                                </Link>
-                                <button className="storefront__button storefront__button--small" type="button" onClick={() => openRegistration()}>
-                                    Sign up
-                                </button>
-                            </>
-                        )}
-                    </nav>
-                </header>
-                {sharedErrors?.google && (
-                    <div className="mx-auto max-w-4xl px-4 py-5">
-                        <AuthFeedback message={sharedErrors.google} />
-                        <Link href={route('login')} className="text-primary mt-3 inline-flex min-h-11 items-center font-medium underline">
-                            Return to Sign In
-                        </Link>
+        <aside className={'home-hero-tagline' + (bottom ? ' home-hero-tagline-bottom' : '')} aria-hidden="true">
+            <div className="home-tagline-track">
+                {[0, 1].map((copy) => (
+                    <div className="home-tagline-group" key={copy}>
+                        {labels.map((label) => (
+                            <span key={label}>
+                                {label}
+                                <span className="home-tagline-star">✦</span>
+                            </span>
+                        ))}
                     </div>
-                )}
+                ))}
+            </div>
+        </aside>
+    );
+}
 
-                <section id="main-content" tabIndex={-1} className="storefront__hero">
-                    <div className="storefront__hero-content">
-                        <span className="storefront__eyebrow">YOUR LOCAL MARKETPLACE</span>
+function FooterGroup({ title, children }: { title: string; children: ReactNode }) {
+    const [open, setOpen] = useState(true);
+    useEffect(() => {
+        const desktop = window.matchMedia('(min-width: 701px)');
+        const update = () => setOpen(desktop.matches);
+        update();
+        desktop.addEventListener('change', update);
+        return () => desktop.removeEventListener('change', update);
+    }, []);
+    return (
+        <details className="home-footer-group" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
+            <summary>{title}</summary>
+            <div>{children}</div>
+        </details>
+    );
+}
+export default function Home({
+    products = [],
+    favoriteIds = [],
+    announcements = [],
+    backdrop = false,
+}: {
+    products?: HomeProduct[];
+    favoriteIds?: number[];
+    announcements?: { id: number; title: string; body: string }[];
+    backdrop?: boolean;
+}) {
+    const { auth, errors } = usePage<SharedData>().props;
+    const homeRef = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        const home = homeRef.current;
+        if (!home || backdrop || !('IntersectionObserver' in window)) return;
+
+        const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
+        const animations = new Set<Animation>();
+        const observer = new IntersectionObserver(
+            (entries) => {
+                entries.forEach((entry) => {
+                    if (!entry.isIntersecting) return;
+                    observer.unobserve(entry.target);
+                    if (motion.matches || entry.target.contains(document.activeElement)) return;
+                    const siblings = Array.from(entry.target.parentElement?.children ?? []);
+                    const animation = entry.target.animate(
+                        [
+                            { opacity: 0, translate: '0 20px' },
+                            { opacity: 1, translate: '0 0' },
+                        ],
+                        {
+                            duration: 650,
+                            delay: Math.min(siblings.indexOf(entry.target), 6) * 65,
+                            easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+                            fill: 'backwards',
+                        },
+                    );
+                    animations.add(animation);
+                    animation.onfinish = () => animations.delete(animation);
+                });
+            },
+            { threshold: 0.08 },
+        );
+        home.querySelectorAll(
+            '.reference-hero > div > *, .home-hero-art, .reference-services > div, .reference-section-heading, .reference-categories > a, .product-card, main > section > article, .home-seller > *, .home-footer-main > *',
+        ).forEach((element) => observer.observe(element));
+        const cancelMotion = () => {
+            if (motion.matches) animations.forEach((animation) => animation.cancel());
+        };
+        const revealFocus = () =>
+            animations.forEach((animation) => {
+                if ((animation.effect as KeyframeEffect | null)?.target?.contains(document.activeElement)) animation.cancel();
+            });
+        motion.addEventListener('change', cancelMotion);
+        home.addEventListener('focusin', revealFocus);
+        return () => {
+            observer.disconnect();
+            animations.forEach((animation) => animation.cancel());
+            motion.removeEventListener('change', cancelMotion);
+            home.removeEventListener('focusin', revealFocus);
+        };
+    }, [backdrop, products]);
+    const registrationUrl = (role: string) => (auth.user ? route('dashboard') : route('register', { role }));
+    return (
+        <div ref={homeRef} className="reference-page reference-home home-motion">
+            {!backdrop && (
+                <Head title="Home">
+                    <meta name="description" content="Discover great deals, trusted local sellers, and delivery with LubosMart." />
+                </Head>
+            )}
+            {!backdrop && <SkipLink />}
+            <PublicHeader home />
+            <main id={backdrop ? undefined : 'main-content'} tabIndex={-1} className="reference-home-main">
+                {errors?.google && <AuthFeedback message={errors.google} />}
+                <section className="reference-hero">
+                    <HeroTagline />
+                    <div>
+                        <p className="reference-eyebrow">ONLINE MARKETPLACE</p>
                         <h1>
-                            Local finds.
+                            Shop Smarter
                             <br />
-                            Everyday <em>favorites.</em>
+                            with <span>LubosMart</span>
                         </h1>
-                        <p className="storefront__hero-copy">Shop local sellers, find something you love, and pay when it arrives.</p>
-                        <form action="/shop" method="get" role="search" className="storefront__search">
-                            <label htmlFor="home-search" className="sr-only">
-                                Search products
-                            </label>
-                            <Search className="size-5 shrink-0" aria-hidden="true" />
-                            <input id="home-search" name="search" type="search" placeholder="Search products" maxLength={100} />
-                            <button type="submit">Search</button>
-                        </form>
-                        <div className="storefront__actions">
-                            <a className="storefront__button" href="/shop">
-                                Shop now
-                            </a>
-                            <button className="storefront__text-button" type="button" onClick={() => openRegistration('seller')}>
-                                Start selling
-                            </button>
+                        <p>Discover great deals, trusted sellers, and everyday favorites in one place.</p>
+                        <div className="reference-actions">
+                            <Link href="/shop" className="reference-button">
+                                Shop Now <ArrowRight size={16} aria-hidden="true" />
+                            </Link>
+                            <Link href={registrationUrl('seller')} className="reference-button reference-button-outline">
+                                Become a Seller
+                            </Link>
                         </div>
                     </div>
-                    <figure className="storefront__hero-photo storefront__hero-illustration">
+                    <figure className="home-shopping-scene" aria-label="Shop local with cash on delivery">
+                        <span className="home-scene-orbit" aria-hidden="true" />
+                        <Sparkles className="home-scene-spark home-scene-spark-top" aria-hidden="true" />
+                        <Sparkles className="home-scene-spark home-scene-spark-bottom" aria-hidden="true" />
+                        <span className="home-scene-dot" aria-hidden="true" />
                         <img
+                            className="home-hero-art"
                             src="/images/brand/auth-marketplace-3d.webp"
                             width={1024}
                             height={1536}
                             fetchPriority="high"
-                            decoding="async"
-                            alt="A purple marketplace phone with shopping bags, shoes, headphones and a delivery cart"
+                            alt="Purple marketplace phone, shopping bag and delivery parcels"
                         />
+                        <span className="home-scene-badge home-scene-badge-local">
+                            <span className="home-scene-icon">
+                                <ShoppingBag size={20} aria-hidden="true" />
+                            </span>
+                            <span>
+                                <small>Made for your everyday</small>
+                                <strong>Discover local finds</strong>
+                            </span>
+                        </span>
+                        <span className="home-scene-badge home-scene-badge-cod">
+                            <span className="home-scene-icon">
+                                <Wallet size={20} aria-hidden="true" />
+                            </span>
+                            <span>
+                                <small>Simple shopping</small>
+                                <strong>Cash on delivery</strong>
+                            </span>
+                        </span>
                     </figure>
+                    <HeroTagline bottom />
                 </section>
-
+                <section className="reference-services" aria-label="Marketplace benefits">
+                    {[
+                        { icon: Truck, title: 'Fast Delivery', copy: 'Get your orders on time.' },
+                        { icon: ShieldCheck, title: 'Trusted Sellers', copy: 'Shop with confidence.' },
+                        { icon: ShoppingBag, title: 'Great Deals', copy: 'Discover local favorites.' },
+                        { icon: Headphones, title: 'Help & Support', copy: "We're here to assist you." },
+                    ].map(({ icon: Icon, title, copy }) => (
+                        <div key={title}>
+                            <span>
+                                <Icon aria-hidden="true" />
+                            </span>
+                            <div>
+                                <h2>{title}</h2>
+                                <p>{copy}</p>
+                            </div>
+                        </div>
+                    ))}
+                </section>
+                <section id="shop-categories" aria-labelledby="category-heading">
+                    <div className="reference-section-heading">
+                        <h2 id="category-heading">Shop by Category</h2>
+                        <Link href="/shop">
+                            View All Categories <ArrowRight size={14} aria-hidden="true" />
+                        </Link>
+                    </div>
+                    <div className="reference-categories">
+                        {[
+                            { name: 'Groceries', art: 'groceries' },
+                            { name: 'Electronics', art: 'electronics' },
+                            { name: 'Fashion', art: 'fashion' },
+                            { name: 'Home & Living', art: 'home' },
+                            { name: 'Health & Beauty', art: 'beauty' },
+                            { name: 'Sports', art: 'sports' },
+                            { name: 'More', art: null },
+                        ].map(({ name, art }) => (
+                            <Link key={name} href={art ? '/shop?search=' + encodeURIComponent(name) : '/shop'}>
+                                {art ? (
+                                    <span className={`home-category-art home-category-art-${art}`} aria-hidden="true" />
+                                ) : (
+                                    <span className="home-category-more" aria-hidden="true">
+                                        <Grid2X2 />
+                                    </span>
+                                )}
+                                <span>{name}</span>
+                            </Link>
+                        ))}
+                    </div>
+                </section>
+                <section aria-labelledby="featured-heading">
+                    <div className="reference-section-heading">
+                        <h2 id="featured-heading">Featured Products</h2>
+                        <Link href="/shop">
+                            View All Products <ArrowRight size={14} aria-hidden="true" />
+                        </Link>
+                    </div>
+                    <HomeDiscovery
+                        products={products.map((product) => ({
+                            ...product,
+                            key: 'live-' + product.id,
+                            seller: product.store.name,
+                            category: product.category.name,
+                        }))}
+                        favoriteIds={favoriteIds}
+                    />
+                </section>
                 {!!announcements.length && (
-                    <section aria-label="Latest announcements" className="mx-auto max-w-[1180px] px-6 py-6 sm:px-8">
-                        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                            <h2 className="text-lg font-semibold">Latest updates</h2>
-                            <a href="/platform-information" className="text-primary text-sm font-medium hover:underline">
-                                View all updates
-                            </a>
-                        </div>
-                        <div className="grid gap-4 md:grid-cols-3">
-                            {announcements.map((item) => (
-                                <article key={item.id} className="bg-accent/40 rounded-2xl border p-5">
-                                    <h3 className="font-semibold break-words">{item.title}</h3>
-                                    <p className="text-muted-foreground mt-2 line-clamp-3 text-sm leading-relaxed break-words whitespace-pre-wrap">
-                                        {item.body}
-                                    </p>
-                                </article>
-                            ))}
-                        </div>
+                    <section aria-label="Latest announcements" className="grid gap-4 md:grid-cols-3">
+                        {announcements.map((item) => (
+                            <article key={item.id} className="bg-accent/40 rounded-xl border p-5">
+                                <h2 className="font-semibold">{item.title}</h2>
+                                <p className="text-muted-foreground mt-2 text-sm whitespace-pre-wrap">{item.body}</p>
+                            </article>
+                        ))}
                     </section>
                 )}
-                <section className="storefront__categories" id="shop-categories" tabIndex={-1}>
-                    <div className="storefront__section-heading">
-                        <span className="storefront__eyebrow storefront__eyebrow--center">EXPLORE</span>
-                        <h2>Discover everyday finds.</h2>
-                    </div>
-                    <p className="storefront__samples-note">Find your next favorite. Browse local sellers and explore the marketplace.</p>
-                    <HomeDiscovery products={discoveryProducts} favoriteIds={favoriteIds} />
-                </section>
-
-                <section ref={benefitsRef} className="storefront__benefits" id="how-it-works" tabIndex={-1}>
-                    <div className="storefront__section-heading">
-                        <span className="storefront__eyebrow storefront__eyebrow--center">SIMPLE FROM THE START</span>
-                        <h2>Browse. Order. Enjoy.</h2>
-                    </div>
-                    <div className="storefront__benefit-grid">
-                        <article className="storefront__benefit">
-                            <span className="storefront__benefit-icon storefront__benefit-icon--purple" aria-hidden="true">
-                                <Store className="size-6" strokeWidth={1.75} />
-                            </span>
-                            <h3>Find your favorites</h3>
-                            <p>Browse products from local sellers.</p>
-                        </article>
-                        <article className="storefront__benefit">
-                            <span className="storefront__benefit-icon storefront__benefit-icon--orange" aria-hidden="true">
-                                <Wallet className="size-6" strokeWidth={1.75} />
-                            </span>
-                            <h3>Pay on delivery</h3>
-                            <p>Add your address and place a COD order.</p>
-                        </article>
-                        <article className="storefront__benefit">
-                            <span className="storefront__benefit-icon storefront__benefit-icon--green" aria-hidden="true">
-                                <PackageCheck className="size-6" strokeWidth={1.75} />
-                            </span>
-                            <h3>Follow your order</h3>
-                            <p>Check delivery updates in your dashboard.</p>
-                        </article>
-                    </div>
-                </section>
-
-                <section className="storefront__seller-cta" id="sell-with-us" aria-labelledby="seller-cta-title">
-                    <div className="storefront__seller-copy">
-                        <span className="storefront__seller-label">SELL WITH LUBOSMART</span>
-                        <h2 id="seller-cta-title">
+                <section className="home-seller" aria-labelledby="seller-heading">
+                    <div>
+                        <p className="reference-eyebrow">SELL WITH LUBOSMART</p>
+                        <h2 id="seller-heading">
                             Your next chapter
                             <br />
                             starts with your store.
                         </h2>
                         <p>Bring your products to your local community. Create a seller account and start building your shop.</p>
-                        <button className="storefront__button storefront__seller-button" type="button" onClick={() => openRegistration('seller')}>
-                            Become a seller
-                        </button>
+                        <Link href={registrationUrl('seller')} className="reference-button">
+                            Become a seller <ArrowRight size={16} aria-hidden="true" />
+                        </Link>
                     </div>
-                    <div className="storefront__seller-action">
-                        <div className="storefront__seller-scene" aria-hidden="true">
-                            <span className="storefront__seller-orbit" />
-                            <span className="storefront__seller-charm storefront__seller-charm--parcel">
-                                <Package strokeWidth={1.5} />
-                            </span>
-                            <span className="storefront__seller-charm storefront__seller-charm--bag">
-                                <ShoppingBag strokeWidth={1.5} />
-                            </span>
-                            <span className="storefront__seller-charm storefront__seller-charm--pin">
-                                <MapPin strokeWidth={1.5} />
-                            </span>
-                            <Sparkles className="storefront__seller-sparkle storefront__seller-sparkle--top" />
-                            <Sparkles className="storefront__seller-sparkle storefront__seller-sparkle--bottom" />
-                            <span className="storefront__seller-parcels">
-                                <span />
-                                <span />
-                                <span />
-                            </span>
-                            <img
-                                src={assets.marketplace.sellerIllustration}
-                                className="storefront__seller-illustration"
-                                alt=""
-                                width={1024}
-                                height={1536}
-                                loading="lazy"
-                                decoding="async"
-                            />
-                        </div>
-                    </div>
+                    <img
+                        src="/images/brand/home-seller-face-v3.jpg"
+                        alt="Shop owner in a purple apron outside her local store"
+                        width={1400}
+                        height={467}
+                        loading="lazy"
+                    />
                 </section>
-
-                <footer className="storefront__footer">
-                    <div className="storefront__footer-main">
-                        <div className="storefront__footer-about">
-                            <a className="storefront__brand storefront__brand--footer" href="/" aria-label="LubosMart home">
-                                <img src={assets.brand.logo} className="size-10" alt="" />
-                                <AppWordmark inverse />
-                            </a>
-                            <p>A local marketplace bringing neighbors, independent sellers, and delivery partners together.</p>
-                        </div>
-                        <div className="storefront__footer-column">
-                            <h3>Explore</h3>
-                            <a href="/platform-information">Announcements & policies</a>
-                            <a href="#shop-categories" onClick={(event) => scrollToSection(event, 'shop-categories')}>
-                                Discover local
-                            </a>
-                            <a href="#how-it-works" onClick={(event) => scrollToSection(event, 'how-it-works')}>
-                                How it works
-                            </a>
-                            <button type="button" onClick={() => openRegistration('buyer')}>
-                                Create an account
-                            </button>
-                        </div>
-                        <div className="storefront__footer-column">
-                            <h3>Join the marketplace</h3>
-                            <button type="button" onClick={() => openRegistration('buyer')}>
-                                Shop as a buyer
-                            </button>
-                            <button type="button" onClick={() => openRegistration('seller')}>
-                                Open a seller store
-                            </button>
-                            <button type="button" onClick={() => openRegistration('rider')}>
-                                Sign up as a rider
-                            </button>
-                            <button type="button" onClick={() => openRegistration('logistics')}>
-                                Register a logistics company
-                            </button>
-                        </div>
-                    </div>
-                    <div className="storefront__footer-bottom">
-                        <span>© {new Date().getFullYear()} LubosMart. All rights reserved.</span>
-                    </div>
-                </footer>
             </main>
-        </>
+            <footer className="home-footer">
+                <div className="home-footer-main">
+                    <div className="home-footer-about">
+                        <Link href="/" className="reference-brand" aria-label="LubosMart home">
+                            <img src="/images/brand/logo.svg" width={48} height={48} alt="" />
+                            <AppWordmark />
+                        </Link>
+                        <p>A local marketplace bringing neighbors, independent sellers, and delivery partners together.</p>
+                        <span className="home-footer-payment">
+                            <Wallet size={18} aria-hidden="true" /> Cash on delivery
+                        </span>
+                    </div>
+                    <nav aria-label="Explore LubosMart">
+                        <FooterGroup title="Explore">
+                            <Link href="/shop">Shop all products</Link>
+                            <a href="#shop-categories">Shop by category</a>
+                            <Link href="/platform-information">Announcements &amp; policies</Link>
+                        </FooterGroup>
+                    </nav>
+                    <nav aria-label="Join the marketplace">
+                        <FooterGroup title="Join the marketplace">
+                            <Link href={registrationUrl('buyer')}>Shop as a buyer</Link>
+                            <Link href={registrationUrl('seller')}>Open a seller store</Link>
+                            <Link href={registrationUrl('rider')}>Sign up as a rider</Link>
+                            <Link href={registrationUrl('logistics')}>Register a logistics company</Link>
+                        </FooterGroup>
+                    </nav>
+                    <nav aria-label="Your account">
+                        <FooterGroup title="Your account">
+                            <Link href={auth.user ? route('dashboard') : route('login')}>{auth.user ? 'Dashboard' : 'Sign in'}</Link>
+                            <Link href={registrationUrl('buyer')}>Create an account</Link>
+                            <Link href={route('dashboard')}>Track your orders</Link>
+                            <Link href="/platform-information">Platform information</Link>
+                        </FooterGroup>
+                    </nav>
+                </div>
+                <div className="home-footer-bottom">
+                    <p>&copy; {new Date().getFullYear()} LubosMart. All rights reserved.</p>
+                    <a href="#main-content">
+                        Back to top <ArrowRight size={14} aria-hidden="true" />
+                    </a>
+                </div>
+            </footer>
+        </div>
     );
 }

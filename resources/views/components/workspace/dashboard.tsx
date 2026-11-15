@@ -1,6 +1,5 @@
 import { Badge, Card, Empty, Page, buttonClass, secondaryClass } from '@/components/shared/marketplace-ui';
 import { DashboardMetric, DashboardQueues, DashboardWelcome } from '@/components/workspace/dashboard-panels';
-import { assets } from '@/config/assets';
 import { type SharedData, type UserRole } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
 import { CheckCheck, Clock3, Package, ShoppingBag, Store, Truck, type LucideIcon } from 'lucide-react';
@@ -35,39 +34,19 @@ export default function WorkspaceDashboard({
     const metrics = Object.entries(stats);
     return (
         <Page title={content.title} description={content.description}>
-            {role === 'buyer' ? (
-                <section className="bg-card relative isolate overflow-hidden rounded-2xl border">
-                    <img src={assets.marketplace.hero} alt="" className="absolute inset-0 -z-10 h-full w-full object-cover" />
-                    <div className="bg-card/95 p-6 sm:w-3/5 sm:p-8">
-                        <p className="text-primary text-xs font-semibold tracking-widest uppercase">Your local marketplace</p>
-                        <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
-                            Shop local.
-                            <br />
-                            Find your everyday favorites.
-                        </h2>
-                        <p className="text-muted-foreground mt-3 max-w-sm text-sm leading-relaxed">
-                            Discover products from local sellers and keep every order close at hand.
-                        </p>
-                        <Link href={content.href} className={buttonClass + ' mt-5'}>
-                            {content.primary}
-                        </Link>
-                    </div>
-                </section>
-            ) : (
-                <DashboardWelcome
-                    label={roleTitle + ' portal'}
-                    title={'Welcome back, ' + auth.user.name.split(' ')[0] + '.'}
-                    description={companyName ? 'Your deliveries with ' + companyName + '.' : content.description}
-                    icon={RoleIcon}
-                >
-                    <Link href={content.href} className={buttonClass}>
-                        {content.primary}
-                    </Link>
-                    <Link href="/settings/profile" className={secondaryClass}>
-                        My account
-                    </Link>
-                </DashboardWelcome>
-            )}
+            <DashboardWelcome
+                label={role === 'buyer' ? 'Your local marketplace' : roleTitle + ' portal'}
+                title={'Welcome back, ' + auth.user.name.trim().split(/\s+/)[0] + '.'}
+                description={companyName ? 'Your deliveries with ' + companyName + '.' : content.description}
+                icon={RoleIcon}
+            >
+                <Link href={content.href} className={buttonClass}>
+                    {content.primary}
+                </Link>
+                <Link href="/settings/profile" className={secondaryClass}>
+                    My account
+                </Link>
+            </DashboardWelcome>
             {role === 'seller' && storeStatus !== 'approved' && (
                 <Card>Your store is awaiting approval. Product publishing requires an approved store.</Card>
             )}

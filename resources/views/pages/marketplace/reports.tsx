@@ -1,5 +1,6 @@
-import { buttonClass, Card, Empty, Field, money, Page, Pager, secondaryClass, type Pagination } from '@/components/shared/marketplace-ui';
-import ValidatedForm from '@/components/shared/validated-form';
+import AutoFilterForm from '@/components/shared/auto-filter-form';
+import { FilterToolbar } from '@/components/shared/filter-toolbar';
+import { Card, Empty, Field, money, Page, Pager, secondaryClass, type Pagination } from '@/components/shared/marketplace-ui';
 import { titleCase } from '@/lib/admin-display';
 import { Link, useForm } from '@inertiajs/react';
 import { Banknote, CalendarDays, Download, PackageCheck, Percent, Wallet } from 'lucide-react';
@@ -70,35 +71,44 @@ export default function Reports({
                         </p>
                     </div>
                 </div>
-                <ValidatedForm
-                    className="grid items-end gap-4 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_auto_auto]"
+                <AutoFilterForm
+                    processing={dates.processing}
+                    cancel={dates.cancel}
+                    className="relative"
                     onSubmit={(event) => {
                         event.preventDefault();
-                        dates.get('/reports');
+                        dates.get('/reports', { preserveState: true, preserveScroll: true, replace: true });
                     }}
                 >
-                    <Field
-                        label="Start Date"
-                        type="date"
-                        value={dates.data.from}
-                        onChange={(event) => dates.setData('from', event.target.value)}
-                        error={dates.errors.from}
-                    />
-                    <Field
-                        label="End Date"
-                        type="date"
-                        min={dates.data.from || undefined}
-                        value={dates.data.to}
-                        onChange={(event) => dates.setData('to', event.target.value)}
-                        error={dates.errors.to}
-                    />
-                    <button className={buttonClass} disabled={dates.processing}>
-                        Apply Filters
-                    </button>
-                    <Link href="/reports" className={secondaryClass}>
-                        Reset
-                    </Link>
-                </ValidatedForm>
+                    <FilterToolbar
+                        primaryClassName="md:w-48 lg:w-48"
+                        hasErrors={Object.keys(dates.errors).length > 0}
+                        primary={
+                            <Field
+                                reserveFeedback={false}
+                                label="Start Date"
+                                type="date"
+                                value={dates.data.from}
+                                onChange={(event) => dates.setData('from', event.target.value)}
+                                error={dates.errors.from}
+                            />
+                        }
+                        activeFilters={[
+                            { key: 'from', label: 'From', value: dates.data.from ?? '', onRemove: () => dates.setData('from', '') },
+                            { key: 'to', label: 'To', value: dates.data.to ?? '', onRemove: () => dates.setData('to', '') },
+                        ].filter((filter) => !!filter.value)}
+                    >
+                        <Field
+                            reserveFeedback={false}
+                            label="End Date"
+                            type="date"
+                            min={dates.data.from || undefined}
+                            value={dates.data.to}
+                            onChange={(event) => dates.setData('to', event.target.value)}
+                            error={dates.errors.to}
+                        />
+                    </FilterToolbar>
+                </AutoFilterForm>
                 <div className="mt-5 flex flex-wrap items-center justify-between gap-4 border-t pt-5">
                     <p className="text-muted-foreground text-xs">{period}</p>
                     {financial && (

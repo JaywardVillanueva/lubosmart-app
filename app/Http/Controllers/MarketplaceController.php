@@ -12,6 +12,7 @@ use App\Models\Category;
 use App\Models\CommerceSetting;
 use App\Models\Order;
 use App\Models\Product;
+use App\Models\ProductReview;
 use App\Models\ProductVariant;
 use App\Models\User;
 use App\Services\Logistics\ShippingQuotes;
@@ -24,16 +25,41 @@ class MarketplaceController extends Controller
 {
     public function index(Request $request)
     {
-        $filters = $request->validate(['search' => 'nullable|string|max:100', 'category' => 'nullable|integer']);
+        $filters = $request->validate([
+            'search' => 'nullable|string|max:100',
+            'category' => 'nullable|integer',
+            'min_price' => 'nullable|numeric|min:0|max:99999999.99',
+            'max_price' => ['nullable', 'numeric', 'min:0', 'max:99999999.99', ...($request->filled('min_price') ? ['gte:min_price'] : [])],
+            'availability' => 'nullable|in:in_stock,out_of_stock',
+            'rating' => 'nullable|integer|between:1,5',
+            'sort' => 'nullable|in:latest,price_asc,price_desc,rating',
+        ]);
         $products = Product::query()->with(['store:id,name', 'category:id,name', 'variants'])
             ->withAvg('reviews', 'rating')->withCount('reviews')
             ->availableToShoppers()
             ->when($request->routeIs('wishlist.index'), fn ($q) => $q->whereIn('id', DB::table('product_wishlists')->where('user_id', $request->user()->id)->select('product_id')))
             ->when($filters['search'] ?? null, fn ($q, $search) => $q->where('name', 'like', '%'.$search.'%'))
             ->when($filters['category'] ?? null, fn ($q, $id) => $q->where(fn ($q) => $q->where('category_id', $id)->orWhereHas('category', fn ($q) => $q->where('parent_id', $id))))
-            ->latest('id')->paginate(12)->withQueryString();
+            ->when(isset($filters['min_price']), fn ($q) => $q->where('price', '>=', $filters['min_price']))
+            ->when(isset($filters['max_price']), fn ($q) => $q->where('price', '<=', $filters['max_price']))
+            ->when($filters['availability'] ?? null, function ($q, $availability) {
+                $inStock = fn ($stock) => $stock->where('stock', '>', 0)
+                    ->where(fn ($options) => $options->whereDoesntHave('variants')->orWhereHas('variants', fn ($variant) => $variant->where('is_active', true)->where('stock', '>', 0)));
+                $q->whereIn('id', Product::query()->select('id')->where($inStock), 'and', $availability === 'out_of_stock');
+            })
+            ->when($filters['rating'] ?? null, fn ($q, $rating) => $q->where(
+                ProductReview::query()->selectRaw('AVG(rating)')->whereColumn('product_id', 'products.id')->where('is_visible', true), '>=', (int) $rating
+            ));
 
-        $categories = Category::query()->with('parent:id,name')->where('is_active', true)->orderBy('name')->get(['id', 'name', 'parent_id'])->map(fn ($category) => ['id' => $category->id, 'name' => $category->parent ? $category->parent->name.' / '.$category->name : $category->name]);
+        match ($filters['sort'] ?? 'latest') {
+            'price_asc' => $products->orderBy('price'),
+            'price_desc' => $products->orderByDesc('price'),
+            'rating' => $products->orderByDesc('reviews_avg_rating')->orderByDesc('reviews_count'),
+            default => $products,
+        };
+        $products = $products->latest('id')->paginate(24)->withQueryString();
+
+        $categories = Category::query()->with('parent:id,name')->where('is_active', true)->where(fn ($q) => $q->whereNull('parent_id')->orWhereHas('parent', fn ($parent) => $parent->where('is_active', true)))->orderBy('name')->get(['id', 'name', 'parent_id'])->map(fn ($category) => ['id' => $category->id, 'parent_id' => $category->parent_id, 'name' => $category->parent ? $category->parent->name.' / '.$category->name : $category->name]);
 
         return Inertia::render('marketplace/catalog', ['products' => $products, 'categories' => $categories, 'filters' => $filters, 'wishlist' => $request->routeIs('wishlist.index'), 'favoriteIds' => $request->user()?->role === 'buyer' ? DB::table('product_wishlists')->where('user_id', $request->user()->id)->pluck('product_id') : []]);
     }
@@ -54,11 +80,15 @@ class MarketplaceController extends Controller
     {
         $data = $request->validate(['address_id' => 'required|integer']);
         $address = Address::query()->where('user_id', $request->user()->id)->whereKey($data['address_id'])->firstOrFail();
-        $cart = Cart::query()->with('items.product.store:id,user_id')->where('user_id', $request->user()->id)->first();
+        $cart = Cart::query()->with('items.product.store:id,user_id,name')->where('user_id', $request->user()->id)->first();
         $items = $cart?->items ?? collect();
         $products = $items->pluck('product')->filter()->keyBy('id');
 
-        return response()->json(['options' => $items->isNotEmpty() && $products->count() === $items->pluck('product_id')->unique()->count() ? $quotes->options($address, $items, $products) : []])->header('Cache-Control', 'private, no-store');
+        $availability = $items->isNotEmpty() && $products->count() === $items->pluck('product_id')->unique()->count()
+            ? $quotes->availability($address, $items, $products)
+            : ['options' => [], 'unavailable' => [], 'message' => 'Your bag contains no shippable items. Review or remove unavailable items before checkout.'];
+
+        return response()->json($availability)->header('Cache-Control', 'private, no-store');
     }
 
     public function updateCart(Request $request, Product $product)

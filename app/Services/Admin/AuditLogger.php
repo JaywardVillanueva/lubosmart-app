@@ -14,6 +14,7 @@ class AuditLogger
         $changes = is_string($event['changes'] ?? null) ? json_decode($event['changes'], true) : ($event['changes'] ?? []);
         $module = match ($event['subject_type']) {
             'registration_application' => 'registrations', 'user' => 'accounts', 'product' => 'compliance',
+            'parcel_fulfillment', 'waybill', 'delivery_evidence' => 'operations',
             'support_case', 'parcel_return' => 'disputes', 'commerce_settings', 'seller_order' => 'finance', 'platform_content' => 'system', default => 'system',
         };
         $request = request();

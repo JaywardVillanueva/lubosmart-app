@@ -1,9 +1,34 @@
-import { Badge, Card, Field, Page, Pager, Select, Textarea, buttonClass, secondaryClass, type Pagination } from '@/components/shared/marketplace-ui';
+import {
+    Badge,
+    Card,
+    Field,
+    Page,
+    Pager,
+    Select,
+    Textarea,
+    buttonClass,
+    roleLabel,
+    secondaryClass,
+    type Pagination,
+} from '@/components/shared/marketplace-ui';
 import { ReasonConfirmation } from '@/components/shared/reason-confirmation';
 import ValidatedForm from '@/components/shared/validated-form';
+import { fulfillmentConcerns } from '@/components/support/fulfillment-concerns';
 import { type SharedData } from '@/types';
 import { Link, useForm, usePage } from '@inertiajs/react';
-import { useState } from 'react';
+import { useEffect, useRef, useState, type ComponentProps } from 'react';
+
+function EmbeddedConversation({ title, description, children }: ComponentProps<typeof Page>) {
+    return (
+        <div className="grid min-w-0 gap-4 p-4">
+            <header>
+                <h3 className="text-lg font-semibold break-words">{title}</h3>
+                <p className="text-muted-foreground mt-1 text-xs">{description}</p>
+            </header>
+            {children}
+        </div>
+    );
+}
 type Case = {
     id: number;
     subject: string;
@@ -12,6 +37,7 @@ type Case = {
     resolution: string | null;
     participants: { id: number; name: string; role: string }[];
     seller_order_id: number | null;
+    fulfillment_concern?: string | null;
 };
 type Message = {
     id: number;
@@ -29,7 +55,7 @@ export default function Conversation({
     onPageChange,
 }: {
     case: Case;
-    messages: Pagination<Message>;
+    messages: Pagination<Message> & { current_page?: number };
     embedded?: boolean;
     onSaved?: () => void;
     onPageChange?: (url: string) => void;
@@ -40,8 +66,14 @@ export default function Conversation({
     const [confirming, setConfirming] = useState(false);
     const decision = useForm({ status: thread.status, resolution: thread.resolution ?? '' });
     const [fileKey, setFileKey] = useState(0);
+    const end = useRef<HTMLLIElement>(null);
+    const latestId = messages.data[0]?.id;
+    useEffect(() => {
+        if ((messages.current_page ?? 1) === 1) end.current?.scrollIntoView({ block: 'nearest' });
+    }, [latestId, messages.current_page]);
+    const Container = embedded ? EmbeddedConversation : Page;
     return (
-        <Page
+        <Container
             embedded={embedded}
             title={thread.subject}
             description={`Conversation #${thread.id}${thread.seller_order_id ? ` · Parcel #${thread.seller_order_id}` : ''}`}
@@ -56,8 +88,16 @@ export default function Conversation({
             <Card>
                 <div className="flex flex-wrap items-center gap-3">
                     <Badge status={thread.status} />
-                    <span className="text-muted-foreground text-sm">{thread.participants.map((person) => person.name).join(', ')}</span>
+                    <span className="text-muted-foreground text-sm">
+                        {thread.participants.map((person) => `${person.name} (${roleLabel(person.role)})`).join(', ')}
+                    </span>
                 </div>
+                {thread.fulfillment_concern && (
+                    <p className="mt-4 text-sm">
+                        Reported concern: {fulfillmentConcerns[thread.fulfillment_concern] ?? thread.fulfillment_concern}. This is an allegation for
+                        Admin review; reporting or resolving it does not create a charge or account penalty.
+                    </p>
+                )}
                 {thread.resolution && (
                     <p className="mt-4 text-sm break-words whitespace-pre-wrap">
                         <span className="font-medium">Resolution: </span>
@@ -65,19 +105,28 @@ export default function Conversation({
                     </p>
                 )}
             </Card>
-            <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
+            <div className="grid items-start gap-6">
                 <div className="grid gap-4">
                     <Card>
                         <h2 className="mb-5 font-semibold">Conversation</h2>
-                        <ol className="max-h-[48dvh] space-y-4 overflow-y-auto overscroll-contain pr-2">
-                            {[...messages.data].reverse().map((message) => (
+                        <ol aria-label="Message history" className="max-h-[48dvh] space-y-4 overflow-y-auto overscroll-contain pr-2">
+                            {!messages.data.length && (
+                                <li className="text-muted-foreground py-6 text-center text-sm">No messages yet. Send a reply below.</li>
+                            )}
+                            {[...messages.data].reverse().map((message, index, history) => (
                                 <li
                                     key={message.id}
-                                    className={`rounded-xl border p-4 ${message.author.role === 'admin' ? 'border-primary/15 bg-accent/40' : 'bg-background'}`}
+                                    className={`w-fit max-w-[95%] rounded-2xl p-4 [overflow-wrap:anywhere] sm:max-w-[85%] ${message.user_id === auth.user.id ? 'bg-primary/15 ml-auto rounded-br-sm' : 'bg-accent/70 mr-auto rounded-bl-sm'}`}
                                 >
+                                    {(index === 0 ||
+                                        new Date(history[index - 1].created_at).toDateString() !== new Date(message.created_at).toDateString()) && (
+                                        <p className="text-muted-foreground mb-3 text-xs font-medium">
+                                            {new Date(message.created_at).toLocaleDateString('en-PH', { dateStyle: 'long' })}
+                                        </p>
+                                    )}
                                     <div className="flex flex-wrap items-center justify-between gap-2">
                                         <p className="text-sm font-semibold">
-                                            {message.author.name}
+                                            {message.user_id === auth.user.id ? 'You' : message.author.name}
                                             {message.author.role === 'admin' && (
                                                 <span className="text-primary ml-2 text-xs font-medium">LubosMart admin</span>
                                             )}
@@ -92,11 +141,12 @@ export default function Conversation({
                                             href={`/support/${thread.id}/evidence/${message.id}`}
                                             className="text-primary mt-3 inline-flex text-sm font-medium hover:underline"
                                         >
-                                            Download Evidence
+                                            Download {message.attachment_name}
                                         </a>
                                     )}
                                 </li>
                             ))}
+                            <li ref={end} aria-hidden="true" />
                         </ol>
                     </Card>
                     {embedded ? (
@@ -126,6 +176,7 @@ export default function Conversation({
                                 className="grid gap-4"
                                 onSubmit={(e) => {
                                     e.preventDefault();
+                                    if (form.processing || !form.data.body.trim()) return;
                                     form.post(`/support/${thread.id}/messages`, {
                                         forceFormData: true,
                                         preserveScroll: true,
@@ -138,6 +189,12 @@ export default function Conversation({
                                 }}
                             >
                                 <Textarea
+                                    onKeyDown={(event) => {
+                                        if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+                                            event.preventDefault();
+                                            if (!form.processing && form.data.body.trim()) event.currentTarget.form?.requestSubmit();
+                                        }
+                                    }}
                                     label="Your reply"
                                     error={form.errors.body}
                                     className="min-h-28 font-normal"
@@ -147,7 +204,9 @@ export default function Conversation({
                                     value={form.data.body}
                                     onChange={(e) => form.setData('body', e.target.value)}
                                 />
-                                <p className="text-muted-foreground text-xs">{form.data.body.length}/5,000 characters</p>
+                                <p className="text-muted-foreground text-xs">
+                                    {form.data.body.length}/5,000 characters. Enter to send, Shift+Enter for a new line
+                                </p>
 
                                 <Field
                                     key={fileKey}
@@ -157,7 +216,7 @@ export default function Conversation({
                                     onChange={(e) => form.setData('attachment', e.target.files?.[0] ?? null)}
                                     error={form.errors.attachment}
                                 />
-                                <button className={`${buttonClass} justify-self-start`} disabled={form.processing}>
+                                <button className={`${buttonClass} justify-self-start`} disabled={form.processing || !form.data.body.trim()}>
                                     {form.processing ? 'Sending…' : 'Send Reply'}
                                 </button>
                             </ValidatedForm>
@@ -170,7 +229,7 @@ export default function Conversation({
                 </div>
                 {admin && (
                     <Card>
-                        <h2 className="font-semibold">Case Management</h2>
+                        <h2 className="font-semibold">{thread.kind === 'complaint' ? 'Case Management' : 'Conversation status'}</h2>
                         <ValidatedForm
                             noValidate
                             className="mt-5 grid gap-4"
@@ -221,6 +280,6 @@ export default function Conversation({
                     })
                 }
             />
-        </Page>
+        </Container>
     );
 }

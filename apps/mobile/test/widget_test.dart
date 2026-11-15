@@ -24,7 +24,7 @@ void main() {
       ..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'));
     await icons.load();
   });
-  for (final role in ['buyer', 'seller', 'rider']) {
+  for (final role in ['buyer', 'seller', 'rider', 'logistics']) {
     testWidgets('$role receives its own mobile workspace', (tester) async {
       tester.view.physicalSize = const Size(360, 800);
       tester.view.devicePixelRatio = 1;

@@ -40,6 +40,55 @@ function logisticsCartFixture(?int $grams = 750, int $quantity = 3): array
     return compact('buyer', 'seller', 'operator', 'center', 'rider', 'store', 'product', 'address', 'cart', 'areaId', 'rateId');
 }
 
+test('shipping quotes explain the actual reason a provider is unavailable without exposing pickup details', function (string $condition, string $reason) {
+    $f = logisticsCartFixture();
+    match ($condition) {
+        'missing weight' => $f['product']->update(['weight_grams' => null]),
+        'missing pickup' => Address::query()->where('user_id', $f['seller']->id)->delete(),
+        'uncovered pickup' => Address::query()->where('user_id', $f['seller']->id)->update(['barangay' => 'Private pickup barangay']),
+        'uncovered destination' => $f['address']->update(['barangay' => 'Outside Coverage']),
+        'overweight' => $f['product']->update(['weight_grams' => 10000]),
+        'paused rate' => DB::table('shipping_rates')->where('id', $f['rateId'])->update(['is_active' => false]),
+    };
+
+    $response = $this->actingAs($f['buyer'])->getJson('/cart/shipping-quote?address_id='.$f['address']->id);
+
+    $response->assertOk()->assertHeader('Cache-Control', 'no-store, private')
+        ->assertJsonPath('options', [])
+        ->assertJsonPath('unavailable.0.id', $f['center']->id)
+        ->assertJsonPath('unavailable.0.name', $f['center']->name)
+        ->assertJsonPath('unavailable.0.reason', str_replace(':store', $f['store']->name, $reason))
+        ->assertJsonPath('message', 'No provider can currently ship every parcel in your bag. See the reasons below.')
+        ->assertDontSee('Private pickup barangay')->assertDontSee('Test street')->assertDontSee('09171234567');
+})->with([
+    'missing weight' => ['missing weight', ':store must add the packed product weight before shipping can be quoted.'],
+    'missing pickup' => ['missing pickup', ':store must add a pickup address before shipping can be quoted.'],
+    'uncovered pickup' => ['uncovered pickup', 'Shipping coverage is not configured for :store’s pickup location. The seller must arrange pickup coverage with this provider.'],
+    'uncovered destination' => ['uncovered destination', 'This provider does not cover the delivery barangay.'],
+    'overweight' => ['overweight', 'A parcel exceeds this provider’s weight limit. Reduce the quantity or choose another provider.'],
+    'paused rate' => ['paused rate', 'This provider does not cover the delivery barangay.'],
+]);
+
+test('shipping quotes distinguish no operational providers from missing coverage', function () {
+    $f = logisticsCartFixture();
+    $f['center']->update(['is_active' => false]);
+
+    $this->actingAs($f['buyer'])->getJson('/cart/shipping-quote?address_id='.$f['address']->id)
+        ->assertOk()->assertJsonPath('options', [])->assertJsonPath('unavailable', [])
+        ->assertJsonPath('message', 'No logistics provider is currently operational. Contact support for help with shipping.');
+});
+
+test('shipping quotes keep eligible providers selectable alongside unavailable providers', function () {
+    $f = logisticsCartFixture();
+    $other = logisticsCartFixture();
+    DB::table('shipping_rates')->where('id', $f['rateId'])->update(['is_active' => false]);
+
+    $this->actingAs($f['buyer'])->getJson('/cart/shipping-quote?address_id='.$f['address']->id)
+        ->assertOk()->assertJsonCount(1, 'options')->assertJsonPath('options.0.id', $other['center']->id)
+        ->assertJsonPath('options.0.total', 80)->assertJsonCount(1, 'unavailable')
+        ->assertJsonPath('unavailable.0.id', $f['center']->id)->assertJsonPath('message', null);
+});
+
 test('rider coverage page exposes only eligible company riders and their center assignments', function () {
     $own = logisticsCartFixture();
     $other = logisticsCartFixture();
@@ -70,6 +119,45 @@ test('rider coverage page handles operators without operational centers', functi
 
     $this->actingAs($operator)->get('/logistics/rider-coverage')->assertInertia(fn (Assert $page) => $page
         ->component('logistics/rider-coverage')->has('centers', 0)->has('riders', 0)->where('assignments.total', 0));
+});
+
+test('rider coverage search keeps the matching riders complete coverage and excludes other companies', function () {
+    $own = logisticsCartFixture();
+    $other = logisticsCartFixture();
+    $extra = DB::table('service_areas')->insertGetId([
+        'logistics_center_id' => $own['center']->id, 'code' => 'EXTRA-COVERAGE',
+        'name' => 'Calios, Santa Cruz', 'barangay_name' => 'Calios', 'city_name' => 'Santa Cruz',
+        'province_name' => 'Laguna', 'is_active' => true,
+        'province_code' => '043400000', 'city_code' => '043426000', 'barangay_code' => '043426001',
+    ]);
+    DB::table('rider_service_area')->insert(['rider_id' => $own['rider']->id, 'service_area_id' => $extra]);
+
+    $this->actingAs($own['operator'])->get('/logistics/rider-coverage?search=Calios')->assertInertia(fn (Assert $page) => $page
+        ->where('assignments.total', 2)->where('assignments.rider_total', 1)->has('assignments.data', 2)
+        ->where('assignments.data.0.barangay_name', 'Calios')->where('assignments.data.0.province_name', 'Laguna')
+        ->where('assignments.data.1.area_id', $own['areaId']));
+    $this->get('/logistics/rider-coverage?center='.$other['center']->id)->assertInertia(fn (Assert $page) => $page
+        ->where('assignments.total', 0)->where('assignments.rider_total', 0)->has('assignments.data', 0));
+    $this->get('/logistics/rider-coverage?search=unknown-location')->assertInertia(fn (Assert $page) => $page
+        ->where('assignments.total', 0)->has('assignments.data', 0));
+    $this->get('/logistics/rider-coverage?center='.$own['center']->id.'&search=Laguna')->assertInertia(fn (Assert $page) => $page
+        ->where('assignments.total', 2)->where('assignments.rider_total', 1));
+});
+
+test('rider coverage pagination never splits a riders areas at the old assignment limit', function () {
+    $own = logisticsCartFixture();
+    for ($index = 0; $index < 21; $index++) {
+        $area = DB::table('service_areas')->insertGetId([
+            'logistics_center_id' => $own['center']->id, 'code' => 'COVERAGE-'.$index,
+            'name' => 'Coverage '.$index, 'is_active' => true,
+            'province_code' => '043400000', 'city_code' => '043426000', 'barangay_code' => 'AREA-'.$index,
+            'province_name' => 'Laguna', 'city_name' => 'Santa Cruz', 'barangay_name' => 'Coverage '.$index,
+        ]);
+        DB::table('rider_service_area')->insert(['rider_id' => $own['rider']->id, 'service_area_id' => $area]);
+    }
+
+    $this->actingAs($own['operator'])->get('/logistics/rider-coverage')->assertInertia(fn (Assert $page) => $page
+        ->where('assignments.total', 22)->where('assignments.rider_total', 1)->has('assignments.data', 22));
 });
 
 test('checkout quotes area and started extra kilograms and preserves shipping snapshots after rate edits', function () {
@@ -267,7 +355,7 @@ test('approved pickup remains assignable and reaches the delivery rider through 
     $this->post($url, ['action' => 'picked_up'] + $scan)->assertSessionHasNoErrors();
     $this->post($url, ['action' => 'out_for_delivery'])->assertConflict();
     $this->actingAs($f['operator'])->post($url, ['action' => 'receive', 'receipt_condition' => 'intact'] + $scan)->assertSessionHasNoErrors();
-    $this->post($url, ['action' => 'sort', 'service_area_id' => $f['areaId'], 'sorting_bin' => 'Route 1'] + $scan)->assertSessionHasNoErrors();
+    $this->post($url, ['action' => 'sort', 'service_area_id' => $f['areaId'], 'sorting_bin' => 'Route 1'])->assertSessionHasNoErrors();
     $this->get('/deliveries?stage=dispatch')->assertInertia(fn (Assert $page) => $page->has('deliveries.data', 1)->where('deliveries.data.0.id', $delivery->id));
     $deliveryRider = $f['rider'];
     if ($differentRider) {
@@ -276,16 +364,16 @@ test('approved pickup remains assignable and reaches the delivery rider through 
         DB::table('rider_service_area')->insert(['rider_id' => $deliveryRider->id, 'service_area_id' => $f['areaId']]);
     }
     $assignment = ['action' => 'assign', 'service_area_id' => $f['areaId'], 'rider_id' => $deliveryRider->id];
-    $this->post($url, $assignment)->assertSessionHasErrors('tracking_reference');
-    $this->post($url, $assignment + $scan)->assertSessionHasNoErrors();
+    $this->post($url, $assignment)->assertSessionHasNoErrors();
     $this->actingAs($deliveryRider)->get('/deliveries?stage=dispatch')->assertInertia(fn (Assert $page) => $page
         ->has('deliveries.data', 1)->where('deliveries.data.0.id', $delivery->id)->where('deliveries.data.0.status', 'in_transit'));
     $this->post($url, ['action' => 'out_for_delivery'])->assertConflict();
     $this->post($url, ['action' => 'accept_dispatch'] + $scan)->assertSessionHasNoErrors();
     $this->post($url, ['action' => 'out_for_delivery'])->assertSessionHasNoErrors();
     $proof = UploadedFile::fake()->createWithContent('proof.png', base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aB1sAAAAASUVORK5CYII='));
-    $this->post($url, ['action' => 'delivered', 'proof' => $proof, 'amount' => '150.00', 'recipient_name' => 'Fixture Name'] + $scan)->assertSessionHasNoErrors();
+    $this->post($url, ['action' => 'delivered', 'note' => 'Received by buyer.', 'cod_confirmed' => true, 'proof' => $proof, 'amount' => '150.00', 'recipient_name' => 'Fixture Name'] + $scan)->assertSessionHasNoErrors();
     expect($delivery->fresh()->status)->toBe('delivered');
+    expect(DB::table('parcel_events')->where('delivery_id', $delivery->id)->whereNotNull('forward_checkpoint')->orderBy('id')->pluck('forward_checkpoint')->all())->toBe(['pickup', 'hub_receipt', 'handover']);
     expect($parcel->fresh()->status)->toBe('completed');
     $this->assertDatabaseHas('cod_collections', ['delivery_id' => $delivery->id, 'rider_id' => $deliveryRider->id, 'amount' => 150, 'status' => 'collected']);
 })->with(['same pickup and delivery rider' => [false, false], 'different delivery rider' => [true, false], 'accepted unallocated pickup' => [false, true]]);
@@ -351,13 +439,13 @@ test('parcel tracking lookup excludes other centers and unknown codes', function
     $this->get('/deliveries?search=LM-UNKNOWN')->assertInertia(fn (Assert $page) => $page->where('deliveries.total', 0));
 });
 
-test('receipt requires the attached parcel reference and a reason for manual entry', function () {
+test('receipt requires the attached parcel reference and rejects manual custody confirmation', function () {
     $f = operationalParcelFixture();
     $payload = ['action' => 'receive', 'receipt_condition' => 'intact'];
 
     $this->actingAs($f['operator'])->post('/deliveries/'.$f['delivery']->id, $payload)->assertSessionHasErrors('tracking_reference');
-    $this->post('/deliveries/'.$f['delivery']->id, $payload + ['tracking_reference' => $f['delivery']->tracking_reference, 'capture_method' => 'manual'])->assertSessionHasErrors('reason');
-    $this->post('/deliveries/'.$f['delivery']->id, $payload + ['tracking_reference' => $f['delivery']->tracking_reference, 'capture_method' => 'manual', 'reason' => 'Damaged barcode; checked printed text.'])->assertSessionHasNoErrors();
+    $this->post('/deliveries/'.$f['delivery']->id, $payload + ['tracking_reference' => $f['delivery']->tracking_reference, 'capture_method' => 'manual'])->assertSessionHasErrors('capture_method');
+    $this->post('/deliveries/'.$f['delivery']->id, $payload + ['tracking_reference' => $f['delivery']->tracking_reference, 'capture_method' => 'scanner', 'reason' => 'Damaged barcode; checked printed text.'])->assertSessionHasNoErrors();
     $this->assertDatabaseHas('deliveries', ['id' => $f['delivery']->id, 'receipt_condition' => 'intact']);
     $event = DB::table('parcel_events')->sole();
     expect(json_decode($event->notes, true)['evidence']['reason'])->toBe('Damaged barcode; checked printed text.');
@@ -413,21 +501,21 @@ test('a separate delivery rider accepts a manifest while pickup rider history re
     expect($f['delivery']->fresh()->dispatch_reference)->not->toBeNull();
 });
 
-test('failed delivery returns to center and retry requires sorting and a fresh dispatch', function (bool $previousReceipt) {
+test('failed delivery returns to center and controlled retry preserves the original checkpoints', function (bool $previousReceipt) {
     $f = operationalParcelFixture('out_for_delivery');
     $f['delivery']->update(['received_at' => $previousReceipt ? now() : null, 'sorted_at' => now(), 'dispatch_prepared_at' => now(), 'dispatch_accepted_at' => now()]);
 
-    $this->actingAs($f['rider'])->post('/deliveries/'.$f['delivery']->id, ['action' => 'failed_attempt'])->assertSessionHasErrors('reason');
-    $this->post('/deliveries/'.$f['delivery']->id, ['action' => 'failed_attempt', 'reason' => 'Recipient unavailable; parcel remains with rider.'])->assertSessionHasNoErrors();
-    $this->actingAs($f['operator'])->post('/deliveries/'.$f['delivery']->id, ['action' => 'return_to_center', 'reason' => 'Return unopened parcel with pickup rider.'])->assertSessionHasNoErrors();
+    $this->actingAs($f['rider'])->post('/deliveries/'.$f['delivery']->id, ['action' => 'failed_attempt'])->assertSessionHasErrors('note');
+    $this->post('/deliveries/'.$f['delivery']->id, ['action' => 'failed_attempt', 'note' => 'Other / Custom notes', 'reason' => 'Recipient unavailable; parcel remains with rider.'])->assertSessionHasNoErrors();
+    $this->actingAs($f['operator'])->post('/deliveries/'.$f['delivery']->id, ['action' => 'return_to_center', 'note' => 'Other / Custom notes', 'reason' => 'Return unopened parcel with pickup rider.'])->assertSessionHasNoErrors();
     $this->post('/deliveries/'.$f['delivery']->id, ['action' => 'receive_return', 'receipt_condition' => 'intact', 'reason' => 'Received from assigned rider.'] + $f['scan'])->assertSessionHasNoErrors();
     $this->post('/deliveries/'.$f['delivery']->id, ['action' => 'retry', 'reason' => 'Recipient confirmed availability tomorrow.'])->assertSessionHasNoErrors();
     $fresh = $f['delivery']->fresh();
     expect($fresh->exception_status)->toBeNull();
-    expect($fresh->sorted_at)->toBeNull();
-    expect($fresh->dispatch_accepted_at)->toBeNull();
-    expect($fresh->received_at)->not->toBeNull();
-    expect($fresh->status)->toBe('picked_up');
+    expect($fresh->sorted_at)->not->toBeNull();
+    expect($fresh->dispatch_accepted_at)->not->toBeNull();
+    expect((bool) $fresh->received_at)->toBe($previousReceipt);
+    expect($fresh->status)->toBe('in_transit');
     $this->actingAs($f['rider'])->post('/deliveries/'.$fresh->id, ['action' => 'in_transit'])->assertConflict();
     $this->assertDatabaseCount('cod_collections', 0);
     $this->assertDatabaseCount('parcel_events', 4);
@@ -449,13 +537,14 @@ test('short cash handover stays unreconciled until verified cash equals the coll
     $this->assertDatabaseCount('parcel_events', 2);
 });
 
-test('delivery requires actual full payment and recipient evidence and cleans up rejected proof', function () {
+test('delivery requires explicit full COD confirmation and cleans up rejected proof', function () {
     Notification::fake();
     Storage::fake('local');
     $f = operationalParcelFixture('out_for_delivery');
+    $f['delivery']->update(['received_at' => now(), 'sorted_at' => now(), 'dispatch_accepted_at' => now()]);
     $proof = UploadedFile::fake()->createWithContent('proof.png', base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aB1sAAAAASUVORK5CYII='));
 
-    $this->actingAs($f['rider'])->post('/deliveries/'.$f['delivery']->id, ['action' => 'delivered', 'proof' => $proof, 'amount' => 300, 'recipient_name' => 'Fixture Name'] + $f['scan'])->assertSessionHasErrors('amount');
+    $this->actingAs($f['rider'])->post('/deliveries/'.$f['delivery']->id, ['action' => 'delivered', 'note' => 'Received by buyer.', 'cod_confirmed' => false, 'proof' => $proof, 'amount' => 300] + $f['scan'])->assertSessionHasErrors('cod_confirmed');
     $this->assertDatabaseCount('cod_collections', 0);
     expect(Storage::disk('local')->allFiles('delivery-proofs'))->toBeEmpty();
     expect($f['sellerOrder']->fresh()->status)->toBe('shipped');
@@ -479,6 +568,7 @@ test('waybill reprints retain tracking identity and reject multi-box labels', fu
 
 test('legacy cash handovers require amount verification before admin reconciliation', function () {
     $f = operationalParcelFixture('delivered');
+    $f['sellerOrder']->update(['status' => 'completed']);
     DB::table('cod_collections')->insert(['delivery_id' => $f['delivery']->id, 'rider_id' => $f['rider']->id, 'reference' => fake()->uuid(), 'amount' => 380, 'status' => 'handed_over', 'collected_at' => now(), 'handed_over_at' => now(), 'created_at' => now(), 'updated_at' => now()]);
     $admin = User::factory()->create(['role' => 'admin']);
 
@@ -487,4 +577,96 @@ test('legacy cash handovers require amount verification before admin reconciliat
     $this->post('/deliveries/'.$f['delivery']->id, ['action' => 'receive_cod', 'amount' => 380, 'handover_reference' => 'VERIFIED-OLD-001'])->assertSessionHasNoErrors();
     $this->actingAs($admin)->post('/deliveries/'.$f['delivery']->id, ['action' => 'reconcile_cod'])->assertSessionHasNoErrors();
     $this->assertDatabaseHas('cod_collections', ['delivery_id' => $f['delivery']->id, 'status' => 'reconciled', 'received_amount' => 380]);
+});
+
+test('delivery notes reject missing mismatched and blank custom selections without recording cash', function (array $notes, string $error) {
+    Notification::fake();
+    Storage::fake('local');
+    $f = operationalParcelFixture('out_for_delivery');
+    $f['delivery']->update(['received_at' => now(), 'sorted_at' => now(), 'dispatch_accepted_at' => now()]);
+    $proof = UploadedFile::fake()->createWithContent('proof.png', base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aB1sAAAAASUVORK5CYII='));
+
+    $this->actingAs($f['rider'])->post('/deliveries/'.$f['delivery']->id, ['action' => 'delivered', 'cod_confirmed' => true, 'proof' => $proof] + $notes)->assertSessionHasErrors($error);
+
+    $this->assertDatabaseCount('cod_collections', 0);
+    $this->assertDatabaseCount('parcel_events', 0);
+    $this->assertDatabaseHas('deliveries', ['id' => $f['delivery']->id, 'status' => 'out_for_delivery']);
+    expect(Storage::disk('local')->allFiles('delivery-proofs'))->toBeEmpty();
+    Notification::assertNothingSent();
+})->with([
+    'missing note' => [[], 'note'],
+    'failure note on success' => [['note' => 'Buyer unavailable.'], 'note'],
+    'blank custom note' => [['note' => 'Other / Custom notes', 'reason' => '   '], 'reason'],
+]);
+
+test('delivery ignores rider amount overrides saves custom notes and safely replays the same request', function () {
+    Notification::fake();
+    Storage::fake('local');
+    $f = operationalParcelFixture('out_for_delivery');
+    $f['delivery']->update(['received_at' => now(), 'sorted_at' => now(), 'dispatch_accepted_at' => now()]);
+    $proof = UploadedFile::fake()->createWithContent('proof.png', base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aB1sAAAAASUVORK5CYII='));
+    $payload = ['action' => 'delivered', 'proof' => $proof, 'note' => 'Other / Custom notes', 'reason' => 'Received by approved caretaker.', 'remarks' => 'Parcel intact.', 'cod_confirmed' => true, 'amount' => 1, 'request_key' => fake()->uuid()];
+
+    $this->actingAs($f['rider'])->post('/deliveries/'.$f['delivery']->id, $payload)->assertSessionHasNoErrors();
+    $this->post('/deliveries/'.$f['delivery']->id, $payload)->assertSessionHasNoErrors();
+    $this->post('/deliveries/'.$f['delivery']->id, array_replace($payload, ['request_key' => fake()->uuid()]))->assertConflict();
+
+    $this->assertDatabaseCount('cod_collections', 1);
+    $this->assertDatabaseHas('cod_collections', ['delivery_id' => $f['delivery']->id, 'amount' => 380]);
+    $this->assertDatabaseCount('parcel_events', 1);
+    $event = DB::table('parcel_events')->sole();
+    expect(json_decode($event->notes, true)['evidence']['reason'])->toBe('Received by approved caretaker. Parcel intact.');
+    expect(Storage::disk('local')->allFiles('delivery-proofs'))->toHaveCount(1);
+});
+
+test('duplicate hub receipt and unsorted rider handover cannot add forward checkpoint events', function () {
+    $f = operationalParcelFixture();
+    $url = '/deliveries/'.$f['delivery']->id;
+    $payload = ['action' => 'receive', 'receipt_condition' => 'intact'] + $f['scan'];
+
+    $this->actingAs($f['rider'])->post($url, ['action' => 'accept_dispatch'] + $f['scan'])->assertConflict();
+    $this->actingAs($f['operator'])->post($url, $payload)->assertSessionHasNoErrors();
+    $this->post($url, $payload)->assertConflict();
+
+    $this->assertDatabaseCount('parcel_events', 1);
+    $this->assertDatabaseHas('parcel_events', ['delivery_id' => $f['delivery']->id, 'forward_checkpoint' => 'hub_receipt']);
+    $this->assertDatabaseHas('deliveries', ['id' => $f['delivery']->id, 'sorted_at' => null, 'dispatch_accepted_at' => null]);
+});
+
+test('optional failure photo remains private and never creates a COD collection', function () {
+    Storage::fake('local');
+    $f = operationalParcelFixture('out_for_delivery');
+    $photo = UploadedFile::fake()->createWithContent('failure.png', base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aB1sAAAAASUVORK5CYII='));
+
+    $this->actingAs($f['rider'])->post('/deliveries/'.$f['delivery']->id, ['action' => 'failed_attempt', 'note' => 'Buyer unavailable.', 'proof' => $photo])->assertSessionHasNoErrors();
+
+    $event = DB::table('parcel_events')->where('delivery_id', $f['delivery']->id)->sole();
+    $this->assertDatabaseHas('deliveries', ['id' => $f['delivery']->id, 'status' => 'out_for_delivery', 'exception_status' => 'failed_attempt', 'proof_photo_path' => null]);
+    $this->assertDatabaseCount('cod_collections', 0);
+    $this->get('/deliveries/'.$f['delivery']->id.'/proof?event='.$event->id)->assertOk();
+    $this->actingAs(User::factory()->create())->get('/deliveries/'.$f['delivery']->id.'/proof?event='.$event->id)->assertForbidden();
+});
+
+test('an order completes only after all its separate physical parcels are delivered', function () {
+    Notification::fake();
+    Storage::fake('local');
+    $f = operationalParcelFixture('out_for_delivery');
+    $f['delivery']->update(['received_at' => now(), 'sorted_at' => now(), 'dispatch_accepted_at' => now()]);
+    $secondStore = Store::query()->create(['user_id' => User::factory()->create(['role' => 'seller'])->id, 'name' => 'Second parcel store', 'status' => 'approved']);
+    $second = $f['sellerOrder']->replicate();
+    $second->store_id = $secondStore->id;
+    $second->save();
+    $secondDelivery = $f['delivery']->fresh()->replicate();
+    $secondDelivery->seller_order_id = $second->id;
+    $secondDelivery->save();
+    $payload = ['action' => 'delivered', 'note' => 'Received by buyer.', 'cod_confirmed' => true];
+    $photo = fn () => UploadedFile::fake()->createWithContent('proof.png', base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aB1sAAAAASUVORK5CYII='));
+
+    $this->actingAs($f['rider'])->post('/deliveries/'.$f['delivery']->id, $payload + ['proof' => $photo()])->assertSessionHasNoErrors();
+    expect($f['order']->fresh()->status)->not->toBe('completed');
+    $this->post('/deliveries/'.$secondDelivery->id, $payload + ['proof' => $photo()])->assertSessionHasNoErrors();
+
+    $this->assertDatabaseHas('orders', ['id' => $f['order']->id, 'status' => 'completed']);
+    $this->assertDatabaseCount('cod_collections', 2);
+    expect($secondDelivery->tracking_reference)->not->toBe($f['delivery']->tracking_reference);
 });

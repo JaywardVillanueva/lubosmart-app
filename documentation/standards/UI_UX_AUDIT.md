@@ -1,5 +1,33 @@
 # UI/UX audit and implementation
 
+## Homepage action animations â€” 2026-11-12
+
+Updated Search, Shop Now, and both seller calls to action with consistent color,
+shadow, and press transitions. Hero and seller links lift on pointer hover or
+keyboard focus; the seller arrow moves slightly. Removed inherited hero-button
+hover underlines and fixed search focus selector specificity. Motion is limited
+to the no-preference media query; hover movement requires a fine hover pointer.
+
+Targeted ESLint, TypeScript, Prettier, HomepageProductsTest (8 tests, 89 assertions),
+and production build passed. The focused browser run passed all four buttons'
+press feedback, underline removal, reduced-motion behavior, and search focus color
+checks. Run with `LUBOSMART_BROWSER_ACTIONS_ONLY=1 node tests/Frontend/home-reference-browser-check.cjs`.
+The broader existing browser run stopped at `featured photos stay compact`, outside
+this animation change. The build also reported the unresolved category-atlas image
+reference. Manual screen-reader, zoom, touch-device, and visual animation review
+remain outstanding; automated checks do not establish WCAG compliance.
+
+## Homepage pause control removal â€” 2026-11-12
+
+Removed the hero artwork pause/play button requested by the user, its React state,
+and its CSS. The artwork is now static so continuous decorative motion does not
+remain without a pause control. Targeted ESLint, TypeScript `--noEmit`, the
+production build, and HomepageProductsTest passed (8 tests, 89 assertions).
+The build reported an unresolved `/images/categories/category-atlas-v1.png`
+reference, unrelated to this change. Browser visual, keyboard, zoom, and screen
+reader checks were not performed for this small removal; these automated checks
+do not establish WCAG compliance.
+
 Reviewed 2026-10-11 on `feat/ui-ux-standards`. Scope: all 41 React page files,
 their shared components/layouts, Tailwind tokens, and public/authentication CSS.
 This is a source audit, not a completed visual or WCAG acceptance assessment.
@@ -328,95 +356,95 @@ Changed Back to Login below Send email code to a centered purple underlined text
 
 The platform Content textarea now uses a fixed 12rem height with resizing disabled and internal vertical scrolling. Its width follows the dialog. Targeted ESLint, TypeScript and 30 admin tests (421 assertions) passed. Production build passed. Browser visual, keyboard, theme and zoom verification remain outstanding for this styling change.
 
-### Account initials avatars — 2026-10-14
+### Account initials avatars ï¿½ 2026-10-14
 
 Admin and logistics toolbar account buttons now display a neutral circular avatar with initials from the authenticated registered name, using the existing initials hook and Avatar components. Account dropdowns retain their accessible names and 44px targets with visible keyboard focus. Targeted ESLint, TypeScript, production build and 30 admin tests (421 assertions) passed. Browser visual, theme, keyboard and zoom verification remain outstanding.
 
-### Sidebar account link removal — 2026-10-14
+### Sidebar account link removal ï¿½ 2026-10-14
 
 Removed redundant My Account links from admin and logistics sidebars; account settings remain accessible from navbar dropdowns. Renamed the affected sidebar groups to Communication. Targeted ESLint, TypeScript, production build and 30 admin tests (421 assertions) passed. Browser visual and keyboard verification remain outstanding.
 
-### Workspace search bar — 2026-10-14
+### Workspace search bar ï¿½ 2026-10-14
 
 Replaced the admin toolbar search button with a labeled search input using shared input styling and responsive widths. Enter opens the existing search results dialog with the entered query; existing debouncing, cancellation and record actions remain. Toolbar can shrink its search field on narrow screens while keeping action targets. ESLint, TypeScript, production build and 30 admin tests (421 assertions) passed. Browser visual, mobile, keyboard and zoom verification remain outstanding.
 
-### Admin sidebar branding — 2026-10-14
+### Admin sidebar branding ï¿½ 2026-10-14
 
 Moved the admin navbar logo and LubosMart name into the sidebar header without the tagline. The brand link is hidden in the collapsed icon sidebar; the hamburger remains available to expand it. Mobile branding appears inside the navigation drawer. Existing dashboard destination is retained. ESLint, TypeScript, production build and 30 admin tests (421 assertions) passed. Browser visual, mobile, keyboard and zoom verification remain outstanding.
 
-### Workspace search icon — 2026-10-14
+### Workspace search icon ï¿½ 2026-10-14
 
 Replaced the toolbar search field with an icon-only 44px button opening the existing search dialog. Kept an accessible label, tooltip and visible keyboard focus. ESLint, TypeScript, production build and 30 admin tests (421 assertions) passed. Browser visual and keyboard verification remain outstanding.
 
-### Admin business performance dashboard — 2026-10-14
+### Admin business performance dashboard ï¿½ 2026-10-14
 
 Added a navbar workspace label and current-page breadcrumb. Prioritized seven-day product sales, stored platform commission and completed parcel totals on the admin dashboard. Added a switchable daily sales/commission bar chart with an exact-values table, plus a delivered-share ring and status bars for parcels created in the period. The two date cohorts are labeled separately; timestamps use the displayed application timezone. Review queues and existing actions remain. Analytics are restricted to admins with report permission and use grouped aggregate queries rather than loading all parcels. No chart dependencies were added.
 
 Validation: ESLint, TypeScript, Prettier, Pint and production build passed; 32 admin tests (473 assertions) passed, including completed-order/date boundaries, stored commission, zero-filled series and buyer access rejection. Browser visual, theme, mobile reflow, zoom, keyboard and screen-reader verification remain outstanding. Delivery share measures current completion of the creation cohort, not on-time delivery or attempted-delivery success.
 
-### Logo sidebar toggle — 2026-10-14
+### Logo sidebar toggle ï¿½ 2026-10-14
 
 Replaced admin hamburger controls with a shared LubosMart logo button using the existing sidebar state and toggle handler. The logo remains available when collapsed; the LubosMart name remains a dashboard link shown when expanded. Mobile uses the logo to open the drawer and the drawer logo to close it. Buttons have 44px targets, visible keyboard focus, expanded-state semantics and action tooltips. ESLint, TypeScript, production build and 32 admin tests (473 assertions) passed. Browser visual, mobile and keyboard verification remain outstanding.
 
-### Dashboard header report button removal — 2026-10-14
+### Dashboard header report button removal ï¿½ 2026-10-14
 
 Removed the requested View Reports action from the admin dashboard page header. ESLint, TypeScript, production build and 32 admin tests (473 assertions) passed. No fresh browser visual check was performed for this button removal.
 
-### Admin welcome priorities and account role labels — 2026-10-14
+### Admin welcome priorities and account role labels ï¿½ 2026-10-14
 
 Redesigned the admin welcome section with existing LubosMart branding, a responsive two-column layout, queue total, up to three actionable priority links, a first-queue action and permitted account management shortcut. Clear queues show an explicit All caught up state. Kept sales charts and full review queues below. Accounts role filters now use the shared roleLabel mapping so Buyer, Seller, Rider and Logistics labels match account rows and registration terminology; underlying filter values remain unchanged. Logistics account descriptions use Rider and Logistics wording.
 
 Validation: formatting, targeted ESLint, TypeScript, production build and 32 admin tests (473 assertions) passed. Browser visual, mobile, light/dark theme, keyboard, zoom and screen-reader checks remain outstanding.
 
-### Dashboard title in navbar — 2026-10-14
+### Dashboard title in navbar ï¿½ 2026-10-14
 
 Moved the admin dashboard title and description into the navbar, replacing its Admin workspace label and breadcrumb. Removed the duplicate content heading; retained one visible h1 and the browser title. Added an optional page header slot through the existing sidebar layout; other pages retain their headings. The navbar grows and wraps on narrow screens so the description remains readable. Formatting, ESLint, TypeScript, production build and 32 admin tests (473 assertions) passed. Browser visual, mobile, zoom and keyboard verification remain outstanding.
 
-### Welcome brand label removal — 2026-10-14
+### Welcome brand label removal ï¿½ 2026-10-14
 
 Removed the requested logo and LubosMart admin label from the dashboard welcome section and its unused heading spacing. ESLint, TypeScript, production build and 32 admin tests (473 assertions) passed. No fresh browser visual check was performed for this removal.
 
-### Account access help removal — 2026-10-14
+### Account access help removal ï¿½ 2026-10-14
 
 Removed the requested Account access rules disclosure from the Accounts filter card and its unused icon import. ESLint, TypeScript, production build and 32 admin tests (473 assertions) passed. No fresh browser visual check was performed for this removal.
 
-### Aligned admin header and sidebar theme toggle — 2026-10-14
+### Aligned admin header and sidebar theme toggle ï¿½ 2026-10-14
 
 Aligned the admin sidebar brand header and desktop navbar to 72px. Reduced the navbar page heading to 20/24px with tighter description spacing; desktop descriptions truncate with full text retained and a tooltip, while narrow layouts wrap. Added a light/dark mode toggle at the bottom of all application sidebars using the existing persisted appearance preference. Synchronizes appearance controls in the same window and across storage updates in other tabs. Fixed a stray exclamation mark before the first import in nav-user.tsx that blocked compilation.
 
 Validation: targeted ESLint, TypeScript, production build and 32 admin tests (473 assertions) passed. Browser alignment, light/dark visuals, mobile reflow, zoom and keyboard verification remain outstanding; automated checks do not verify these interactions.
 
-### Account details and external access controls — 2026-10-14
+### Account details and external access controls ï¿½ 2026-10-14
 
 Removed the shield icon from the Accounts filter heading. Account cards now use two-letter initials, tighter spacing, View details and an expandable Manage access panel outside the profile modal. The panel fetches current per-account allowedStatuses from the existing protected account JSON endpoint, supports loading/error/retry/no-action states, and reuses the extracted access form. Required reasons, confirmation, server validation and existing authorization remain; reasons reset when the selected action changes. Confirmations name the selected action and account. Embedded account modals now show profile and access history without mutation controls or navigation into a registration review form; the registration ID remains visible. Standalone profiles retain the shared access form.
 
 Validation: formatting, targeted ESLint, TypeScript, production build and 32 admin tests (473 assertions) passed. Browser visual, inline access interactions, confirmation focus, keyboard, light/dark themes, mobile and screen-reader verification remain outstanding.
 
-### Consistent bold navbar labels — 2026-10-14
+### Consistent bold navbar labels ï¿½ 2026-10-14
 
 Standardized uppercase navbar labels at 12px bold with shared tracking. The dashboard navbar heading now follows the same uppercase bold typography while retaining its description below and semantic h1. ESLint, TypeScript, production build and 32 admin tests (473 assertions) passed. Browser visual verification remains outstanding.
 
-### Hidden sidebar scrollbar — 2026-10-14
+### Hidden sidebar scrollbar ï¿½ 2026-10-14
 
 Hidden the visible sidebar menu scrollbar using scrollbar-width and the WebKit scrollbar selector, retaining existing overflow scrolling. ESLint, TypeScript, production build and 32 admin tests (473 assertions) passed. Browser visual and keyboard/short-viewport verification remain outstanding.
 
-### Dashboard priority icon removal — 2026-10-14
+### Dashboard priority icon removal ï¿½ 2026-10-14
 
 Removed the circular decorative icon from the review priorities summary and the unused Check import. ESLint, TypeScript, production build and 32 admin tests (473 assertions) passed. No fresh browser visual check was performed for this removal.
 
-### Registration-based account verification details — 2026-10-14
+### Registration-based account verification details ï¿½ 2026-10-14
 
 Account View details now loads the account's linked registration through the existing protected review endpoint and renders the existing registration view with canReview disabled. This keeps submitted fields, role-specific requirements, review metadata and signed supporting-document links consistent with registration review. Access management and access history are excluded from this verification view. Accounts without an application show an explicit notice and saved profile details only. Failed or unauthorized registration fetches show a retryable error; existing server authorization is retained.
 
 Validation: formatting, ESLint, TypeScript, production build and 32 admin tests (473 assertions) passed. Browser checks for chained loading, read-only review rendering, document viewing, keyboard and mobile behavior remain outstanding.
 
-### Manual admin approval for Buyer registrations — 2026-10-14
+### Manual admin approval for Buyer registrations ï¿½ 2026-10-14
 
 Buyer signups now submit their required private identity document for review. Email verification leaves the Buyer pending instead of auto-approving the account; operational access remains blocked until an administrator approves the application. Admin approval requires the identity document record and underlying private file to exist, while rejection with a reason remains available and dispatches the existing decision email notification. Updated signup policy text to include Buyer administrator review. Existing approved accounts were not modified.
 
 Validation: 737 auth/admin/approval-chain tests passed (5109 assertions), with 3 existing browser-only cases skipped. New tests cover pending state after verification, cart restrictions, manual activation, decision notifications and missing-ID record/file rejection. Pint, ESLint, TypeScript and production build passed. Browser verification and actual email inbox delivery remain unverified.
 
-### Registration-based account design and Logistics-owned Rider management — 2026-10-14
+### Registration-based account design and Logistics-owned Rider management ï¿½ 2026-10-14
 
 Applied the supplied account/profile layout using live data: filtered account summary cards, registration dates and actual registration-stage labels, validated name/newest/oldest sorting, and compact cards with external access controls. Account details use a read-only registration profile organized into personal information, role details, supporting documents and actual verification/submission/review timestamps. Preserved signed private-document links. No invented section percentages, edit controls, reminders or notes were added.
 
@@ -424,47 +452,47 @@ Per explicit user clarification, all Rider management now belongs to the owning 
 
 Validation: 314 relevant tests passed (2446 assertions), 1 existing browser-only test skipped. Added summary/filter/sort validation and Admin Rider exclusion checks; updated ownership, private-document and status-transition coverage. ESLint, TypeScript, formatting, Pint and production build passed. Browser visual, mobile, theme, keyboard, section navigation and document interactions remain unverified.
 
-### Simplified account management and registration handoff — 2026-10-14
+### Simplified account management and registration handoff ï¿½ 2026-10-14
 
 Removed the account summary metric cards and their unused frontend props/icons. Pending accounts link to Registrations for application review; external access controls appear only for approved, suspended or deactivated accounts. Profile details remain read-only. Recorded the user's preference against summary metric strips on Accounts and Registrations pages in the UI standards.
 
 Validation: 472 registration/account/Logistics tests passed (3370 assertions); 3 existing browser-only cases skipped. ESLint, TypeScript, formatting and production build passed. Coverage includes Buyer manual approval and ID requirements, Seller/Logistics review, decision notifications and Logistics-only Rider ownership. Actual inbox delivery and browser visual/keyboard interaction checks remain unverified.
 
-### Admin readiness validation before Logistics work — 2026-10-14
+### Admin readiness validation before Logistics work ï¿½ 2026-10-14
 
 Confirmed Admin role options contain Buyer, Seller, Logistics and unassigned only. Hardened server filter validation so an Admin request with role=courier is rejected; Logistics filter values remain Rider-only. Extended the isolated headless browser checks to current logo navigation/account menus, all nine Admin management pages, Rider exclusion in role filters and workspace search, read-only account details, chart measure switching and sidebar theme controls.
 
 Validation: full backend suite passed 874 tests (6190 assertions), with 3 existing browser-only test cases skipped. Fresh AdminManagement run passed 33 tests (506 assertions), including the new invalid Admin Rider filter check. All 36 isolated browser checks passed, with no browser console/runtime errors; checks cover 320px mobile, tablet, landscape, desktop, dark rendering, mobile menu Escape/Close and Admin page rendering. Inspected the final desktop admin screenshot. Pint, targeted ESLint, TypeScript and production build passed. Evidence: storage/app/dashboard-ui-check/results.json and admin-verified-desktop.png. Real email inbox delivery, full assistive-technology/contrast/zoom assessment and production deployment are not verified by these checks.
 
-### Manage access dialog — 2026-10-14
+### Manage access dialog ï¿½ 2026-10-14
 
 Converted the account Manage access disclosure into a Radix modal with an account-specific title, description, scrollable content and trigger focus restoration. Kept current server allowed actions, required reason, nested decision confirmation and saved-state refresh. Removed the disclosure chevron. Account profile details remain separate and read-only.
 
 Validation: ESLint, TypeScript, formatting, production build and 33 admin tests (506 assertions) passed. All 37 isolated browser checks passed, including allowed-action loading, opening confirmation, cancellation, closing the modal and restoring trigger focus. No browser runtime/console errors. No real account status was changed during browser validation.
 
-### Code-only registration email verification — 2026-10-14
+### Code-only registration email verification ï¿½ 2026-10-14
 
 Removed the verification-link action and expiry copy from registration emails. The existing sender now issues only hashed six-digit registration codes, with five-minute expiry, a 60-second resend cooldown, hourly send limits and attempt limits. It no longer generates email verification tokens. Legacy verify-email/link endpoints return HTTP 410 and cannot verify an account, including previously issued tokens. Normal Buyer/Seller/Logistics/Rider signup uses this code flow. Existing legacy Rider invitation/password-setup links are a separate workflow and remain available. Updated verification-page copy and regression tests for authenticated code verification, expiry, resend, changed addresses, disabled links and concurrent registration.
 
 Validation: 867 tests passed (6100 assertions), 3 existing browser-only cases skipped. Pint, frontend ESLint, TypeScript, formatting and production build passed. Mail template tests verify that registration emails contain the code and no verification-link URL. Actual SMTP inbox delivery remains unverified.
 
-### Shared transactional email design — 2026-10-14
+### Shared transactional email design ï¿½ 2026-10-14
 
 Applied the supplied lavender/purple visual direction to all LubosMartMailMessage notifications through shared HTML and plain-text views. Uses an email-friendly table layout with inline colors/styles, rounded white card, decorative envelope/status symbol, clear heading/greeting, prominent six-digit code panel and security notice, purple action buttons with fallback links and branded footer. Registration code expiry remains 5 minutes; password/profile security codes remain 10 minutes. Registration emails retain code-only verification; approval notices show the approved state and recipient-specific dashboard action. Rejection reasons and dynamic fields are escaped. Delivery, compliance and account-status notices share the layout with appropriate event headings/symbols.
 
 Validation: 85 mail/registration/admin tests passed; 26 mail-template tests passed after adding code-panel/expiry and escaped-reason checks. Pint, TypeScript and production build passed. Rendered dummy-data registration/password/approval HTML previews without sending messages; inspected registration and approval browser screenshots. Preview artifacts are in storage/app/mail-previews. Gmail/Outlook/mobile-email-client rendering and actual SMTP inbox delivery remain unverified.
 
-### Password code back link — 2026-10-14
+### Password code back link ï¿½ 2026-10-14
 
 Replaced the Google-only notice on the password-code page with a centered purple underlined Back to Login link matching forgot-password. Hid the external layout back link to avoid duplication. Formatting, ESLint, TypeScript, production build and 14 password/code tests (84 assertions) passed. No fresh browser visual check was performed for this text/link change.
 
-### Name validation limits — 2026-10-14
+### Name validation limits ï¿½ 2026-10-14
 
-Aligned personal-name format validation across registration, application submission and profile editing using shared AccountRules. First and last names remain 2–50 characters; full display names remain capped at 160 and now require at least two letters. Rejects a single letter, a letter plus punctuation, digits, unsupported symbols and over-limit values. Preserves supported Unicode/Filipino letters, combining marks, spaces, hyphens, apostrophes and periods. Profile names are trimmed before validation. Added native browser minLength/pattern checks and matching registration step validation with clearer messages; escaped the hyphen for HTML Unicode-set patterns.
+Aligned personal-name format validation across registration, application submission and profile editing using shared AccountRules. First and last names remain 2ï¿½50 characters; full display names remain capped at 160 and now require at least two letters. Rejects a single letter, a letter plus punctuation, digits, unsupported symbols and over-limit values. Preserves supported Unicode/Filipino letters, combining marks, spaces, hyphens, apostrophes and periods. Profile names are trimmed before validation. Added native browser minLength/pattern checks and matching registration step validation with clearer messages; escaped the hyphen for HTML Unicode-set patterns.
 
 Validation: 425 related tests passed (2539 assertions), 3 existing browser-only cases skipped. Fresh focused Admin browser checks passed, including native rejection of A, A. and John123 and acceptance of a Filipino name without submitting. One broad browser rerun hit an unrelated page-render timeout; focused checks then passed all Admin pages and the changed input behavior. Pint, ESLint, TypeScript, formatting and production build passed.
 
-### Google continuation removed from sign-up — 2026-10-14
+### Google continuation removed from sign-up ï¿½ 2026-10-14
 
 Removed the Google continuation button and or divider from the shared registration form, plus its unused Google form state. Sign-in retains its Google option. Registration requirements, validation and email-code submission remain unchanged. Formatting, ESLint, TypeScript, production build and 34 registration/Google-auth tests (301 assertions) passed. No fresh browser visual check was performed for this removal.
 
@@ -1152,7 +1180,7 @@ including its existing 10px floating movement. Colors, fonts and motion retained
 Prettier, ESLint, TypeScript, production build and 8 homepage tests (89 assertions)
 passed. Manual browser visual verification remains pending.
 
-## 2026-10-18 — Rider and Logistics naming
+## 2026-10-18 ï¿½ Rider and Logistics naming
 
 Standardized active application role identifiers to `rider` and `logistics`, including registration, policies, middleware, dashboard navigation, notifications, fixtures and tests. Renamed the Rider dashboard directory and the LogisticsCenter model; database tables now use logistics_centers/logistics_center_user and the affiliation key uses logistics_center_id. Current role guides use the same names. Historical migrations and audit evidence retain their original terminology; legacy dashboard redirects and migration compatibility tests intentionally reference old values.
 
@@ -1160,7 +1188,7 @@ Added and applied a forward migration to the local MySQL database after creating
 
 Validation: TypeScript, ESLint across resources and frontend scripts, targeted Prettier, PHP Pint, and production build passed. Registration/historical migration/terminology tests: 37 passed. Marketplace, terminology and approval-chain retest: 43 passed, 2 failed. The two remaining Logistics profile-edit tests expect mutation through the legacy /settings/profile endpoint; the existing working-tree authorization rule denies Logistics edits there in favor of the account-settings boundary. That rule was preserved. The initial full suite recorded 993 passed, 3 skipped and 5 failures; the three rename-related failures were corrected and their targeted tests pass. No complete green-suite claim is made. Browser visuals, keyboard, screen reader and zoom checks were not performed for this terminology-only batch. No deployment or Git commit/push occurred.
 
-## 2026-10-18 — Rider dashboard and local sample seeder
+## 2026-10-18 ï¿½ Rider dashboard and local sample seeder
 
 Applied the Logistics visual shell to Rider: grouped delivery/cash/workspace navigation, matching collapsed sidebar width, shared search/notification/account toolbar, welcome/priorities panel, actionable queue metrics, shared parcel charts, scoped recent parcels, COD handover total and delivery checklist. Delivery queue navigation is present on both the dashboard and parcel list; filtered empty states distinguish no matches from no assignments. Charts explicitly describe the Rider's active-parcel population.
 
@@ -1170,7 +1198,7 @@ Added optional local/testing-only RiderDemoSeeder and documentation/RIDER_DEMO.m
 
 Validation: 93 relevant feature tests passed with 1,115 assertions (Rider workspace, dashboard roles, Marketplace flow and Logistics suites), including cross-Rider isolation, rejected management access, dispatch handover, proof/COD completion, Logistics cash receipt, failed attempts, empty data and repeatable/production-refused seeding. TypeScript, targeted ESLint/Prettier, PHP Pint and production build passed. Headless Rider browser checks passed for search, six filtered queues, notifications, account menu, inline validation and zero runtime/console errors; responsive checks covered 1440px desktop, 768px tablet, 844px landscape and 320px mobile, light/dark themes, mobile menu Escape/Close and document overflow. Screenshots reviewed in storage/app/dashboard-ui-check. Screen reader, actual 200%/400% browser zoom and physical touch testing remain unverified. This batch does not establish complete WCAG compliance. No deployment or Git commit/push occurred.
 
-## 2026-10-18 — Rider settings categories
+## 2026-10-18 ï¿½ Rider settings categories
 
 Added a Rider-specific settings page at the existing /settings/profile route, matching the Logistics category layout. Categories cover personal details, vehicle/Logistics affiliation, registered address, submitted-document status and contact/security, with links to the existing password and address workflows. Rider registration fields remain read-only; existing display-name/contact edits, plate/bank re-review and photo-ID replacement continue through the existing Rider profile endpoint. Each save submits only its category's changes. Email confirmation/current-password behavior and existing account deletion controls remain available. Password/address pages expose the same Rider category navigation.
 
@@ -1178,11 +1206,11 @@ Document metadata is restricted to the Rider's own application. The page display
 
 Validation: 71 Settings/Rider feature tests passed (562 assertions), including own-registration isolation, document access refusal, protected role/affiliation, name saves and plate-change re-review. Focused new tests passed again after fixing their date for deterministic age assertions. TypeScript, targeted ESLint/Prettier, PHP Pint and production build passed. Headless browser checks exercised category navigation and an actual display-name save; desktop and 320px mobile/light/dark screenshots are under storage/app/dashboard-ui-check/rider-settings-*.png. Existing Rider dashboard/mobile/notification/password-validation browser checks still pass with no runtime/console errors. Screen reader, physical touch and true 200%/400% zoom remain unverified; automated checks do not certify WCAG conformance. No deployment, commit or push occurred.
 
-## 2026-10-18 — Rider queue tabs on dashboard only
+## 2026-10-18 ï¿½ Rider queue tabs on dashboard only
 
 Removed the duplicate Rider queue-tab row from the deliveries page. The existing row remains on the Rider dashboard and continues opening the same filtered delivery URLs. Sidebar navigation and delivery actions remain intact. Targeted ESLint, TypeScript and production build were run; six Rider workspace feature tests passed (150 assertions). No new browser visual review was performed for this removal.
 
-## 2026-10-18 — Rider change-password form
+## 2026-10-18 ï¿½ Rider change-password form
 
 Applied the supplied three-field password form to Riders using the shared password page: Current Password, New Password and Confirm New Password, with the full-width Change Password action and current-password/email-code explanation. Rider current-password confirmation is now validated by the existing PasswordUpdateRequest at both code-request and final-save boundaries, matching Admin/Logistics. Email confirmation, session invalidation and Google-only handling remain in place. Associated current-password errors with their input.
 
@@ -1190,7 +1218,7 @@ Expanded the existing password security tests to Riders: incorrect/missing curre
 
 Rider headless browser verification also passed after the password change: settings category/save flow, desktop/mobile/dark reflow, password inline required-field feedback and zero runtime/console errors.
 
-## 2026-10-18 — Personal information presentation for Logistics and Rider
+## 2026-10-18 ï¿½ Personal information presentation for Logistics and Rider
 
 Replaced separate first-name/last-name/middle-initial rows with a shared, prominent Full name summary in both settings pages. Middle initials are retained in the full name when supplied. Date of birth displays a readable month/day/year, sex values use consistent capitalization, and age includes units. A single read-only registration note replaces repeated lock icons. Existing registration values, approval badges, correction workflows and permissions are unchanged; missing data stays explicit rather than substituting an account nickname.
 
@@ -1309,3 +1337,296 @@ Actual Infinix X6876 Chrome camera capture of parcel #15 QR was observed: correc
 Added Logistics-only fixed mobile navigation for Dashboard/Scan/Parcels/Menu, safe-area content clearance, active-page semantics and menu Escape/focus restoration. Reduced the sticky mobile Logistics header by moving descriptions into scrollable content; preserved other-role headers. Scan camera now precedes manual fields, has full-width primary controls and a bounded uncropped preview; redundant disabled Start hides during active mobile scanning. Added dashboard Scan action, mobile queue grid and parcel shrink/wrap fixes. Existing branding, authorization, payloads, QR/barcode decoding and handover rules remain intact.
 
 Verification: 46 Logistics browser scenarios and 45 cross-role dashboard scenarios passed; 78 relevant Laravel tests passed (1241 assertions), isolated SQLite/fake services; ESLint, TypeScript, Prettier, PHP fixture Pint and production build passed. All 12 selected company pages fit 320px without document overflow. Reviewed light 408px/dark 320px scan screenshots. Physical Infinix DOM measurements on Rider payments confirmed 408px/no overflow and visible navigation; a complete physical Scan screenshot/touch acceptance was not obtained because the tab was backgrounded/navigated during inspection. Actual hardware scanning was not repeated after this layout change. Full screen-reader/contrast, true browser zoom and complete WCAG acceptance remain unverified. Evidence: storage/app/logistics-mobile-1793881443393/VERIFICATION.md. No database schema, business records, new dependency, commit, push or deployment was changed.
+
+
+## 2026-11-09 - Google account password setup
+
+Google accounts can now set a LubosMart password using the existing email-code form while preserving Google sign-in. Existing current-password checks remain for accounts with passwords. ESLint, TypeScript, Prettier and production build passed. Browser visual, keyboard, zoom and screen-reader acceptance were not performed; WCAG compliance and live inbox delivery remain unverified. See documentation/deployment/MAIL_VERIFICATION.md for coverage and live acceptance steps.
+
+## 2026-11-10 - Automatic web dashboard filters
+
+Replaced explicit Apply/Search submissions on account management, Admin compliance/activity history, shared support, Buyer catalog/wishlist/orders, Seller inventory/orders, and role report filters with a shared automatic GET-filter form. Selects and dates submit immediately after controlled state updates; typed searches wait 350 ms. Obsolete requests are cancelled, queued searches are cleared on navigation/unmount, IME composition is respected, and Enter remains available. Filter requests preserve scroll/input state and replace the current history entry. Existing queue links and already automatic controls remain in place; parcel scanning and business mutations retain their explicit confirmations.
+
+Admin account search, role, status and sort now share one desktop row and stack on mobile. Filter controls omit unused feedback placeholders while retaining inline validation; shared input defaults elsewhere are unchanged. Filter panels announce updating status, keep controls editable during requests and retain reset/clear actions.
+
+Verification: 118 relevant Laravel tests passed (2,146 assertions), using in-memory SQLite and fake/local dependencies. Targeted ESLint, TypeScript, Prettier and production build passed. All 52 cross-role browser scenarios passed, including automatic search/date changes, combined account filters and history preservation. Reviewed Admin filter screenshots at desktop light and 320px dark; no document overflow was observed. Local evidence is in `storage/app/auto-filter-browser.log` and `storage/app/dashboard-ui-check/`. Full screen-reader, real browser zoom, contrast measurements and production performance measurements remain unverified; these checks do not certify WCAG compliance or production latency. No dependencies, schema, account records, authorization, mobile application, commit, push or deployment were changed.
+
+
+## 2026-11-10 - User account action menus and account details
+
+Account cards now use one 44px horizontal-dot ActionDropdown, built on the existing Radix dropdown primitives. The accounts page coordinates the open menu. Existing View details, eligible Manage access, and pending Review in Registrations actions remain available; View activity history opens the existing authorized audit data directly inside Account Details. The menu portals outside cards, handles viewport collisions, supports keyboard/outside/Escape dismissal, and restores focus to the account trigger after dialogs close. Configurable actions support icons, visibility, disabled/loading states and destructive styling; callers own permissions and confirmation callbacks.
+
+Account Details retains registration personal/role fields, verification, private supporting-document links, rejection reasons and timeline. Its summary uses the actual account status separately from registration status, with initials, role and registration date. Existing saved store/assignment/address information and read-only activity history are reachable through sections. Desktop uses sidebar navigation; mobile uses horizontally scrollable section buttons and one-column fields. Accounts without an application retain saved details and history. Account modal fetches retain abort handling, loading and retry states. Manage Access uses the existing allowed-status fetch, reason choices, review/confirmation and Inertia PATCH callbacks, with a quieter layout and consequential action styling. Standalone account rendering remains available. History rendering is shared and tolerates older unstructured events.
+
+Files introduced:
+- resources/views/components/shared/action-dropdown.tsx
+- resources/views/components/shared/account-history.tsx
+- resources/views/components/shared/saved-account-details.tsx
+
+Files updated:
+- resources/views/components/shared/info-modal.tsx
+- resources/views/components/shared/registration-profile.tsx
+- resources/views/components/shared/account-access-panel.tsx
+- resources/views/components/shared/account-access.tsx
+- resources/views/pages/management/accounts.tsx
+- resources/views/pages/admin/account.tsx
+- tests/Frontend/dashboard-browser-check.cjs
+- documentation/standards/UI_UX_AUDIT.md
+
+Executed verification: targeted ESLint, TypeScript no-emit, targeted Prettier and production build passed. AdminManagementTest and Auth/RoleAccessTest passed: 55 tests, 648 assertions, isolated SQLite/fake services. The final focused Admin browser run passed all 23 recorded checks, with no browser runtime exceptions or console errors. It covered keyboard menu opening/selection, Escape and outside dismissal, mobile menu bounds, correct account details and direct history, focus restoration, details at 1440/768/320px and landscape, supporting-document navigation, missing-application fallback and denied-response retry (both simulated at the fetch boundary), required access reasons, confirmation/cancellation, and actual suspension/reactivation of the disposable buyer fixture. Saved statuses and audit reasons were checked against the server; suspended account details still showed approved registration separately. Shared registration review and conversation/support page rendering also passed the focused checks.
+
+Reproduce the browser run in PowerShell with LUBOSMART_BROWSER_ROLES=admin and LUBOSMART_BROWSER_ACCOUNT_ACTIONS=1 environment variables, then run node tests/Frontend/dashboard-browser-check.cjs. Local evidence: storage/app/account-menu-focused-browser.log, storage/app/account-menu-build.log, and storage/app/dashboard-ui-check/results.json plus account screenshots. Reviewed desktop/tablet/landscape light, 320px dark details, mobile action menu and mobile Manage Access screenshots. Final spacing-only adjustments were followed by another passing build and focused browser run.
+
+Limits: the initial full cross-role browser run stopped at the existing Rider-notifications selector (aria-label beginning Rider notifications), which no longer matches the shared notification bell. That unrelated Rider test remains unresolved; do not describe the full cross-role suite as passing. The adjacent Admin notification assertion was updated to the current notification-popover markup so account regression checks can run. Pending/incomplete/unverified/rejected dropdown gating, delayed-request cancellation and all role-specific information coverage were inspected in source; they were not all separately exercised in the browser. Full screen-reader, physical touch, measured contrast, true 200%/400% browser zoom, long synthetic identity/address stress cases, backend-error rendering within Manage Access and production performance remain unverified. Automated checks do not certify WCAG compliance.
+
+Routes, API request/response contracts, schema, status values, authorization, registration decisions, audit logging and notifications were not changed. Existing Radix Dialog/DropdownMenu, shared form/select/button/badge patterns, RegistrationProfile and ReasonConfirmation were reused. Future product/order/rider dropdown adoption should supply existing authorized actions and reuse existing confirmation workflows; no other module action layout was migrated. No commit, push or deployment was performed.
+
+
+## 2026-11-10 - Shared management menus and account-profile refinement
+
+Follow-up to the account-details screenshot: refined the shared RegistrationProfile with icon-assisted section navigation, stronger content headings, larger desktop field text, a compact registration-status panel, clearer summary separation, friendlier date formatting, full-width addresses and resilient wrapping. Date-only birthdays preserve their calendar date; registration timestamps retain local date conversion. Zero-valued fields are displayed rather than treated as missing. Account dialog descriptions avoid repeating the same identity already visible in the summary. All existing data, sections, documents and review controls remain available.
+
+Added resources/views/components/shared/account-actions.tsx to own account-menu/dialog integration and focus restoration. Admin User Accounts and the logistics-scoped Accounts page use it; Company riders now uses the same menu with server-provided canManage/canReview flags and existing activation/review actions. View details and history remain restricted to riders already eligible for the existing details action. Resend activation retains its existing POST and processing state. Seller Inventory now groups existing Edit and Size/color options in ActionDropdown; its store-approval disabled state and both existing editor forms are preserved.
+
+The shared profile refinement reaches every existing consumer: account details from management, Admin search and activity history, plus registration reviews opened from Admin/Logistics dashboards and review queues. Single primary review/support actions remain directly accessible. Per the user's clarification, checkout, scanning, delivery actions and other operational controls remain visible. No account-administration access was added to Buyer, Seller or Rider roles.
+
+Changed application files: components/shared/account-actions.tsx (new), components/shared/registration-profile.tsx, components/shared/info-modal.tsx, pages/management/accounts.tsx, pages/logistics/riders/index.tsx and pages/marketplace/inventory.tsx, all under resources/views. Extended tests/Frontend/dashboard-browser-check.cjs and tests/Frontend/logistics-operations-browser-check.cjs with focused menu/profile scenarios; updated existing inventory selectors in tests/Frontend/seller-workspace-browser-check.cjs for the new menu. The dashboard browser harness accepts LUBOSMART_BROWSER_OUTPUT to keep focused-run evidence separate.
+
+Executed checks: TypeScript no-emit, targeted ESLint, targeted Prettier and production build passed. AdminManagementTest, Auth/RoleAccessTest, LogisticsApprovalChainTest, Logistics/LogisticsWorkspaceTest and SellerWorkspaceTest passed: 131 tests, 1,863 assertions, isolated SQLite with fake/local services. Focused browser runs passed 23 Admin checks, 3 Logistics rider-management checks and 10 Seller checks. Admin covered details/history, existing registration review, permission-aware actions, required reasons, confirmation and actual synthetic suspension/reactivation with audit reasons. Logistics covered company rider details at desktop/tablet/mobile/landscape widths, dark theme, role fields, direct history, allowed access actions, required reasons and focus restoration. Seller covered Edit and Size/color options opening the existing editors, mobile menu bounds and dashboard reflow/themes. No browser runtime or console errors occurred in those runs.
+
+Evidence: storage/app/shared-management-admin-browser.log, storage/app/shared-management-logistics-browser.log, storage/app/shared-management-seller-browser.log and storage/app/shared-management-build.log. Screenshots/results are under storage/app/dashboard-ui-check, storage/app/logistics-operations-ui-check and storage/app/shared-management-seller-ui-check. Reviewed updated desktop Admin details and dark 320px Logistics details; relevant bounds/reflow checks also passed automatically.
+
+Limits: these were focused browser runs, not the complete cross-role/scanner/Seller-workspace browser suites. Previously identified stale notification selectors elsewhere in those suites remain outside this change. The updated long Seller-workspace suite was not executed end-to-end. Activation resend and pending-rider review menu visibility were inspected against existing server flags; no activation email was sent. True 200%/400% browser zoom, physical touch, screen-reader operation and measured contrast remain unverified. Automated checks do not certify WCAG compliance. No routes, backend permissions, status transitions, payloads, database/schema, dependencies, commit, push or deployment were changed.
+
+
+## 2026-11-11 - Compact dashboard filters, compliance menus and summary status
+
+Implemented the accepted compact-toolbar recommendation while retaining full-width pages and existing operational controls. New shared FilterToolbar caps desktop search at 20-24rem and secondary controls at 12rem, keeps 44px minimum controls and readable mobile input text, wraps controls when needed, and groups secondary filters behind an accessible mobile Filters button with an active count. Active filters have removable, wrapping chips with focus restoration; Reset is shown only for active filters. Existing server validation errors expand the secondary controls so errors remain reachable. Automatic GET debounce, IME handling, cancellation, request shapes, replace-history and preserve-scroll behavior remain intact. AutoFilterForm announces updating state without a permanent helper row. Client-side rider filters and the independently debounced support inbox retain their existing filtering mechanisms.
+
+Applied to User Accounts (including the Logistics-scoped page), Activity History, Seller Compliance, catalog/wishlist, shared inventory/order filters, role reports, Logistics reports, Company riders and the shared support inbox. Removed duplicate catalog filter summaries in favor of the toolbar chips. Visual review caught an inherited Array.sort value when the server returns an empty filter array; the Accounts form now accepts only a string sort and defaults to name, preventing an empty Sort chip/Reset on an unfiltered page. A browser assertion covers this case.
+
+Compliance cards now show existing actions in the upper-right three-dot menu. Choosing an action opens a small reason dialog, then the existing ReasonConfirmation. All four backend action values and their reason choices are preserved. Destructive actions are distinguished; empty reasons and duplicate processing are blocked. Confirmation cancellation retains the reason; saving closes only after server success, retains server errors for correction, updates review history and restores focus to the menu (or main content if the card disappears). Registration status is a compact line below role/registration date in the account summary; rejection reasons remain visible. Preserved the repository's current inline Account Details layout and current support workflow rather than reverting them to earlier modal layouts.
+
+Files: added resources/views/components/shared/filter-toolbar.tsx. Updated shared/auto-filter-form.tsx, shared/registration-profile.tsx and seller/list-filters.tsx under resources/views/components; updated admin/audit-log.tsx, admin/compliance.tsx, management/accounts.tsx, marketplace/catalog.tsx, marketplace/reports.tsx, logistics/reports.tsx, logistics/riders/index.tsx and support/index.tsx under resources/views/pages. Extended tests/Frontend/dashboard-browser-check.cjs and appended this audit.
+
+Final checks: TypeScript no-emit, targeted ESLint, targeted Prettier and production build passed. Selected Laravel suites (AdminManagementTest, SellerWorkspaceTest, Logistics/LogisticsWorkspaceTest, Auth/RoleAccessTest, SupportMessagingTest) passed on the final run: 113 tests, 1,654 assertions. The initial combined run had one evidence-download Content-Disposition assertion failure; the same test passed independently (11 assertions), then the same complete selected suite passed on rerun without backend/test changes.
+
+Focused browser verification passed 36 recorded checks: 16 Admin, 17 Buyer/Seller and 3 Logistics. New scenarios cover desktop control width/height, absence of idle helper text and default Reset, mobile filter disclosure, combined search/action filters, chip removal preserving the remaining filter, Reset, unfiltered Accounts default sort, four compliance actions, required reasons, confirmation cancellation, actual synthetic warning save/history/focus restoration, and registration status in the existing inline account details panel across desktop/tablet/mobile widths. The existing focused marketplace and Logistics runs also exercised automatic searches/report dates, menu/editor opening, responsive layouts, role details/history/access and light/dark themes. No browser runtime exceptions or console errors occurred in those successful runs. All mutations were confined to isolated fixture databases with fake services.
+
+Evidence: storage/app/compact-ui-admin-browser.log, compact-ui-marketplace-browser.log, compact-ui-logistics-browser.log, compact-ui-laravel.log, compact-ui-laravel-rerun.log and compact-ui-build.log. Results/screenshots are under storage/app/compact-ui-admin, compact-ui-marketplace and compact-ui-logistics. Reviewed desktop activity toolbar, dark mobile expanded filters, mobile compliance menu, and inline account summary screenshots. Admin focused reproduction uses LUBOSMART_BROWSER_ROLES=admin, LUBOSMART_BROWSER_ACCOUNT_ACTIONS=1, LUBOSMART_BROWSER_COMPACT_FILTERS=1 and an optional LUBOSMART_BROWSER_OUTPUT before running node tests/Frontend/dashboard-browser-check.cjs.
+
+Limits: these focused runs do not establish that the full legacy cross-role/scanner browser suites pass. Older general account assertions still expect modal details and need a separate update for the existing inline page; the compact mode checks the actual inline behavior. True browser zoom at 200%/400%, screen-reader and physical-touch operation, measured contrast and production performance remain unverified; automated checks do not certify WCAG compliance. Compliance restore/hide/suspend boundaries and reason enforcement were exercised by existing Laravel tests; only warning submission was exercised through the new browser menu. No backend authorization, routes, schemas, status values, registration requirements, dependencies, checkout/scanning/delivery controls, commit, push or deployment were changed.
+
+## 2026-11-11 - Reference design across role workspaces
+
+Applied the four supplied dashboard, account-management, messaging and settings references to the authenticated workspaces. Admin, Logistics, Seller, Rider and Buyer now share an edge-to-edge sidebar shell, page headings in the top bar, lavender surfaces, purple selected navigation, quiet card borders and compact icon-led dashboard metrics. The existing logo, Instrument Sans, primary brand color, role destinations and allowed actions remain intact. Workspace color aliases are scoped to the authenticated shell, including dark surfaces; storefront/auth tokens are not changed by this treatment.
+
+Added a lightweight decorative SVG delivery scene using the existing logo and semantic colors. All five dashboards use the shared illustrated welcome banner, with each role's existing actions, identity and actual queues. Admin analytics now draws its existing daily series as an area chart and retains the measure switch, exact-figure table and empty-data feedback. Removed the duplicated Admin hero priority panel; its full actionable queue and count remain below the analytics. No illustrative chart values, percentage changes or unsupported workflows were added.
+
+Account management now offers role filters and an inline desktop details panel, with a full-width mobile details view. It reuses the existing authorized account/registration fetches, loading/retry states, private document rules and profile sections. Closing restores focus to the selected account. Opening details from the action menu suppresses the menu's default focus restoration so focus stays on the details heading. Existing dialogs for access/history and other consumers remain available. Embedded Page content uses a subordinate heading rather than adding another page h1. Settings use the shared top-bar header for Admin too, with grouped icon-assisted category navigation. Messages retain the existing inbox/thread, attachment and status workflows, with quick conversation filters, lavender message bubbles and compact page actions. Existing operational pages inherit the shared shell, Page and Card styling.
+
+Validation: TypeScript no-emit, targeted ESLint without autofix, targeted Prettier checks, Git whitespace checks and the production build passed. The relevant feature selection passed 110 tests and 1,526 assertions: DashboardTest, BuyerWorkspaceTest, SellerWorkspaceTest, RiderWorkspaceTest, Logistics/LogisticsWorkspaceTest, SupportMessagingTest and Account/AccountSettingsTest. Initial shared fake-storage failures disappeared when rerun with a unique LARAVEL_STORAGE_PATH; no backend fix was made. The new workspace browser scenario passed 45 checks across all five roles: dashboards at 1440/768/320px; settled settings, messaging and representative operational pages at desktop/320px; light/dark screenshots; quick-filter requests; analytics switching; account-panel loading, mobile reflow, menu focus handoff and close focus restoration. The focused Admin messaging run also passed reply sending, conversation creation, reflow and runtime-error checks.
+
+The browser harness now supports LUBOSMART_WORKSPACE_DESIGN=1. It copies built assets to the isolated temporary fixture stage to survive concurrent workspace builds and leaves the previous page before clearing cookies between synthetic roles. Existing harness modes are preserved. Evidence: storage/app/workspace-reference-build.log, workspace-reference-tests.log, workspace-reference-browser.log and workspace-reference-messaging.log; cross-role screenshots/results in storage/app/workspace-reference-check. Representative desktop dashboards, inline account details, settled Logistics settings and dark mobile surfaces were inspected visually. Additional final Admin evidence is under storage/app/workspace-reference-admin-final.
+
+Limits: this does not establish WCAG compliance, measured contrast, real-device touch behavior, true 200%/400% browser zoom, screen-reader behavior or production performance. The complete legacy scanner/browser suites were not run end-to-end; older modal-account selectors are not the acceptance criteria for the new inline presentation. No application backend APIs, schemas, permissions, route shapes, business calculations or dependencies were changed by this redesign. Existing unrelated pending work was preserved. No branch switch, commit, push, merge or deployment was performed.
+
+Final follow-up: the final build also passed a focused Admin run (12 checks), including four action-menu openings with stable details-heading focus and focus restoration after closing. The selection is marked synchronously before the menu closes, avoiding the intermittent deferred-callback focus race. Final Admin messaging passed all four focused checks after the compact page-action adjustment. TypeScript, targeted ESLint, Prettier and the final production build passed after the last code changes. Final evidence: storage/app/workspace-reference-admin-final.log and workspace-reference-admin-final/results.json, plus workspace-reference-messaging.log. The 45-check cross-role results remain in workspace-reference-check/results.json.
+
+## Rider coverage form - 2026-11-11
+
+Grouped center/rider controls into two columns and destination controls into three columns on large screens, with a single mobile column. Removed empty feedback reservations, associated actual errors with their controls, and added a separate responsive save footer with a processing label. Existing selections, dependent resets, confirmation and submission behavior are preserved.
+
+Validation: targeted ESLint and production build passed. LogisticsWorkspaceTest passed (43 tests, 715 assertions). Repository TypeScript check failed on four unresolved RecordDisclosure references in resources/views/pages/marketplace/orders.tsx (lines 164, 190, 312, 355), outside this change. Browser checks were not performed; mobile, light/dark, zoom, keyboard, screen reader and visual stability during validation remain unverified. Automated checks do not establish WCAG compliance.
+
+## Parcel scan workspace - 2026-11-11
+
+Restyled the camera entry as a lavender inset panel, tightened tracking lookup spacing by removing unused field feedback reservations, and centered the initial/no-match result state in a quiet dashed surface. Existing camera capture, manual reason, exact-reference lookup, parcel operations and permissions are preserved. Layout stacks on small screens and uses a one-to-two column split on large screens.
+
+Validation: targeted ESLint, TypeScript and production build passed; scan-focused LogisticsWorkspaceTest cases passed (3 tests, 79 assertions). The initial build encountered a temporarily incomplete orders.tsx during concurrent workspace edits; the subsequent build passed without modifying that file. Browser visual, camera hardware, light/dark, mobile, zoom, keyboard and screen reader verification remain unperformed. Automated checks do not establish WCAG compliance.
+
+## Workspace search shortcut removal - 2026-11-11
+
+Removed the shared Logistics/Rider/Seller header search icon and its dialog, including unused search state/imports. Page-level search forms and existing routes remain available. Notifications, messages and account menu remain in the header. Browser visual and keyboard verification were not performed.
+Validation for shortcut removal: targeted ESLint, TypeScript, production build and scan workspace regression checks passed (3 tests, 79 assertions).
+
+## Resumed fulfillment complaint controls â€” 2026-11-11
+
+Connected the existing structured fulfillment-concern backend to the web and Flutter complaint composers and conversation details. Reused shared Select/Field and native form patterns. Categories are optional, require an authorized parcel when selected, and clear when the conversation changes back to a message. Reports remain allegations for human review and create no financial penalty or custody change.
+
+TypeScript, targeted ESLint/Prettier and production build passed. Finance/fulfillment regression tests passed (34 tests, 609 assertions); the isolated complete Laravel suite passed (1,201 tests, 9,750 assertions, three existing skips). Messaging browser checks exercised category selection/clearing and parcel requirements across all five roles; Admin creation required a focused successful rerun after an HTTP 409 in the combined run. Finance and notification browser scenarios passed. The workspace harness now waits for scroll/layout before computing pointer coordinates; the final focused Admin run passed 12 checks including account-panel focus handoff/restoration. Earlier combined role results and all evidence paths are in documentation/RESUMED_WORK_2026_11_11.md.
+
+Real mobile devices, screen readers, measured contrast and actual browser zoom remain unverified. Automated checks do not establish WCAG compliance. Existing working-tree work was preserved; no commit, push, database migration or deployment was performed.
+
+## Compact parcel and order management menus - 2026-11-11
+
+Applied reusable RecordHeader and RecordDisclosure components to Logistics parcel summaries, shared delivery cards, Buyer/Seller/Admin order cards, and return-history headers. Compact parcel cards retain tracking identifiers, destination, rider and next-step information. Secondary history, conversation, proof, waybill and return links use the existing ActionDropdown where applicable. Order details remain available through a visible disclosure and the title/menu. Pickup, scanning, delivery, COD, seller preparation and other primary operational controls remain visible. Existing role/status conditions, routes, authenticated downloads, financial formulas and confirmation workflows are preserved. Menus close before dialogs or disclosures open; closing restores focus to the originating control.
+
+Changed source: shared/record-header.tsx (new), shared/action-dropdown.tsx, logistics/parcel-next-step.tsx, pages/logistics/parcels.tsx, pages/marketplace/deliveries.tsx, pages/marketplace/orders.tsx and pages/finance/returns.tsx, under resources/views/components or resources/views as appropriate. Browser coverage adds tests/Frontend/record-menu-check.cjs and extends dashboard-browser-check.cjs, logistics-operations-browser-check.cjs and seller-workspace-browser-check.cjs.
+
+Validation passed: TypeScript, targeted ESLint without autofix, targeted Prettier and production build; 117 relevant Laravel tests with 1,939 assertions; 12 focused browser checks across Logistics, Rider, Buyer, Seller and Admin. Browser checks cover compact presentation, menu role/status visibility, disclosure and dialog focus, keyboard closing, viewport bounds, light/dark themes, desktop/tablet/320px/landscape reflow and absence of mutations when viewing records. Evidence: storage/app/record-menu-{orders,rider,logistics}/, matching browser logs, storage/app/record-menu-laravel.log and storage/app/record-menu-build.log. Initial harness failures from animation timing and incomplete CDP native Enter input were corrected before final successful runs.
+
+Limitations: full legacy scanner/operations/Seller browser suites were not rerun end-to-end. Return headers/history were code-inspected and Laravel return workflows passed, but a return-record browser fixture was not exercised. Actual proof downloads, physical waybill printing/scanning, real touch devices, screen readers, measured contrast and true 200%/400% browser zoom remain unverified. Automated results do not establish WCAG compliance. No backend, database, dependency, authorization or status-transition changes, commits, pushes or deployments were performed for this batch.
+
+## Grouped rider coverage - 2026-11-11
+
+- Grouped assigned areas into one card per rider with individual area status and available barangay/city/province names; legacy areas retain their existing area label when detailed names are unavailable.
+- Added server-side rider/location search, center filter when multiple centers exist, clear filters, counts and a distinct no-match state. Search selects matching riders and displays their complete coverage. Pagination now selects 20 riders, then fetches all their areas so cards are never split across pages.
+- Retained company, eligible-rider, operational-center and matching-center restrictions. Added regressions covering foreign-center filtering, location search with full rider coverage, zero matches and more than 20 assignments on a single rider.
+- Dependent location controls show loading states and stay disabled until their parent is selected. Confirmation names the actual rider, center and full destination. Submission is unavailable until rider/destination selection is complete.
+- Targeted ESLint, TypeScript, Pint and production build passed. Coverage-specific tests: 5 passed, 113 assertions.
+- Browser visual/manual verification was not performed. Light/dark, 320px/mobile, zoom, keyboard, screen reader, confirmation presentation and live location network behavior remain unverified. Automated checks do not establish WCAG compliance.
+Final regression validation: complete LogisticsWorkspaceTest passed (45 tests, 787 assertions).
+
+## Marketplace redesign and responsive layout — 2026-11-14
+
+See [the implementation and validation report](MARKETPLACE_REDESIGN_2026_11_14.md)
+for the modified-file inventory, read-only product provenance review, shared layout
+findings, responsive behavior, regression results and remaining manual checks.
+Confirmed local sample listings are excluded through the shared shopper scope;
+records remain intact and Sentient Magazine remains eligible. Public navigation,
+catalog filtering and product cards use the existing brand and application flows.
+
+## Homepage reference restored â€” 2026-11-14
+
+The user requires the previous homepage design and navbar to remain the visual
+reference. The original category artwork, featured-product presentation and navbar
+have been restored; Marketplace and other public Page views reuse the same header.
+See [restoration and validation details](HOME_DESIGN_RESTORATION_2026_11_14.md).
+
+## Stable form feedback — 2026-11-14
+
+Login now uses the existing reserved field feedback by default. Shared reserved
+feedback slots retain 40px (two lines at 20px line height) whether empty or showing
+an error; this covers authentication, registration and shared Field/Select/Textarea
+consumers. Password recovery code fields also reserve feedback space. Longer
+messages wrap and can expand rather than being clipped. Filter controls that
+explicitly opt out retain their compact layout. Validation and request behavior
+remain unchanged.
+
+Validation: targeted ESLint, TypeScript, formatting, production build and all 37
+registration frontend tests passed. Auth Laravel suite: 708 passed, 3 skipped,
+3 failures in BuyerOnboardingTest expecting /shop to redirect instead of returning
+200; those assertions concern backend access behavior outside this change.
+Browser regression adds position checks for showing and clearing login errors.
+Manual screen reader, zoom and full WCAG verification remain outstanding.
+Focused browser rerun confirmed stable login field/button positions when errors
+appear and clear, plus keyboard focus and unsaved-registration behavior. Earlier
+full runs encountered a missing Vite manifest during concurrent workspace/build
+changes; therefore full viewport verification of the final build remains limited.
+
+## Login notification feedback — 2026-11-14
+
+Supersedes reserved inline feedback for login, following the user's compact-form
+preference. Login submits consolidate validation messages into one floating alert
+inside the account dialog. It has no automatic timeout; users dismiss it or replace
+it on another submit. Invalid controls retain aria-invalid and visually hidden,
+associated field descriptions. Blur no longer creates login errors. Registration
+keeps inline feedback. Connection and Google errors use the same notification slot.
+
+Validation: targeted ESLint, TypeScript, production build, 37 frontend registration
+tests and 5 authentication feature tests passed. Focused headless browser regression
+passed: one alert after failed submission, unchanged control/button positions,
+persistence beyond 11 seconds and explicit dismissal. Full manual screen reader,
+zoom, theme and mobile visual verification remain outstanding.
+
+## Sign-up Continue width — 2026-11-14
+
+The role-selection Continue link now spans the same container width as the account
+options, preserving its existing height, branding and navigation. Targeted ESLint,
+TypeScript, CSS formatting, production build and authentication checks were run.
+Manual browser/mobile visual verification was not performed for this small change.
+
+## Registration feedback and leave confirmation — 2026-11-14
+
+Registration fields now route feedback through one persistent dismissible notification
+inside the account dialog. Field errors retain visually hidden associated text and
+invalid styling; empty feedback slots are removed in this scope, including role,
+address and upload feedback. Other form consumers retain their existing behavior.
+The notification wraps and scrolls for long validation lists.
+
+Closing dirty registration or following an in-app link now opens a themed Radix
+confirmation with Keep editing and Leave registration actions. Keep editing receives
+initial focus and restores the previous trigger on dismissal. Browser reload/tab
+close protection still uses beforeunload: browser-owned prompts cannot be themed.
+
+Validation: targeted ESLint, TypeScript, formatting, production build, all 37
+registration frontend tests and 5 authentication feature tests passed. Focused
+browser confirmation/feedback checks are recorded below. Full screen reader,
+zoom and visual theme/mobile review remain outstanding.
+Focused headless browser check passed: one error notification persisted beyond
+11 seconds, explicit dismissal worked, themed close cancellation retained entered
+values, and confirmed role navigation succeeded.
+
+## Registration footer Back removed — 2026-11-14
+
+Removed the Back button and unused callback from the registration footer at the
+user's request. Step navigation remains available through the existing progress
+controls. Targeted ESLint, TypeScript, production build, 37 frontend registration
+tests and 5 authentication tests passed. Manual visual verification was not run.
+
+## Auth notification top placement — 2026-11-14
+
+Moved sign-in and registration notifications from the bottom to the top of the
+account modal. Notifications remain outside form flow, single, persistent and
+explicitly dismissible. Both variants cap long messages at 40dvh with scrolling.
+Targeted ESLint, TypeScript, production build and 5 authentication tests passed.
+Manual mobile/theme/zoom visual review remains outstanding.
+
+## Shared authentication notification behavior — 2026-11-14
+
+Supersedes the previous sign-in/sign-up-only scope. AccountAccessLayout now provides
+one shared top notification host for every auth/onboarding form. AuthFeedback and
+InputError both route through it, including forgot password, password reset,
+recovery code/resend, email verification/resend/change email, password confirmation,
+role selection, rider activation and onboarding field/upload feedback. Sign-in now
+uses the same host. Error and success tones are retained; errors take precedence
+when both are active. Messages persist until dismissed and never reserve field
+rows. Field-associated hidden descriptions and invalid styling remain intact.
+Recovery and confirmation forms use server validation instead of native browser
+validation bubbles. Common auth request failure handling also uses this host.
+
+Validation: targeted ESLint, TypeScript, formatting, production build, 37 registration
+frontend tests and 27 auth/password/email feature tests passed. Initial recovery
+browser run encountered a missing Vite manifest during concurrent build activity;
+final focused recovery result is recorded below. Full manual screen reader,
+zoom and theme/mobile review remains outstanding.
+Final browser recovery verification remains incomplete: forgot-password and code
+error notifications were exercised, but later runs were interrupted by missing
+manifest/assets during concurrent builds. No full browser pass is claimed for
+this batch. Final production assets were rebuilt after the checks.
+
+## Hero, modal motion and workspace refresh - 2026-11-14
+
+Added the Filipino shopping headline, supporting copy and shopping action. Mobile
+hero stacks copy and artwork with readable body text and wrapping actions.
+Artwork floats only when reduced motion is off. The inert auth backdrop now
+retains homepage animation behind its modal.
+
+Workspace polling no longer postpones updates solely because a dialog is open.
+Order cards retain their identity across status changes to preserve expanded
+panels and drafts. Fulfillment derives its next status from current props.
+Finance overview and logistics settlements now participate in partial reloads.
+Existing polling cadence, authorization, offline and backoff behavior remain.
+
+Validation: 36 feature tests passed (473 assertions) for homepage products,
+workspace status and marketplace flows. Chrome checks passed on home and login
+at 320, 360, 768, 844 and 1440px in light/dark themes: no horizontal overflow,
+stacked mobile artwork, motion behind modal and reduced-motion support.
+Screenshots/results: storage/app/home-reference-match-check. The older home
+browser harness stops at its obsolete home-hero-search selector; no full pass
+is claimed. Two-session order/modal behavior, screen reader, keyboard and
+200%/400% zoom review remain outstanding. Full website responsiveness and WCAG
+compliance are not established. Build warns about the category atlas runtime
+URL; this asset exists and loaded in browser checks.
+## Hero English copy and visual elements - 2026-11-14
+
+Supersedes the Filipino copy above: restored Shop Smarter with LubosMart and
+Shop Now, with English supporting text. Added two floating shopping badges,
+sparkles and a dotted orbit around the existing illustration. No fabricated
+metrics or promotions. New motion follows prefers-reduced-motion; modal backdrop
+animation and existing responsive stacking remain. ESLint, TypeScript, production
+build and 8 homepage feature tests (89 assertions) passed. Full keyboard, screen
+reader and zoom verification remains outstanding.
+Focused Chrome verification also passed on home/login in both themes at 320,
+360, 768, 844 and 1440px, including motion and reduced-motion checks.

@@ -1,0 +1,177 @@
+.shopping-bag-content {
+    display: grid;
+    min-width: 0;
+    gap: 24px;
+    padding-block: 24px;
+}
+.shopping-bag-layout {
+    display: grid;
+    min-width: 0;
+    align-items: start;
+    gap: 16px;
+}
+.shopping-bag-main {
+    min-width: 0;
+    container-type: inline-size;
+}
+.shopping-bag-panel {
+    padding: 16px;
+    border-color: var(--border);
+    box-shadow: 0 4px 20px color-mix(in srgb, var(--primary) 5%, transparent);
+}
+.shopping-bag-section-heading {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 16px;
+    margin-bottom: 16px;
+}
+.shopping-bag-section-heading h2 {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    gap: 8px;
+    font-size: 18px;
+    font-weight: 600;
+}
+.shopping-bag-section-heading h2 svg {
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+    color: var(--primary);
+}
+.shopping-bag-items {
+    display: grid;
+    gap: 12px;
+}
+.shopping-bag-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 16px;
+    padding: 16px;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--accent) 45%, var(--card));
+}
+.shopping-bag-product {
+    display: flex;
+    grid-column: 1 / -1;
+    align-items: center;
+    gap: 16px;
+    min-width: 0;
+}
+.shopping-bag-photo {
+    position: relative;
+    display: flex;
+    width: 80px;
+    height: 96px;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    border-radius: 8px;
+    background: var(--card);
+}
+.shopping-bag-photo img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+.shopping-bag-photo img[hidden] {
+    display: none;
+}
+.shopping-bag-quantity {
+    grid-column: 1;
+    grid-row: 2;
+}
+.shopping-bag-quantity button:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: -3px;
+}
+.shopping-bag-line-total {
+    grid-column: 1;
+    grid-row: 3;
+    justify-self: start;
+    overflow-wrap: anywhere;
+}
+.shopping-bag-remove {
+    grid-column: 2;
+    grid-row: 2 / span 2;
+}
+.shopping-bag-address:focus-within {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+}
+.shopping-bag-voucher {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 12px;
+}
+.shopping-bag-voucher > div:first-child {
+    min-width: 0;
+}
+.shopping-bag-voucher-actions {
+    padding-top: 28px;
+}
+.shopping-bag-voucher > p,
+.shopping-bag-voucher-remove {
+    grid-column: 1 / -1;
+}
+.shopping-bag-totals {
+    margin-block: 20px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+}
+.shopping-bag-provider-note {
+    display: flex;
+    align-items: start;
+    gap: 8px;
+    padding: 12px;
+    border: 1px solid color-mix(in srgb, var(--warning) 40%, transparent);
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--warning) 8%, var(--card));
+    color: var(--warning);
+    overflow-wrap: anywhere;
+}
+.shopping-bag-checkout {
+    background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 80%, var(--card)), var(--primary));
+}
+@container (min-width: 640px) {
+    .shopping-bag-item {
+        grid-template-columns: minmax(0, 1fr) auto auto auto;
+    }
+    .shopping-bag-product,
+    .shopping-bag-quantity,
+    .shopping-bag-line-total,
+    .shopping-bag-remove {
+        grid-column: auto;
+        grid-row: auto;
+    }
+    .shopping-bag-line-total {
+        justify-self: end;
+    }
+    .shopping-bag-photo {
+        width: 96px;
+        height: 112px;
+    }
+}
+@container (min-width: 980px) {
+    .shopping-bag-layout {
+        grid-template-columns: minmax(0, 2fr) minmax(340px, 1fr);
+    }
+    .shopping-bag-summary {
+        position: sticky;
+        top: 96px;
+    }
+}
+@media (max-width: 379px) {
+    .shopping-bag-voucher {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .shopping-bag-voucher-actions {
+        padding-top: 0;
+    }
+}

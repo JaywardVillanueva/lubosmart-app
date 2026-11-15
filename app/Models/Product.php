@@ -42,6 +42,8 @@ class Product extends Model
     public function scopeAvailableToShoppers(Builder $query): Builder
     {
         return $query->where('status', 'active')
+            // Exact provenance marker written by CreateTestAccounts, not a name heuristic.
+            ->where(fn ($q) => $q->whereNull('description')->orWhere('description', '!=', 'Synthetic sample listing for local workflow testing.'))
             ->whereNull('blocked_at')
             ->whereHas('store', fn ($q) => $q->where('status', 'approved')->whereHas('user', fn ($user) => $user->where('role', 'seller')->where('status', 'approved')->whereNotNull('email_verified_at'))
                 ->where(fn ($store) => $store->whereNull('business_category_id')->orWhere('business_category_id', Category::query()->selectRaw('COALESCE(parent_id, id)')->whereColumn('categories.id', 'products.category_id')->limit(1))))

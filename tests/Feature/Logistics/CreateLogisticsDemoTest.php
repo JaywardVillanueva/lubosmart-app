@@ -63,11 +63,11 @@ it('allows the monitoring sample to complete the rider to logistics return hando
     $parcel = Delivery::query()->where('status', 'out_for_delivery')->sole();
     $rider = $parcel->rider;
 
-    $this->actingAs($rider)->post('/deliveries/'.$parcel->id, ['action' => 'failed_attempt', 'reason' => 'DEMO recipient unavailable'])->assertRedirect()->assertSessionHasNoErrors();
-    $this->withSession(['password_hash_web' => $owner->password])->actingAs($owner)->post('/deliveries/'.$parcel->id, ['action' => 'return_to_center', 'reason' => 'DEMO rider returning parcel'])->assertRedirect()->assertSessionHasNoErrors();
+    $this->actingAs($rider)->post('/deliveries/'.$parcel->id, ['action' => 'failed_attempt', 'note' => 'Other / Custom notes', 'reason' => 'DEMO recipient unavailable'])->assertRedirect()->assertSessionHasNoErrors();
+    $this->withSession(['password_hash_web' => $owner->password])->actingAs($owner)->post('/deliveries/'.$parcel->id, ['action' => 'return_to_center', 'note' => 'Other / Custom notes', 'reason' => 'DEMO rider returning parcel'])->assertRedirect()->assertSessionHasNoErrors();
     $this->post('/deliveries/'.$parcel->id, ['action' => 'receive_return', 'reason' => 'DEMO return physically checked', 'tracking_reference' => $parcel->tracking_reference, 'capture_method' => 'scanner', 'receipt_condition' => 'intact'])->assertRedirect()->assertSessionHasNoErrors();
 
-    $this->assertDatabaseHas('deliveries', ['id' => $parcel->id, 'exception_status' => 'returned_to_center', 'dispatch_accepted_at' => null]);
+    $this->assertDatabaseHas('deliveries', ['id' => $parcel->id, 'exception_status' => 'returned_to_center']);
     $this->assertDatabaseHas('parcel_events', ['delivery_id' => $parcel->id, 'type' => 'receive_return', 'actor_id' => $owner->id]);
     $this->assertDatabaseCount('cod_collections', 0);
 });

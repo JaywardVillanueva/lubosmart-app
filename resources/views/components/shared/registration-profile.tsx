@@ -1,17 +1,42 @@
+import { AccountHistory } from '@/components/shared/account-history';
 import { Badge, roleLabel } from '@/components/shared/marketplace-ui';
 import { useInitials } from '@/hooks/use-initials';
+import type Account from '@/pages/admin/account';
 import type Review from '@/pages/management/registrations/show';
+import { BriefcaseBusiness, ClipboardCheck, Clock3, Database, Files, History, UserRound } from 'lucide-react';
 import { useState, type ComponentProps } from 'react';
 
-export function RegistrationProfile({ details }: { details: ComponentProps<typeof Review> }) {
+export function RegistrationProfile({
+    details,
+    accountDetails,
+    initialSection = 'Personal information',
+}: {
+    details: ComponentProps<typeof Review>;
+    accountDetails?: ComponentProps<typeof Account>;
+    initialSection?: string;
+}) {
+    const sectionIcons = {
+        'Personal information': UserRound,
+        'Role details': BriefcaseBusiness,
+        'Supporting documents': Files,
+        'Registration timeline': Clock3,
+        'Saved account information': Database,
+        'Activity history': History,
+    };
+    const formatDate = (value?: string) => {
+        if (!value) return undefined;
+        const date = new Date(value.length === 10 ? value + 'T00:00:00' : value);
+        return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
+    };
     const { application, applicant, profile, address, store, rider, documents, reviewer } = details;
     const getInitials = useInitials();
-    const [section, setSection] = useState('Personal information');
+    const [section, setSection] = useState(initialSection);
     const sections = [
         'Personal information',
         ...(application.requested_role === 'buyer' ? [] : ['Role details']),
         'Supporting documents',
         'Registration timeline',
+        ...(accountDetails ? ['Saved account information', 'Activity history'] : []),
     ];
     const personal = [
         ['Full name', applicant.name],
@@ -23,7 +48,7 @@ export function RegistrationProfile({ details }: { details: ComponentProps<typeo
         ['Email verified', applicant.email_verified_at ? 'Yes' : 'No'],
         ...(['buyer', 'rider'].includes(application.requested_role) || profile?.birthday
             ? [
-                  ['Birthday', profile?.birthday],
+                  ['Birthday', formatDate(profile?.birthday)],
                   ['Age', profile?.age],
               ]
             : []),
@@ -73,57 +98,136 @@ export function RegistrationProfile({ details }: { details: ComponentProps<typeo
         { label: 'Reviewed' + (reviewer ? ' by ' + reviewer.name : ''), date: application.reviewed_at },
     ];
     return (
-        <div className="space-y-5 p-5 sm:p-6">
-            <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="space-y-6 p-4 sm:p-6">
+            <div className="flex flex-wrap items-center justify-between gap-4 border-b pb-5">
                 <div className="flex min-w-0 items-center gap-3">
-                    <span className="bg-accent text-primary flex size-12 shrink-0 items-center justify-center rounded-full font-semibold">
-                        {getInitials(applicant.name)}
+                    <span
+                        aria-hidden="true"
+                        className="bg-accent text-primary flex size-12 shrink-0 items-center justify-center rounded-full font-semibold"
+                    >
+                        {getInitials(accountDetails?.account.name ?? applicant.name)}
                     </span>
                     <div className="min-w-0">
-                        <h2 className="text-xl font-semibold break-words">{applicant.name}</h2>
-                        <p className="text-muted-foreground mt-1 text-sm">{roleLabel(application.requested_role)} account</p>
+                        <h2 className="text-xl font-semibold [overflow-wrap:anywhere]">{accountDetails?.account.name ?? applicant.name}</h2>
+                        <p className="text-muted-foreground mt-1 text-sm">
+                            {roleLabel(accountDetails ? accountDetails.account.role : application.requested_role)} account
+                        </p>
+                        {accountDetails?.account.created_at && (
+                            <p className="text-muted-foreground mt-1 text-xs">Registered {formatDate(accountDetails.account.created_at)}</p>
+                        )}
+                        <div className="mt-2 flex items-start gap-2">
+                            <ClipboardCheck aria-hidden="true" className="text-primary mt-0.5 size-4 shrink-0" />
+                            <div className="min-w-0">
+                                <p className="text-muted-foreground text-xs leading-relaxed">
+                                    Registration:{' '}
+                                    <span className="text-foreground font-medium">
+                                        {application.status === 'approved'
+                                            ? 'Approved'
+                                            : application.status === 'rejected'
+                                              ? 'Changes requested'
+                                              : application.status === 'submitted'
+                                                ? 'Awaiting review'
+                                                : 'Not yet submitted'}
+                                    </span>
+                                </p>
+                                {application.rejection_reason && (
+                                    <p className="mt-2 text-sm [overflow-wrap:anywhere]">{application.rejection_reason}</p>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <Badge
-                    status={application.status}
-                    label={application.status === 'submitted' ? 'Awaiting review' : application.status === 'draft' ? 'Not yet submitted' : undefined}
+                    status={accountDetails?.account.status ?? application.status}
+                    label={
+                        !accountDetails && application.status === 'submitted'
+                            ? 'Awaiting review'
+                            : !accountDetails && application.status === 'draft'
+                              ? 'Not yet submitted'
+                              : undefined
+                    }
                 />
             </div>
-            <div className="bg-accent/40 rounded-xl border p-4">
-                <h3 className="text-sm font-semibold">Registration status</h3>
-                <p className="text-muted-foreground mt-2 text-sm">
-                    {application.status === 'approved'
-                        ? 'Registration reviewed and approved.'
-                        : application.status === 'rejected'
-                          ? 'Changes requested before approval.'
-                          : application.status === 'submitted'
-                            ? 'Submitted information and documents are awaiting review.'
-                            : 'The applicant has not submitted this registration yet.'}
-                </p>
-                {application.rejection_reason && <p className="mt-2 text-sm break-words">{application.rejection_reason}</p>}
-            </div>
-            <div className="grid gap-4 md:grid-cols-[180px_minmax(0,1fr)]">
-                <nav aria-label="Registration details sections" className="flex flex-wrap gap-2 md:flex-col">
-                    {sections.map((label) => (
-                        <button
-                            key={label}
-                            type="button"
-                            aria-pressed={section === label}
-                            onClick={() => setSection(label)}
-                            className={`focus-visible:ring-ring min-h-11 rounded-xl px-3 py-3 text-left text-xs font-medium focus-visible:ring-2 focus-visible:outline-none ${section === label ? 'bg-accent text-primary' : 'text-muted-foreground hover:bg-muted'}`}
-                        >
-                            {label}
-                        </button>
-                    ))}
+            <div className="grid items-start gap-4 md:grid-cols-[200px_minmax(0,1fr)]">
+                <nav
+                    aria-label="Registration details sections"
+                    className="bg-muted/40 flex min-w-0 gap-1 overflow-x-auto rounded-2xl p-2 md:sticky md:top-0 md:flex-col"
+                >
+                    {sections.map((label) => {
+                        const Icon = sectionIcons[label as keyof typeof sectionIcons];
+                        return (
+                            <button
+                                key={label}
+                                type="button"
+                                aria-pressed={section === label}
+                                onClick={() => setSection(label)}
+                                className={`focus-visible:ring-ring flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-3 py-3 text-left text-sm font-medium focus-visible:ring-2 focus-visible:outline-none ${section === label ? 'bg-background text-primary shadow-sm' : 'text-muted-foreground hover:bg-background/70 hover:text-foreground'}`}
+                            >
+                                <Icon aria-hidden="true" className="size-4 shrink-0" />
+                                <span>{label === 'Saved account information' ? 'Saved account' : label}</span>
+                            </button>
+                        );
+                    })}
                 </nav>
-                <section aria-label={section} className="min-w-0 rounded-xl border p-4 sm:p-5">
-                    <h3 className="font-semibold">{section}</h3>
+                <section aria-label={section} className="bg-card min-w-0 rounded-2xl border p-4 sm:p-5">
+                    <h3 className="border-b pb-4 text-lg font-semibold">{section}</h3>
                     {['Personal information', 'Role details'].includes(section) && (
-                        <dl className="mt-4 grid gap-4 sm:grid-cols-2">
+                        <dl className="mt-4 grid gap-x-6 gap-y-5 sm:grid-cols-2">
                             {(section === 'Personal information' ? personal : roleDetails).map(([label, value]) => (
+                                <div key={label} className={label === 'Address' ? 'min-w-0 sm:col-span-2' : 'min-w-0'}>
+                                    <dt className="text-muted-foreground text-xs sm:text-sm">{label}</dt>
+                                    <dd className="mt-2 text-sm leading-relaxed font-medium [overflow-wrap:anywhere] whitespace-pre-wrap sm:text-base">
+                                        {value === '' || value == null ? 'Not provided' : value}
+                                    </dd>
+                                </div>
+                            ))}
+                        </dl>
+                    )}
+                    {section === 'Activity history' && accountDetails && <AccountHistory history={accountDetails.history} />}
+                    {section === 'Saved account information' && accountDetails && (
+                        <dl className="mt-4 grid gap-4 sm:grid-cols-2">
+                            {[
+                                ['Name', accountDetails.account.name],
+                                ['Email', accountDetails.account.email],
+                                ['Phone', accountDetails.account.phone],
+                                ['Account role', roleLabel(accountDetails.account.role)],
+                                ['Email verified', accountDetails.account.email_verified_at ? 'Yes' : 'No'],
+                                ...(accountDetails.account.role === 'seller'
+                                    ? [
+                                          ['Store', accountDetails.store?.name],
+                                          ['Store status', accountDetails.store?.status],
+                                      ]
+                                    : []),
+                                ...(accountDetails.account.role === 'rider'
+                                    ? [
+                                          ['Assigned logistics center', accountDetails.assignedCenter],
+                                          ['Vehicle', accountDetails.rider?.vehicle_type],
+                                          ['Plate number', accountDetails.rider?.plate_number],
+                                      ]
+                                    : []),
+                                ...(accountDetails.account.role === 'logistics'
+                                    ? [['Logistics companies', accountDetails.centers?.map((center) => center.name).join(', ')]]
+                                    : []),
+                                [
+                                    'Address',
+                                    accountDetails.address
+                                        ? [
+                                              accountDetails.address.line1,
+                                              accountDetails.address.barangay,
+                                              accountDetails.address.city,
+                                              accountDetails.address.province,
+                                              accountDetails.address.zip,
+                                          ]
+                                              .filter(Boolean)
+                                              .join(', ')
+                                        : null,
+                                ],
+                            ].map(([label, value]) => (
                                 <div key={label}>
                                     <dt className="text-muted-foreground text-xs">{label}</dt>
-                                    <dd className="mt-1 text-sm font-medium break-words whitespace-pre-wrap">{value || 'Not provided'}</dd>
+                                    <dd className="mt-2 text-sm leading-relaxed font-medium [overflow-wrap:anywhere] sm:text-base">
+                                        {value || 'Not provided'}
+                                    </dd>
                                 </div>
                             ))}
                         </dl>

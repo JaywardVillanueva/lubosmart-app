@@ -6,6 +6,7 @@ use App\Models\SellerOrder;
 use App\Models\SellerPayout;
 use App\Models\Store;
 use App\Services\Admin\AuditLogger;
+use App\Services\ParcelFinance;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -19,22 +20,23 @@ class SellerSettlementController extends Controller
         $user = $request->user();
         $query = SellerOrder::query()->where('status', 'completed')
             ->when($user->role === 'seller', fn ($q) => $q->where('store_id', $user->store?->id))
-            ->with(['store:id,name', 'payout', 'parcelReturn', 'delivery:id,seller_order_id,status']);
+            ->with(['store:id,name', 'payout', 'parcelReturn', 'logisticsRemittance', 'delivery:id,seller_order_id,status,logistics_center_id']);
         $parcels = $query->latest('id')->paginate(15);
         $storeIds = $parcels->getCollection()->pluck('store_id')->unique();
-        $earned = SellerOrder::query()->whereIn('store_id', $storeIds)->where('status', 'completed')->selectRaw('store_id, SUM(seller_proceeds) as total')->groupBy('store_id')->pluck('total', 'store_id');
+        $earned = ParcelFinance::fundedParcels(SellerOrder::query()->whereIn('store_id', $storeIds))
+            ->whereDoesntHave('parcelReturn', fn ($q) => $q->whereNotIn('status', ['rejected', 'refunded', 'closed']))
+            ->selectRaw('store_id, SUM(seller_proceeds) as total')->groupBy('store_id')->pluck('total', 'store_id');
         $paid = SellerPayout::query()->join('seller_orders', 'seller_orders.id', '=', 'seller_payouts.seller_order_id')->whereIn('seller_orders.store_id', $storeIds)->selectRaw('seller_orders.store_id, SUM(amount_cents) as total')->groupBy('seller_orders.store_id')->pluck('total', 'store_id');
         $debits = DB::table('parcel_returns')->join('seller_orders', 'seller_orders.id', '=', 'parcel_returns.seller_order_id')->whereIn('seller_orders.store_id', $storeIds)->selectRaw('seller_orders.store_id, SUM(seller_debit_cents) as total')->groupBy('seller_orders.store_id')->pluck('total', 'store_id');
         $collections = DB::table('cod_collections')->whereIn('delivery_id', $parcels->getCollection()->pluck('delivery.id'))->get()->keyBy('delivery_id');
         $parcels->through(function ($parcel) use ($collections, $earned, $paid, $debits) {
             $cash = $collections->get($parcel->delivery?->id);
-            $expected = (int) round(((float) $parcel->subtotal + (float) $parcel->shipping_fee) * 100);
-            $reconciled = $cash && $cash->status === 'reconciled' && (int) round((float) $cash->amount * 100) === $expected && $cash->received_amount !== null && (int) round((float) $cash->received_amount * 100) === $expected;
+            $reconciled = ParcelFinance::reconciled($parcel, $cash) && ParcelFinance::funded($parcel);
             $held = $parcel->parcelReturn && ! in_array($parcel->parcelReturn->status, ['rejected', 'refunded', 'closed'], true);
             $amount = max(0, (int) round((float) $parcel->seller_proceeds * 100) - ($parcel->parcelReturn?->seller_debit_cents ?? 0));
             $available = (int) round((float) $earned->get($parcel->store_id, 0) * 100) - (int) $paid->get($parcel->store_id, 0) - (int) $debits->get($parcel->store_id, 0);
 
-            return ['id' => $parcel->id, 'store' => $parcel->store->name, 'amount_cents' => $amount, 'payout' => $parcel->payout, 'can_pay' => $reconciled && ! $held && ! $parcel->payout && $amount > 0 && $available >= $amount, 'hold_reason' => ! $reconciled ? 'Awaiting full COD reconciliation' : ($held ? 'Return/refund under review' : ($amount === 0 ? 'No seller balance due' : ($available < $amount ? 'Store balance reserved against earlier payouts/refunds' : null)))];
+            return ['id' => $parcel->id, 'store' => $parcel->store->name, 'amount_cents' => $amount, 'payout' => $parcel->payout, 'can_pay' => $reconciled && ! $held && ! $parcel->payout && $amount > 0 && $available >= $amount, 'hold_reason' => ! $reconciled ? 'Awaiting full COD reconciliation and platform product-cash receipt' : ($held ? 'Return/refund under review' : ($amount === 0 ? 'No seller balance due' : ($available < $amount ? 'Store balance reserved against earlier payouts/refunds' : null)))];
         });
 
         return Inertia::render('finance/settlements', ['role' => $user->role, 'parcels' => $parcels]);
@@ -52,11 +54,11 @@ class SellerSettlementController extends Controller
                 $return = $parcel->parcelReturn()->lockForUpdate()->first();
                 abort_if($return && ! in_array($return->status, ['rejected', 'refunded', 'closed'], true), 409, 'Resolve the return before paying the seller.');
                 $cash = DB::table('cod_collections')->where('delivery_id', $parcel->delivery->id)->lockForUpdate()->first();
-                $expected = (int) round(((float) $parcel->subtotal + (float) $parcel->shipping_fee) * 100);
-                abort_unless($cash && $cash->status === 'reconciled' && $cash->received_amount !== null && (int) round((float) $cash->amount * 100) === $expected && (int) round((float) $cash->received_amount * 100) === $expected, 409, 'Full COD receipt and reconciliation are required.');
+                abort_unless(ParcelFinance::reconciled($parcel, $cash) && ParcelFinance::funded($parcel), 409, 'Full COD reconciliation and actual product-cash remittance to the platform are required.');
                 $amount = (int) round((float) $parcel->seller_proceeds * 100) - ($return?->seller_debit_cents ?? 0);
                 $storeParcels = SellerOrder::query()->where('store_id', $parcel->store_id)->where('status', 'completed');
-                $earned = (int) round((float) (clone $storeParcels)->sum('seller_proceeds') * 100);
+                $earned = (int) round((float) ParcelFinance::fundedParcels(clone $storeParcels)
+                    ->whereDoesntHave('parcelReturn', fn ($q) => $q->whereNotIn('status', ['rejected', 'refunded', 'closed']))->sum('seller_proceeds') * 100);
                 $paid = SellerPayout::query()->whereIn('seller_order_id', (clone $storeParcels)->select('id'))->sum('amount_cents');
                 $debits = DB::table('parcel_returns')->whereIn('seller_order_id', (clone $storeParcels)->select('id'))->sum('seller_debit_cents');
                 abort_if($earned - $paid - $debits < $amount, 409, 'Earlier refunds or payouts reserve this store balance. Resolve the outstanding balance before another payout.');

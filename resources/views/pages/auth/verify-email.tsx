@@ -1,9 +1,9 @@
 import AuthFeedback from '@/components/auth/auth-feedback';
-import { buttonClass, inputClass, secondaryClass } from '@/components/shared/marketplace-ui';
+import { inputClass, secondaryClass } from '@/components/shared/marketplace-ui';
 import { useAuthRequestFeedback } from '@/hooks/use-auth-request-feedback';
-import OnboardingLayout from '@/layouts/onboarding-layout';
+import AccountAccessLayout from '@/layouts/auth/account-access-layout';
 import { useForm, usePoll } from '@inertiajs/react';
-import { LoaderCircle, Mail } from 'lucide-react';
+import { LoaderCircle } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 export default function VerifyEmail({ status, email, cooldown }: { status?: string; email: string; cooldown: number }) {
@@ -26,18 +26,18 @@ export default function VerifyEmail({ status, email, cooldown }: { status?: stri
     }, []);
 
     return (
-        <OnboardingLayout title="Verify email" step={2}>
+        <AccountAccessLayout
+            registering
+            verification
+            title="Verify your email"
+            description={
+                <>
+                    Enter the six-digit code sent to <strong className="text-foreground break-all">{email}</strong>. The code expires in five minutes.
+                    You can also use the verification link in the email.
+                </>
+            }
+        >
             <div className="space-y-6">
-                <span className="bg-accent text-primary flex size-12 items-center justify-center rounded-xl">
-                    <Mail className="size-6" aria-hidden="true" />
-                </span>
-                <div>
-                    <h1 className="text-2xl font-semibold">Verify your email</h1>
-                    <p className="text-muted-foreground mt-3 text-sm">
-                        Enter the six-digit code sent to <strong className="text-foreground break-all">{email}</strong>. The code expires in five
-                        minutes. You can also use the verification link in the email.
-                    </p>
-                </div>
                 <AuthFeedback message={requestError} />
                 <form
                     className="space-y-4"
@@ -91,21 +91,24 @@ export default function VerifyEmail({ status, email, cooldown }: { status?: stri
                         />
                     </label>
                     <AuthFeedback id="verification-code-error" message={verification.errors.code} />
-                    <button type="submit" className={`${buttonClass} w-full`} disabled={busy}>
+                    <button type="submit" className="auth-reference-primary w-full" disabled={busy}>
                         {verification.processing && <LoaderCircle className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />}
                         {verification.processing ? 'Verifying…' : 'Verify email'}
                     </button>
                 </form>
-                {status === 'verification-link-sent' && (
-                    <p role="status" className="text-primary text-sm">
-                        Your account details are saved. Check your inbox for the six-digit verification code.
-                    </p>
-                )}
+                <AuthFeedback
+                    tone="success"
+                    message={
+                        status === 'verification-link-sent'
+                            ? 'Your account details are saved. Check your inbox for the six-digit verification code.'
+                            : undefined
+                    }
+                />
                 {status === 'verification-mail-unavailable' && (
                     <AuthFeedback message="Your account is saved, but we could not send the verification email. Try resending shortly or contact support." />
                 )}
                 <button
-                    className={buttonClass}
+                    className={secondaryClass}
                     disabled={busy || remaining > 0}
                     onClick={() => {
                         if (busy || remaining > 0) return;
@@ -124,11 +127,19 @@ export default function VerifyEmail({ status, email, cooldown }: { status?: stri
                 </button>
                 <AuthFeedback message={(resend.errors as Record<string, string>).email} />
                 <div className="border-t pt-5">
-                    <button type="button" className="text-primary text-sm underline" onClick={() => setEditing(!editing)}>
+                    <button
+                        type="button"
+                        className="text-primary min-h-11 text-sm underline underline-offset-4"
+                        aria-expanded={editing}
+                        aria-controls="change-email-form"
+                        onClick={() => setEditing(!editing)}
+                    >
                         Wrong email? Change it
                     </button>
                     {editing && (
                         <form
+                            id="change-email-form"
+                            noValidate
                             className="mt-4 space-y-4"
                             onSubmit={(event) => {
                                 event.preventDefault();
@@ -185,6 +196,6 @@ export default function VerifyEmail({ status, email, cooldown }: { status?: stri
                     )}
                 </div>
             </div>
-        </OnboardingLayout>
+        </AccountAccessLayout>
     );
 }

@@ -13,6 +13,22 @@ function accountVerificationCode(User $user): string
     return Notification::sent($user, VerifyAccountEmail::class)->last()->code;
 }
 
+test('unverified accounts can return to public browsing without signing out', function (string $url) {
+    $user = User::factory()->unverified()->create(['status' => 'unverified']);
+
+    $this->actingAs($user)->get($url)->assertOk();
+
+    $this->assertAuthenticatedAs($user);
+    expect($user->fresh()->hasVerifiedEmail())->toBeFalse();
+    expect($user->fresh()->status)->toBe('unverified');
+})->with(['/', '/shop', '/platform-information']);
+
+test('unverified accounts still need verification for dashboard and protected actions', function (string $url) {
+    $user = User::factory()->unverified()->create(['status' => 'unverified']);
+
+    $this->actingAs($user)->get($url)->assertRedirect('/verify-email');
+})->with(['/dashboard', '/application', '/orders']);
+
 test('email verification screen can be rendered', function () {
     $user = User::factory()->unverified()->create();
     $this->actingAs($user)->get('/verify-email')->assertOk()->assertInertia(fn (Assert $page) => $page->component('auth/verify-email')->where('email', $user->email)->where('cooldown', 0));

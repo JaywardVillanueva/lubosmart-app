@@ -4,7 +4,7 @@ import { inputClass } from '@/components/shared/marketplace-ui';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { uploadError } from '@/lib/registration-validation';
-import { CircleCheck, Eye, FileText, X } from 'lucide-react';
+import { CircleCheck, Eye, FileText, UploadCloud, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 export type SellerDetails = {
@@ -96,25 +96,28 @@ export function Upload<K extends string>({
             <label htmlFor={`seller-${kind}`} className="min-h-5 text-sm font-medium">
                 {label}
                 {!existing && <RequiredMark />}
-                {existing ? ' (saved; choose a file to replace)' : ' (required)'}
+                {existing ? ' (saved; choose a file to replace)' : ''}
             </label>
-            <input
-                id={`seller-${kind}`}
-                ref={ref}
-                name={kind}
-                type="file"
-                accept=".jpg,.jpeg,.png,.pdf"
-                disabled={disabled}
-                required={!existing}
-                className={inputClass}
-                aria-invalid={!!fileError}
-                aria-describedby={`seller-${kind}-hint${fileError ? ` seller-${kind}-error` : ''}`}
-                onChange={(event) => set(kind, event.target.files?.[0] ?? null)}
-            />
+            <div className="focus-within:ring-ring flex min-w-0 items-center gap-2 rounded-lg border border-dashed p-2 focus-within:ring-2">
+                <UploadCloud className="text-primary ml-2 size-5 shrink-0" aria-hidden="true" />
+                <input
+                    id={`seller-${kind}`}
+                    ref={ref}
+                    name={kind}
+                    type="file"
+                    accept=".jpg,.jpeg,.png,.pdf"
+                    disabled={disabled}
+                    required={!existing}
+                    className="auth-upload-input w-full min-w-0"
+                    aria-invalid={!!fileError}
+                    aria-describedby={`seller-${kind}-hint${fileError ? ` seller-${kind}-error` : ''}`}
+                    onChange={(event) => set(kind, event.target.files?.[0] ?? null)}
+                />
+            </div>
             <p id={`seller-${kind}-hint`} className="text-muted-foreground text-xs">
                 JPG, PNG or PDF, up to 5 MB per file. Use a clear, readable document.
             </p>
-            <div className="flex h-32 min-w-0 flex-col gap-2">
+            <div className="flex min-w-0 flex-col gap-2">
                 {file && (
                     <div className="bg-muted/40 flex min-h-0 min-w-0 flex-1 items-start gap-3 overflow-y-auto rounded-xl border p-3">
                         {fileError ? (
@@ -144,10 +147,21 @@ export function Upload<K extends string>({
                 )}
                 {file && preview && !fileError && (
                     <>
-                        <Button type="button" variant="outline" className="w-fit shrink-0" onClick={() => setPreviewOpen(true)}>
-                            <Eye aria-hidden="true" />
-                            View file
-                        </Button>
+                        <div className="flex flex-wrap gap-2">
+                            <Button type="button" variant="outline" className="min-h-11 w-fit shrink-0" onClick={() => setPreviewOpen(true)}>
+                                <Eye aria-hidden="true" />
+                                View file
+                            </Button>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                className="min-h-11 w-fit"
+                                disabled={disabled}
+                                onClick={() => ref.current?.click()}
+                            >
+                                Replace file
+                            </Button>
+                        </div>
                         <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
                             <DialogContent className="max-h-[90dvh] gap-0 overflow-hidden !p-0 sm:max-w-4xl">
                                 <DialogHeader className="border-b px-6 py-5 pr-14">
@@ -314,7 +328,7 @@ export default function SellerRegistrationFields({
     );
     const options = (items: Location[]) => items.map((item) => ({ value: item.code, label: item.name }));
     return (
-        <fieldset disabled={disabled} className="grid min-w-0 items-start gap-5 sm:grid-cols-2 xl:grid-cols-3">
+        <fieldset disabled={disabled} className="grid min-w-0 items-start gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <legend className="mb-4 font-semibold">
                 {personalAddressOnly ? 'Residential address' : company ? 'Company and registration documents' : 'Shop and registration documents'}
             </legend>
@@ -331,7 +345,7 @@ export default function SellerRegistrationFields({
                 <>
                     {input('sec_number', 'SEC registration number (CS202012345)', 11, 11)}
                     {input('position', 'Contact person position', 1, 100)}
-                    <fieldset className="col-span-full grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    <fieldset className="col-span-full grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                         <legend className="mb-2 text-sm font-medium">
                             Service areas — select at least one region
                             <RequiredMark />

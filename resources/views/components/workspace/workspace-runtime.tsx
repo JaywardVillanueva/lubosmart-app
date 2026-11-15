@@ -28,6 +28,8 @@ const pageProps: Record<string, string[]> = {
     'seller/vouchers': ['vouchers'],
     'finance/returns': ['returns', 'eligible', 'riders'],
     'finance/settlements': ['parcels', 'totals', 'balances'],
+    'finance/overview': ['amounts', 'discrepancies', 'legacy_rates'],
+    'finance/logistics-settlements': ['entries', 'totals'],
     'finance/rider-payments': ['entries', 'work', 'riders', 'totals'],
     'finance/seller-costs': ['costs', 'totals'],
     'support/index': ['cases'],
@@ -78,7 +80,7 @@ export function WorkspaceRuntime({ children }: { children: ReactNode }) {
             notify(initial);
         }
         const refreshPage = () => {
-            if (visiting || document.querySelector('[role="dialog"]')) {
+            if (visiting) {
                 retryRefresh = true;
                 return;
             }

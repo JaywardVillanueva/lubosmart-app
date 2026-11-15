@@ -69,7 +69,7 @@ export default function Review({
                   })}
         >
             {!embedded && <Head title="Registration Review" />}
-            <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-4 md:p-8">
+            <div className="flex w-full min-w-0 flex-col gap-6 p-4 md:p-8">
                 {!embedded && <h1 className="text-2xl font-semibold">Registration review</h1>}
                 <RegistrationProfile
                     details={{ application, applicant, profile, address, store, rider, documents, reviewer, bankAccount, canReview }}

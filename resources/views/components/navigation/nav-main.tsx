@@ -25,21 +25,13 @@ export function NavMain({ items = [], title = 'Your workspace', admin = false }:
         return [...expected].every(([key, value]) => (key === 'kind' && conversation ? conversation.kind : actual.get(key)) === value);
     };
     return (
-        <SidebarGroup className="px-2 py-0">
-            <SidebarGroupLabel
-                className={`mb-2 px-3 text-xs font-semibold tracking-widest uppercase ${admin ? 'text-primary/80' : 'text-muted-foreground'}`}
-            >
-                {title}
-            </SidebarGroupLabel>
+        <SidebarGroup role="navigation" aria-label={title} className="px-2 py-0">
+            <SidebarGroupLabel className="text-primary mb-2 px-3 text-xs font-semibold tracking-wide uppercase">{title}</SidebarGroupLabel>
             <SidebarMenu className={admin ? 'gap-1.5' : 'gap-1'}>
                 {items.map((item) => (
                     <SidebarMenuItem key={item.title}>
                         <SidebarMenuButton
-                            className={`h-11 rounded-xl px-3 transition-colors group-data-[collapsible=icon]:mx-auto [&>svg]:size-5 [&>svg]:shrink-0 ${
-                                admin
-                                    ? 'text-muted-foreground hover:bg-accent/60 hover:text-foreground data-[active=true]:border-primary/15 data-[active=true]:bg-accent data-[active=true]:text-primary data-[active=true]:ring-primary/10 data-[active=true]:border data-[active=true]:font-semibold data-[active=true]:shadow-sm data-[active=true]:ring-1'
-                                    : 'text-muted-foreground data-[active=true]:bg-primary data-[active=true]:text-primary-foreground data-[active=true]:ring-primary/10 data-[active=true]:font-semibold data-[active=true]:shadow-sm data-[active=true]:ring-1'
-                            }`}
+                            className="text-foreground/90 hover:bg-accent/60 hover:text-primary data-[active=true]:bg-accent data-[active=true]:text-primary h-auto min-h-11 rounded-xl px-3 py-3 transition-colors group-data-[collapsible=icon]:mx-auto data-[active=true]:font-semibold group-data-[collapsible=icon]:[&>span]:hidden [&>span:last-child]:text-clip [&>span:last-child]:whitespace-normal [&>svg]:size-5 [&>svg]:shrink-0"
                             tooltip={item.title}
                             asChild
                             isActive={isActive(item)}
@@ -53,7 +45,7 @@ export function NavMain({ items = [], title = 'Your workspace', admin = false }:
                                 aria-current={isActive(item) ? 'page' : undefined}
                             >
                                 {item.icon && <item.icon aria-hidden="true" />}
-                                <span className="min-w-0 truncate">{item.title}</span>
+                                <span className="min-w-0 break-words whitespace-normal group-data-[collapsible=icon]:hidden">{item.title}</span>
                             </Link>
                         </SidebarMenuButton>
                         {!!item.badge && (

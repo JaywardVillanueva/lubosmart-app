@@ -14,7 +14,7 @@ export function SidebarThemeToggle() {
                     onClick={() => updateAppearance(dark ? 'light' : 'dark')}
                     aria-label={label}
                     tooltip={label}
-                    className="min-h-11 group-data-[collapsible=icon]:min-h-11"
+                    className="min-h-11 rounded-xl px-3 group-data-[collapsible=icon]:[&>span]:hidden [&>svg]:size-5"
                 >
                     {dark ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
                     <span>{dark ? 'Light mode' : 'Dark mode'}</span>

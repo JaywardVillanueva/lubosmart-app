@@ -2,7 +2,7 @@ import { Card, money, secondaryClass } from '@/components/shared/marketplace-ui'
 import { titleCase } from '@/lib/admin-display';
 import { Link } from '@inertiajs/react';
 import { ArrowUpRight, ChartNoAxesCombined, PackageCheck, Wallet } from 'lucide-react';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 
 export type DashboardAnalyticsData = {
     from: string;
@@ -20,6 +20,13 @@ const dayLabel = (date: string) => new Date(date + 'T00:00:00').toLocaleDateStri
 export function DashboardAnalytics({ data }: { data: DashboardAnalyticsData }) {
     const [measure, setMeasure] = useState<'sales' | 'commission'>('sales');
     const maximum = Math.max(1, ...data.series.map((day) => day[measure]));
+    const gradientId = useId();
+    const points = data.series.map((day, index) => ({
+        x: 16 + (index / Math.max(1, data.series.length - 1)) * 568,
+        y: 190 - (day[measure] / maximum) * 168,
+        day,
+    }));
+    const line = points.map((point, index) => `${index ? 'L' : 'M'}${point.x},${point.y}`).join(' ');
     const totalDeliveries = data.deliveryStatuses.reduce((sum, item) => sum + item.total, 0);
     const delivered = data.deliveryStatuses.find((item) => item.status === 'delivered')?.total ?? 0;
     const deliveredShare = totalDeliveries ? (delivered / totalDeliveries) * 100 : 0;
@@ -79,20 +86,24 @@ export function DashboardAnalytics({ data }: { data: DashboardAnalyticsData }) {
                             <span>{money(maximum === 1 && !data[measure] ? 0 : maximum)}</span>
                             <span>Daily total</span>
                         </div>
-                        <div className="grid h-44 grid-cols-7 items-end gap-2 border-b pt-4 sm:gap-4">
-                            {data.series.map((day) => (
-                                <div
-                                    key={day.date}
-                                    className="flex h-full items-end justify-center"
-                                    title={`${dayLabel(day.date)}: ${money(day[measure])}`}
-                                >
-                                    <div
-                                        className="bg-primary w-full max-w-12 rounded-t-lg"
-                                        style={{ height: `${(day[measure] / maximum) * 100}%` }}
-                                    />
-                                </div>
+                        <svg aria-hidden="true" viewBox="0 0 600 208" className="text-primary h-auto w-full overflow-visible">
+                            <defs>
+                                <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stopColor="currentColor" stopOpacity=".24" />
+                                    <stop offset="100%" stopColor="currentColor" stopOpacity=".02" />
+                                </linearGradient>
+                            </defs>
+                            {[22, 64, 106, 148, 190].map((y) => (
+                                <line key={y} x1="16" x2="584" y1={y} y2={y} className="stroke-border" strokeDasharray="3 4" />
                             ))}
-                        </div>
+                            {!!points.length && <path d={`${line} L${points[points.length - 1].x},190 L16,190 Z`} fill={`url(#${gradientId})`} />}
+                            <path d={line} fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinejoin="round" />
+                            {points.map(({ x, y, day }) => (
+                                <circle key={day.date} cx={x} cy={y} r="4" className="fill-card" stroke="currentColor" strokeWidth="2">
+                                    <title>{`${dayLabel(day.date)}: ${money(day[measure])}`}</title>
+                                </circle>
+                            ))}
+                        </svg>
                         <div className="text-muted-foreground mt-3 grid grid-cols-7 gap-2 text-center text-[10px] sm:gap-4 sm:text-xs">
                             {data.series.map((day) => (
                                 <span key={day.date}>{dayLabel(day.date)}</span>

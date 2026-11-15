@@ -1,5 +1,7 @@
 import ProductCard from '@/components/marketplace/product-card';
 import { Card, Page, Pager, type Pagination } from '@/components/shared/marketplace-ui';
+import '../../../css/reference-marketplace.css';
+import '../../../css/storefront-catalog.css';
 import type { Product } from './catalog';
 
 export default function ProductDetails({
@@ -12,8 +14,8 @@ export default function ProductDetails({
     reviews: Pagination<{ id: number; rating: number; body: string; created_at: string }>;
 }) {
     return (
-        <Page title={product.name} description={`Sold by ${product.store.name}`}>
-            <div className="grid items-start gap-6 md:grid-cols-2">
+        <Page storefront title={product.name} description={`Sold by ${product.store.name}`}>
+            <div className="grid items-start gap-6 md:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
                 <ProductCard product={{ ...product, seller: product.store.name }} saved={saved} />
                 <Card>
                     <h2 className="text-lg font-semibold">Product details</h2>
