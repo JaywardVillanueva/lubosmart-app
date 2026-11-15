@@ -37,6 +37,8 @@ class ParcelReturnController extends Controller
         $returns = $query->latest('id')->paginate(15);
         $addresses = in_array($user->role, ['logistics', 'rider'], true) ? Address::query()->whereIn('user_id', $returns->getCollection()->pluck('sellerOrder.store.user_id'))->orderByDesc('is_default')->latest('id')->get(['user_id', 'recipient_name', 'phone', 'line1', 'barangay', 'city', 'province'])->groupBy('user_id') : collect();
         $returns->through(function ($return) use ($addresses, $user) {
+            // This relation is a tracking-only projection, without fulfillment state.
+            $return->sellerOrder->delivery?->withoutAppends();
             if ($user->role === 'seller') {
                 SellerBuyerPrivacy::minimize($return->sellerOrder->order);
             }

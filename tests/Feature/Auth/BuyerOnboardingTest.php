@@ -5,6 +5,7 @@ use App\Models\Category;
 use App\Models\Product;
 use App\Models\Store;
 use App\Models\User;
+use Inertia\Testing\AssertableInertia as Assert;
 
 test('buyers can browse but cannot add to cart or order before approval', function (string $status) {
     $buyer = User::factory()->unverified()->create(['status' => $status]);
@@ -12,7 +13,7 @@ test('buyers can browse but cannot add to cart or order before approval', functi
     $store = Store::query()->create(['user_id' => $seller->id, 'name' => 'Shop', 'status' => 'approved']);
     $category = Category::query()->create(['name' => 'Test', 'slug' => 'test']);
     $product = Product::query()->create(['store_id' => $store->id, 'category_id' => $category->id, 'name' => 'Test product', 'price' => 100, 'stock' => 5, 'status' => 'active']);
-    $this->actingAs($buyer)->get('/shop')->assertRedirect(route('verification.notice'));
+    $this->actingAs($buyer)->get('/shop')->assertInertia(fn (Assert $page) => $page->component('marketplace/catalog'));
     $this->put('/cart/'.$product->id, ['quantity' => 2])->assertRedirect(route('verification.notice'));
     expect(CartItem::query()->count())->toBe(0);
     $this->post('/checkout', [])->assertRedirect(route('verification.notice'));

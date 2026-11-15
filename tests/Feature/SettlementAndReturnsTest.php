@@ -190,6 +190,11 @@ test('foreign logistics and riders cannot see or pay another company fees and mi
     $payload['leg'] = 'pickup';
     $this->post('/rider-payments', $payload)->assertSessionHasNoErrors();
     $payment = RiderPayment::query()->firstOrFail();
+    $this->get('/rider-payments')->assertInertia(fn (Assert $page) => $page
+        ->component('finance/rider-payments')->has('work.data', 1)
+        ->where('work.data.0.id', $shop['delivery']->id)
+        ->where('work.data.0.tracking_reference', $shop['delivery']->tracking_reference)
+        ->missing('work.data.0.fulfillment_status'));
     $this->actingAs($other['logistics'])->post('/rider-payments/'.$payment->id.'/pay', ['payment_reference' => 'FOREIGN-PAY'])->assertForbidden();
     $this->get('/rider-payments')->assertInertia(fn (Assert $page) => $page->has('entries.data', 0));
     $this->actingAs($other['rider'])->get('/rider-payments')->assertInertia(fn (Assert $page) => $page->has('entries.data', 0));
@@ -304,7 +309,11 @@ test('unreconciled COD holds refunds and non financial roles do not receive refu
     DB::table('cod_collections')->where('delivery_id', $shop['delivery']->id)->update(['status' => 'collected']);
     $this->actingAs($shop['admin'])->patch('/returns/'.$return->id, ['action' => 'refund', 'amount' => 200, 'reference' => 'UNFUNDED-REFUND', 'reason' => 'Cash not reconciled yet.'])->assertConflict();
     expect($return->fresh()->refunded_at)->toBeNull();
-    $this->actingAs($shop['logistics'])->get('/returns')->assertInertia(fn (Assert $page) => $page->has('returns.data', 1)->missing('returns.data.0.refund_cents')->missing('returns.data.0.seller_debit_cents')->missing('returns.data.0.seller_order.seller_proceeds'));
+    $this->actingAs($shop['logistics'])->get('/returns')->assertInertia(fn (Assert $page) => $page
+        ->component('finance/returns')->has('returns.data', 1)
+        ->where('returns.data.0.seller_order.delivery.tracking_reference', $shop['delivery']->tracking_reference)
+        ->missing('returns.data.0.seller_order.delivery.fulfillment_status')
+        ->missing('returns.data.0.refund_cents')->missing('returns.data.0.seller_debit_cents')->missing('returns.data.0.seller_order.seller_proceeds'));
 });
 
 test('seller payout audit failure rolls back the payment record', function () {

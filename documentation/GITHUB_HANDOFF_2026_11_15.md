@@ -30,3 +30,12 @@ Release work is grouped on `feat/platform-release-ui-onboarding` for review and 
 4. Complete real-device camera/QR, email, printing, cash handover and MySQL concurrency acceptance. Manual keyboard/screen-reader, measured contrast and actual 200%/400% zoom checks remain open in the UI audits.
 
 The current handoff does not establish passing GitHub CI or release readiness. No production migration, merge or deployment was performed.
+
+## CI failure follow-up
+
+The initial five failures had two causes:
+
+- The buyer test expected `/shop` to redirect, although the onboarding middleware deliberately permits public browsing before verification. The test now checks the catalog response while retaining cart/checkout verification and approval restrictions, unchanged stock and no created orders.
+- `/rider-payments` and `/returns` returned HTTP 500 while serializing tracking-only Delivery projections. The globally appended `fulfillment_status` accessor tried to return a missing `status` value as a string. These limited projections now omit computed appends; full delivery workflow responses retain their existing status calculation. Regression checks cover populated work/return responses, tracking references, foreign-company isolation and private financial fields.
+
+The two affected test files pass: 37 tests, 686 assertions. The final full Laravel suite passes: **1,267 passed, 3 skipped, zero failures; 10,648 assertions**. PHP Pint and Git whitespace checks passed. The initial failing run above remains historical evidence; its five failures are resolved locally. GitHub CI must still rerun to verify the remote environment.
