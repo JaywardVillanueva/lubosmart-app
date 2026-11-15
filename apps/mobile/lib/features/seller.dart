@@ -564,3 +564,37 @@ class ReportsPage extends StatelessWidget {
     },
   );
 }
+
+class FinancePage extends StatelessWidget {
+  final Api api;
+  const FinancePage(this.api, {super.key});
+
+  @override
+  Widget build(BuildContext context) => ResourcePage(
+    api: api,
+    path: 'finance',
+    title: 'Finance overview',
+    builder: (context, response, reload) {
+      final data = response['data'] as Json;
+      final amounts = data['amounts'] as Json;
+      return Column(
+        children: [
+          const InfoCard(
+            'Recorded amounts and cash custody',
+            subtitle: 'Sales allocations, COD cash and paid fees are separate. Logistics retains shipping and remits product cash. Unsettled proceeds can be held for returns, debt or missing cash evidence. No money transfer is initiated here.',
+          ),
+          InfoCard(
+            'Review queue',
+            subtitle:
+                'Cash discrepancies: ${data['discrepancies']}. Missing historical commission rates: ${data['legacy_rates']}.',
+          ),
+          for (final amount in amounts.entries)
+            InfoCard(
+              amount.key,
+              subtitle: pesos((amount.value as num).toInt()),
+            ),
+        ],
+      );
+    },
+  );
+}

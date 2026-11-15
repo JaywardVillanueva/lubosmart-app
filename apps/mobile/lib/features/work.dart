@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -256,8 +258,12 @@ class OrdersPage extends StatelessWidget {
             () => open(context, ConversationPage(api, parcel['id'] as int)),
             outlined: true,
           ),
+          if (delivery?['notes'] != null)
+            Text('Delivery notes: ${delivery!['notes']}'),
           if (delivery != null) ...[
-            Text('Delivery: ${readable('${delivery['status']}')}'),
+            Text(
+              'Delivery: ${readable('${delivery['fulfillment_status'] ?? delivery['status']}')}',
+            ),
             for (final stage in {
               'picked_up_at': 'Collected',
               'received_at': 'Received at center',
@@ -380,15 +386,15 @@ class DeliveryPage extends StatefulWidget {
 }
 
 class _DeliveryPageState extends State<DeliveryPage> {
-  final tracking = TextEditingController(),
-      reason = TextEditingController(),
-      recipient = TextEditingController(),
-      amount = TextEditingController();
+  final tracking = TextEditingController(), reason = TextEditingController();
   String method = 'manual';
   String? photo;
+  String note = '', outcome = '';
+  bool codConfirmed = false;
+  String receiptCondition = '';
   @override
   void dispose() {
-    for (final c in [tracking, reason, recipient, amount]) {
+    for (final c in [tracking, reason]) {
       c.dispose();
     }
     super.dispose();
@@ -412,7 +418,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
           InfoCard(
             '${delivery['tracking_reference']}',
             subtitle:
-                '${readable('${delivery['status']}')}\n${receiver['name']} · ${receiver['phone']}\n${receiver['line1']}, ${receiver['barangay']}, ${receiver['city']}\nCOD to collect: ${pesos(cents(parcel['cod_total']))}',
+                '${readable('${delivery['fulfillment_status'] ?? delivery['status']}')}\n${receiver['name']} · ${receiver['phone']}\n${receiver['line1']}, ${receiver['barangay']}, ${receiver['city']}\nCOD to collect: ${pesos(cents(parcel['cod_total']))}',
           ),
           if (delivery['pickup_address'] != null)
             InfoCard(
@@ -420,75 +426,144 @@ class _DeliveryPageState extends State<DeliveryPage> {
               subtitle:
                   '${delivery['pickup_address']['line1']}, ${delivery['pickup_address']['city']}\n${delivery['pickup_address']['phone']}',
             ),
+          if (parcel['delivery']?['notes'] != null)
+            Text('Delivery notes: ${parcel['delivery']['notes']}'),
           if (actions.isEmpty)
             const InfoCard(
               'Waiting for the next handover',
               subtitle: 'Check with Logistics for receipt, sorting, dispatch or exception handling.',
             ),
           if (actions.isNotEmpty) ...[
-            TextField(
-              controller: tracking,
-              decoration: const InputDecoration(
-                labelText: 'Attached waybill reference',
+            if (actions.contains('picked_up') ||
+                actions.contains('accept_dispatch') ||
+                actions.contains('receive')) ...[
+              TextField(
+                controller: tracking,
+                decoration: const InputDecoration(
+                  labelText: 'Attached waybill reference',
+                ),
+                onChanged: (_) => method = 'manual',
               ),
-              onChanged: (_) => method = 'manual',
-            ),
-            ActionButton('Scan barcode with camera', () async {
-              final scanned = await Navigator.of(context).push<String>(
-                MaterialPageRoute(builder: (_) => const ScanPage()),
-              );
-              if (scanned != null && mounted) {
-                setState(() {
-                  tracking.text = scanned;
-                  method = 'scanner';
-                });
-              }
-            }, outlined: true),
-            TextField(
-              controller: reason,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: 'Handover notes / manual entry reason',
+              ActionButton('Scan barcode with camera', () async {
+                final scanned = await Navigator.of(context).push<String>(
+                  MaterialPageRoute(builder: (_) => const ScanPage()),
+                );
+                if (scanned != null && mounted) {
+                  setState(() {
+                    tracking.text = scanned;
+                    method = 'scanner';
+                  });
+                }
+              }, outlined: true),
+              TextField(
+                controller: reason,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  labelText: 'Handover notes / manual entry reason',
+                ),
               ),
-            ),
+            ],
+            if (actions.contains('receive'))
+              DropdownButtonFormField<String>(
+                decoration: const InputDecoration(
+                  labelText: 'Physical parcel condition',
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'intact', child: Text('Intact')),
+                  DropdownMenuItem(
+                    value: 'damaged',
+                    child: Text('Damaged - hold for review'),
+                  ),
+                ],
+                onChanged: (value) =>
+                    setState(() => receiptCondition = value ?? ''),
+              ),
             if (actions.contains('delivered')) ...[
               const SizedBox(height: 16),
-              TextField(
-                controller: recipient,
+              DropdownButtonFormField<String>(
+                initialValue: outcome.isEmpty ? null : outcome,
+                decoration: const InputDecoration(labelText: 'Delivery action'),
+                items: const [
+                  DropdownMenuItem(
+                    value: 'delivered',
+                    child: Text('Successful delivery'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'failed_attempt',
+                    child: Text('Failed delivery'),
+                  ),
+                ],
+                onChanged: (value) => setState(() {
+                  outcome = value!;
+                  note = '';
+                  reason.clear();
+                  photo = null;
+                  codConfirmed = false;
+                }),
+              ),
+              DropdownButtonFormField<String>(
+                key: ValueKey(outcome),
                 decoration: const InputDecoration(
-                  labelText: 'Recipient who received the parcel',
+                  labelText: 'Delivery notes (required)',
                 ),
+                items: [
+                  for (final value in List<String>.from(
+                    delivery['note_suggestions']?[outcome] ?? [],
+                  ))
+                    DropdownMenuItem(value: value, child: Text(value)),
+                ],
+                isExpanded: true,
+                onChanged: (value) => setState(() => note = value ?? ''),
               ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: amount,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
+              if (note == 'Other / Custom notes')
+                TextField(
+                  controller: reason,
+                  maxLength: 1000,
+                  decoration: const InputDecoration(
+                    labelText: 'Custom delivery notes',
+                  ),
+                  onChanged: (_) => setState(() {}),
                 ),
-                decoration: const InputDecoration(
-                  labelText: 'Actual COD received (PHP)',
+              if (outcome == 'delivered')
+                CheckboxListTile(
+                  value: codConfirmed,
+                  onChanged: (value) =>
+                      setState(() => codConfirmed = value ?? false),
+                  title: Text(
+                    'I confirm receipt of the full COD payment of ${pesos(cents(parcel['cod_total']))}.',
+                  ),
                 ),
-              ),
-              ActionButton(
-                photo == null
-                    ? 'Take delivery proof photo'
-                    : 'Replace proof photo',
-                () async {
-                  final image = await ImagePicker().pickImage(
-                    source: ImageSource.camera,
-                    imageQuality: 80,
-                    maxWidth: 1800,
-                  );
-                  if (image != null && mounted) {
-                    setState(() => photo = image.path);
-                  }
-                },
-                outlined: true,
-              ),
+              if (outcome.isNotEmpty)
+                ActionButton(
+                  photo == null
+                      ? (outcome == 'delivered'
+                            ? 'Take delivery proof photo'
+                            : 'Take supporting photo (optional, only when safe)')
+                      : 'Replace proof photo',
+                  () async {
+                    final image = await ImagePicker().pickImage(
+                      source: ImageSource.camera,
+                      imageQuality: 80,
+                      maxWidth: 1800,
+                    );
+                    if (image != null && mounted) {
+                      setState(() => photo = image.path);
+                    }
+                  },
+                  outlined: true,
+                ),
               if (photo != null)
-                const Text('Proof photo selected. It remains private.'),
+                Image.file(
+                  File(photo!),
+                  height: 220,
+                  semanticLabel: 'Captured delivery proof',
+                ),
             ],
-            for (final action in actions)
+            for (final action in actions.where(
+              (value) =>
+                  !['delivered', 'failed_attempt'].contains(value) ||
+                  value == outcome,
+            ))
               ActionButton(
                 {
                       'picked_up': 'Confirm physical pickup',
@@ -499,13 +574,85 @@ class _DeliveryPageState extends State<DeliveryPage> {
                     }[action] ??
                     readable(action),
                 () async {
-                  if (tracking.text != delivery['tracking_reference']) {
+                  if (['sort', 'assign'].contains(action)) {
+                    final configuration =
+                        (await widget.api.request(
+                              'GET',
+                              'logistics/configuration',
+                            ))['data']
+                            as Json;
+                    if (!context.mounted) return;
+                    final areas = rows(configuration['areas']).where(
+                      (area) =>
+                          area['logistics_center_id'] ==
+                          delivery['logistics_center_id'],
+                    );
+                    final riders = rows(configuration['riders']).where(
+                      (rider) =>
+                          rider['logistics_center_id'] ==
+                          delivery['logistics_center_id'],
+                    );
+                    await open(
+                      context,
+                      EditPage(
+                        title: action == 'sort'
+                            ? 'Mark as sorted'
+                            : 'Assign rider',
+                        fields: [
+                          InputSpec(
+                            'service_area_id',
+                            'Service area',
+                            options: {
+                              for (final area in areas)
+                                area['id'].toString(): area['name'].toString(),
+                            },
+                          ),
+                          if (action == 'sort')
+                            const InputSpec(
+                              'sorting_bin',
+                              'Destination bin / route',
+                            ),
+                          if (action == 'assign')
+                            InputSpec(
+                              'rider_id',
+                              'Approved rider',
+                              options: {
+                                for (final rider in riders)
+                                  rider['id'].toString(): rider['name']
+                                      .toString(),
+                              },
+                            ),
+                        ],
+                        submit: (fields) async {
+                          await widget.api.intent(
+                            'delivery:${widget.id}:$action',
+                            'deliveries/${widget.id}/events',
+                            {'action': action, ...fields},
+                          );
+                          reload();
+                        },
+                      ),
+                    );
+                    return;
+                  }
+                  if ([
+                        'picked_up',
+                        'accept_dispatch',
+                        'receive',
+                      ].contains(action) &&
+                      tracking.text != delivery['tracking_reference']) {
                     throw const ApiFailure(
                       422,
                       'Scan or enter the label attached to this parcel.',
                     );
                   }
-                  if (method == 'manual' && reason.text.trim().isEmpty) {
+                  if ([
+                        'picked_up',
+                        'accept_dispatch',
+                        'receive',
+                      ].contains(action) &&
+                      method == 'manual' &&
+                      reason.text.trim().isEmpty) {
                     throw const ApiFailure(
                       422,
                       'Explain manual tracking entry.',
@@ -513,18 +660,20 @@ class _DeliveryPageState extends State<DeliveryPage> {
                   }
                   if (action == 'delivered' &&
                       (photo == null ||
-                          recipient.text.trim().isEmpty ||
-                          cents(amount.text) != cents(parcel['cod_total']))) {
+                          !codConfirmed ||
+                          note.isEmpty ||
+                          (note == 'Other / Custom notes' &&
+                              reason.text.trim().isEmpty))) {
                     throw const ApiFailure(
                       422,
-                      'Provide proof, recipient and the actual full COD amount.',
+                      'Capture proof, select delivery notes and confirm full COD payment.',
                     );
                   }
                   if (!await confirm(
                     context,
                     'Record ${readable(action)}?',
                     action == 'delivered'
-                        ? 'Confirm actual receipt of ${pesos(cents(amount.text))} and delivery to ${recipient.text}.'
+                        ? 'Confirm receipt of the full displayed COD amount and delivery to the recipient.'
                         : 'Confirm the physical parcel and handover before recording.',
                   )) {
                     return;
@@ -538,23 +687,50 @@ class _DeliveryPageState extends State<DeliveryPage> {
                           'tracking_reference': tracking.text,
                           'capture_method': method,
                           'reason': reason.text,
-                          if (action == 'delivered') ...{
-                            'recipient_name': recipient.text,
-                            'amount': amount.text,
-                          },
+                          if (action == 'receive')
+                            'receipt_condition': receiptCondition,
+                          if (['delivered', 'failed_attempt'].contains(action))
+                            'note': note,
+                          if (action == 'delivered')
+                            'cod_confirmed': codConfirmed ? 1 : 0,
                         };
                   await widget.api.intent(
                     tag,
                     'deliveries/${widget.id}/events',
                     payload,
-                    files: action == 'delivered' && photo != null
+                    files:
+                        ['delivered', 'failed_attempt'].contains(action) &&
+                            photo != null
                         ? {'proof': photo!}
                         : {},
                   );
                   reload();
                 },
+                enabled:
+                    !['delivered', 'failed_attempt'].contains(action) ||
+                    (note.isNotEmpty &&
+                        (note != 'Other / Custom notes' ||
+                            reason.text.trim().isNotEmpty) &&
+                        (action != 'delivered' ||
+                            (photo != null && codConfirmed))),
               ),
           ],
+          for (final event in rows(delivery['history']))
+            InfoCard(
+              readable(event['type'].toString()),
+              subtitle: event['notes']?.toString(),
+              child: event['has_proof'] == true
+                  ? ActionButton(
+                      'View supporting photo',
+                      () => privateFile(
+                        context,
+                        widget.api,
+                        'deliveries/${widget.id}/proof?event=${event['id']}',
+                      ),
+                      outlined: true,
+                    )
+                  : null,
+            ),
           if (parcel['delivery']?['has_proof'] == true)
             ActionButton(
               'View delivery proof',
@@ -594,6 +770,9 @@ class ReturnsPage extends StatelessWidget {
                 '${readable('${item['status']}')}\n${item['reason']}\n${item['decision_reason'] ?? ''}${item['refund_cents'] == null ? '' : '\nRecorded refund: ${pesos(item['refund_cents'] as int)}'}',
             child: Column(
               children: [
+                Text(
+                  'Financial responsibility: ${item['responsibility'] ?? 'Awaiting review'}',
+                ),
                 for (final event in rows(item['events']))
                   ListTile(
                     contentPadding: EdgeInsets.zero,
