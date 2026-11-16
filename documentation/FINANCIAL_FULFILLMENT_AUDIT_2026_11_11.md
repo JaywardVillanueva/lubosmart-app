@@ -1,5 +1,25 @@
 # Financial and fulfillment audit — 2026-11-11
 
+## Final web refinement audit — November 16, 2026
+
+The original audit below is historical. The current contract is in [Finance and Returns](FINANCE_AND_RETURNS.md#current-source-contract--november-16-2026).
+
+Initial inspection used feature HEAD `20a30ad`. GitHub confirmed main `dece73e4d9d8eb368aabe0c62238e12cbf68e857`; its application code matched local HEAD and its file difference was README-only. The working tree already contained substantial buyer/order/return/support/sidebar UI work and tests. Those changes were preserved, without stashing, branch changes, commits, pushes, or deployment. Additional concurrent UI changes were left intact.
+
+| Phase | Initial gap | Implemented extension |
+| --- | --- | --- |
+| Rider specialization | One overwritten rider field; no capability boundary | Separate leg identities/history, Logistics-only capabilities, authoritative actions, protected custody, reasoned facility replacement |
+| Finance | Receipt corrections overwrote the current observation; parcel-only compensation | Append-only receipt observations, exact cash-due calculations, weekly agreements/payments, debt recovery, transaction filters/breakdowns |
+| Returns | Direct buyer-to-seller return; no configured window/evidence workflow | Versioned facility journey, private evidence, configurable window/exceptions, reviewed party liability and funded refunds |
+| Coins | No wallet/backing/allocation | Signed wallet ledger, backing reserve, exact consent, deterministic parcel allocations, cancellation/return restoration and corrections |
+| Vouchers | Manual codes; no public discovery/presets | Confirmed editable templates, generated codes, public shop/product/cart discovery, direct selection, scoped budget/usage/history |
+| Role integration | New states needed integration with existing UI/notifications/API | Shared components, capability-aware navigation, protected notification targets, current COD and reverse-leg API actions |
+| Acceptance | Existing regressions did not exercise new paths | End-to-end mixed/full-coin fulfillment, returns/backing/consent, repayment/correction, populated upgrade and real MySQL races |
+
+Verified foundations were preserved: three unique forward checkpoints, POD instead of a fourth scan, private proof, DeliveryNotes, shipping retention, platform receipts before seller payout, return responsibility review, voucher snapshots/history, and seller–buyer privacy. Changes extend the existing services/controllers rather than introducing competing checkout or commission logic.
+
+The initial focused baseline was 83 passing PHP tests / 1,117 assertions plus TypeScript. Current executed results, modified files, migration notes, and remaining external acceptance work are recorded in the [handoff](GITHUB_HANDOFF_2026_11_15.md).
+
 Scope: current local source, including pre-existing uncommitted notification/UI work. No configured database writes, migration application, branch changes, commits, pushes or deployments are authorized by this report. Historical verification in older guides is not a fresh test result.
 
 ## Audit matrix

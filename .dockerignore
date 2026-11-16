@@ -8,6 +8,9 @@
 .agents
 .aws
 .ssh
+.tools
+apps
+bootstrap/cache/*.php
 node_modules
 vendor
 public/build

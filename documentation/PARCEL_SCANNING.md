@@ -1,5 +1,17 @@
 # Parcel scanning and free barcode generation
 
+## Current custody refinement — November 16, 2026
+
+The Rider role now has Logistics-owned pickup/delivery/both capabilities and separate assignments. Three forward scans remain mandatory: seller collection by the pickup rider, facility receipt by Logistics, and dispatch acceptance by the delivery rider. Sorting/assignment do not add scans. Final delivery uses private photo evidence, recipient name, selected DeliveryNotes, optional remarks, and exact remaining COD confirmation instead of a fourth forward scan.
+
+The remaining cash amount is net merchandise minus original coin payment plus shipping. Waybills, resources, notifications, and rider screens use that amount. Voucher discounts already belong to net merchandise; do not subtract them twice or treat coins as a discount.
+
+Assignment history and actual custody are distinct. Logistics may replace an undelivered rider after physical facility return with a documented reason. The replacement scans `accept_transfer`; original forward checkpoint timestamps and actual COD collector remain intact. This exception transfer has no forward-checkpoint key and cannot reopen a delivered parcel.
+
+New reverse returns use independent return events: delivery-capable buyer collection → facility receipt → pickup-capable seller-return assignment → facility release → seller receipt/condition. They carry the same tracking reference and never reset completed forward checkpoints. Existing in-progress version-1 returns retain their historical handover behavior.
+
+The finance browser harness and end-to-end PHP tests verify current custody/cash rules; generated camera/QR fixtures remain supplementary evidence. New physical scanner/printer/phone handovers and POD capture still need operator acceptance. See [Finance and Returns](FINANCE_AND_RETURNS.md) for exact funding and migration rules. Older sections below describe earlier verification sessions.
+
 Updated 2026-11-05 (Asia/Manila).
 
 ## Barcode and QR on the same waybill

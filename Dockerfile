@@ -58,5 +58,5 @@ RUN composer install \
 
 EXPOSE 80
 
-# Registration accepts three private documents of up to 5 MB each.
-RUN printf '%s\n' 'upload_max_filesize=5M' 'post_max_size=20M' > /usr/local/etc/php/conf.d/uploads.ini
+# Returns accept five private evidence photos of up to 5 MB each, plus multipart overhead.
+RUN printf '%s\n' 'upload_max_filesize=5M' 'post_max_size=32M' > /usr/local/etc/php/conf.d/uploads.ini
