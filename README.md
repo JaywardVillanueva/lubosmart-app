@@ -152,3 +152,5 @@ Releases are deployed manually after review and merge to `main`. GitHub Actions 
 ## Documentation
 
 The [documentation guide](documentation/README.md) covers Tech Stack → Functions → Front End → Backend → Database → API → Deployment.
+
+Student profile feature update.
