@@ -12,11 +12,23 @@ use Illuminate\Validation\ValidationException;
 
 class AssignParcelRider
 {
-    /** Called inside the parcel transaction, after the order/delivery/actor locks. */
-    public function handle(User $operator, Delivery $delivery, Order $order, int $areaId, int $riderId): void
+    public function reassignReturned(User $operator, Delivery $delivery, int $riderId, string $reason): void
     {
         abort_unless($operator->role === 'logistics' && $operator->canOperate() && $operator->logisticsCenters()->operational()->whereKey($delivery->logistics_center_id)->exists(), 403);
-        $pickup = $delivery->status === 'unassigned';
+        abort_unless($delivery->exception_status === 'returned_to_center' && $delivery->status !== 'delivered' && trim($reason) !== '', 409, 'Receive the undelivered parcel at the facility and record a transfer reason first.');
+        $rider = User::query()->managedRiders($operator)->whereKey($riderId)->lockForUpdate()->firstOrFail();
+        abort_unless($rider->canRide('delivery') && $rider->logistics_center_id === $delivery->logistics_center_id && $rider->id !== $delivery->rider_id, 403);
+        abort_unless(DB::table('rider_service_area')->join('service_areas', 'service_areas.id', '=', 'rider_service_area.service_area_id')->where('rider_id', $rider->id)->where('service_area_id', $delivery->service_area_id)->where('service_areas.is_active', true)->exists(), 409);
+        $delivery->update(['rider_id' => $rider->id, 'delivery_rider_id' => $rider->id, 'delivery_assigned_at' => now(), 'exception_status' => 'transfer_pending']);
+        DB::table('parcel_assignments')->insert(['delivery_id' => $delivery->id, 'rider_id' => $rider->id, 'assigned_by' => $operator->id,
+            'logistics_center_id' => $delivery->logistics_center_id, 'leg' => 'delivery', 'reason' => $reason, 'assigned_at' => now()]);
+    }
+
+    /** Called inside the parcel transaction, after the order/delivery/actor locks. */
+    public function handle(User $operator, Delivery $delivery, Order $order, int $areaId, int $riderId, ?string $reason = null): void
+    {
+        abort_unless($operator->role === 'logistics' && $operator->canOperate() && $operator->logisticsCenters()->operational()->whereKey($delivery->logistics_center_id)->exists(), 403);
+        $pickup = in_array($delivery->status, ['unassigned', 'assigned'], true) && ! $delivery->picked_up_at;
         abort_unless($pickup || ($delivery->sorted_at && in_array($delivery->status, ['picked_up', 'in_transit'], true)), 409);
         abort_if($delivery->dispatch_accepted_at, 409, 'The delivery rider has already accepted custody.');
         if ($pickup) {
@@ -49,15 +61,27 @@ class AssignParcelRider
         if (! $rider || ! $rider->logisticsCenters()->whereKey($delivery->logistics_center_id)->exists()) {
             throw ValidationException::withMessages(['rider_id' => 'Choose an approved rider assigned to this logistics company.']);
         }
+        if (! $rider->canRide($pickup ? 'pickup' : 'delivery')) {
+            throw ValidationException::withMessages(['rider_id' => 'This rider does not have the required capability.']);
+        }
+        if ($delivery->rider_id && ($pickup || $delivery->dispatch_prepared_at) && $delivery->rider_id !== $rider->id && ! trim($reason ?? '')) {
+            throw ValidationException::withMessages(['reason' => 'Explain why this assignment is being replaced.']);
+        }
         if (! DB::table('rider_service_area')->where('rider_id', $rider->id)->where('service_area_id', $area->id)->exists()) {
             throw ValidationException::withMessages(['rider_id' => $pickup ? 'Choose a rider covering the seller pickup area.' : 'Choose a rider covering the buyer delivery area.']);
         }
         abort_if(! $pickup && $delivery->service_area_id !== $area->id, 409, 'Dispatch must use the sorted destination area.');
         abort_if(! $pickup && $delivery->dispatch_prepared_at && $delivery->rider_id === $rider->id, 409, 'This rider is already assigned.');
+        abort_if($pickup && $delivery->status === 'assigned' && $delivery->rider_id === $rider->id, 409, 'This pickup rider is already assigned.');
         $delivery->update([
+            ($pickup ? 'pickup_rider_id' : 'delivery_rider_id') => $rider->id,
+            ($pickup ? 'pickup_assigned_at' : 'delivery_assigned_at') => now(),
             'rider_id' => $rider->id, 'service_area_id' => $destinationArea->id,
             'status' => $pickup ? 'assigned' : 'in_transit',
             'dispatch_prepared_at' => $pickup ? null : now(), 'dispatch_reference' => $pickup ? null : (string) Str::uuid(), 'dispatch_accepted_at' => null,
         ]);
+        DB::table('parcel_assignments')->insert(['delivery_id' => $delivery->id, 'rider_id' => $rider->id,
+            'assigned_by' => $operator->id, 'logistics_center_id' => $delivery->logistics_center_id,
+            'leg' => $pickup ? 'pickup' : 'delivery', 'reason' => $reason, 'assigned_at' => now()]);
     }
 }

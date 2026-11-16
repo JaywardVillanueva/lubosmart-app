@@ -14,6 +14,8 @@ use App\Models\StoreVoucher;
 use App\Models\SupportCase;
 use App\Models\User;
 use App\Notifications\VerifyAccountEmail;
+use App\Services\ApproveRefund;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
@@ -227,20 +229,28 @@ test('native reviews are owned verified purchases and edits retain moderation', 
     expect(ProductReview::count())->toBe(1);
 });
 
-test('native returns preserve approval custody and receipt-once without unwanted stock restoration', function () {
-    $shop = nativeDeliveredParcel();
+test('native returns preserve immediate credit proof-backed custody and receipt-once', function () {
+    require_once __DIR__.'/../../Support/RefundScenario.php';
+    $shop = refundScenario();
+    $url = '/api/v1/returns/';
     roleClient($shop['buyer'])->postJson('/api/v1/returns', ['seller_order_id' => $shop['parcel']->id, 'reason' => 'Synthetic delivered parcel return'])->assertOk();
     $return = ParcelReturn::sole();
-    $this->postJson('/api/v1/returns', ['seller_order_id' => $shop['parcel']->id, 'reason' => 'Synthetic duplicate return request'])->assertConflict();
-    $rider = User::factory()->create(['role' => 'rider']);
-    $center = linkRiderToApprovedCenter($rider);
-    $shop['delivery']->update(['logistics_center_id' => $center->id, 'rider_id' => $rider->id]);
-    $return->update(['status' => 'assigned', 'rider_id' => $rider->id]);
-    roleClient($rider)->getJson('/api/v1/returns')->assertJsonPath('data.data.0.allowed_actions.0', 'collect')->assertJsonPath('data.data.0.refund_reference', null);
-    $this->patchJson('/api/v1/returns/'.$return->id, ['action' => 'collect', 'reason' => 'Synthetic handover', 'tracking_reference' => 'WRONG'])->assertUnprocessable();
-    $this->patchJson('/api/v1/returns/'.$return->id, ['action' => 'collect', 'reason' => 'Synthetic handover', 'tracking_reference' => $shop['delivery']->tracking_reference])->assertOk();
-    roleClient($shop['seller'])->patchJson('/api/v1/returns/'.$return->id, ['action' => 'receive', 'reason' => 'Inspected damaged goods', 'tracking_reference' => $shop['delivery']->tracking_reference, 'condition' => 'damaged', 'restock' => false])->assertOk();
-    $this->patchJson('/api/v1/returns/'.$return->id, ['action' => 'receive', 'reason' => 'Duplicate receipt', 'tracking_reference' => $shop['delivery']->tracking_reference, 'condition' => 'intact', 'restock' => true])->assertConflict();
-    expect($shop['product']->fresh()->stock)->toBe(10);
+    $this->postJson('/api/v1/returns', ['seller_order_id' => $shop['parcel']->id, 'reason' => 'Synthetic duplicate return request'])->assertUnprocessable()->assertJsonValidationErrors('items');
+    app(ApproveRefund::class)->handle($return, $shop['admin'], ['items' => [['order_item_id' => $shop['parcel']->items()->sole()->id, 'quantity' => 2, 'amount' => '200.00']], 'shipping_amount' => '0.00', 'physical_return_required' => true, 'responsibility' => 'seller', 'return_shipping_responsibility' => 'platform', 'reason' => 'Reviewed synthetic purchase and approved refund.']);
+    roleClient($shop['logistics'])->patchJson('/api/v1/logistics/returns/'.$return->id, ['action' => 'assign', 'rider_id' => $shop['rider']->id, 'reason' => 'Assigned eligible rider.'])->assertOk();
+    roleClient($shop['rider'])->getJson('/api/v1/returns')->assertOk()->assertJsonPath('data.data.0.allowed_actions.0', 'collect')->assertJsonPath('data.data.0.refund_reference', null)->assertJsonPath('data.data.0.parcel.id', $shop['parcel']->id);
+    $photo = fn () => UploadedFile::fake()->createWithContent('handover.png', base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aV1cAAAAASUVORK5CYII='));
+    $this->patchJson($url.$return->id, ['action' => 'collect', 'reason' => 'Proof is missing.'])->assertUnprocessable()->assertJsonValidationErrors('proof');
+    $this->patch($url.$return->id, ['action' => 'collect', 'reason' => 'Actual collection.', 'proof' => $photo(), 'recipient_name' => 'Buyer'])->assertOk();
+    roleClient($shop['logistics'])->patchJson('/api/v1/logistics/returns/'.$return->id, ['action' => 'facility_receive', 'reason' => 'Actual facility receipt.'])->assertOk();
+    roleClient($shop['rider'])->patchJson($url.$return->id, ['action' => 'accept_seller_dispatch', 'reason' => 'Actual dispatch accepted.'])->assertOk();
+    $this->patch($url.$return->id, ['action' => 'deliver_seller', 'reason' => 'Actual seller delivery.', 'proof' => $photo(), 'recipient_name' => 'Seller'])->assertOk();
+    roleClient($shop['seller'])->patchJson($url.$return->id, ['action' => 'receive', 'reason' => 'Inspected damaged goods.', 'condition' => 'damaged', 'restock' => false])->assertOk();
+    $this->patchJson($url.$return->id, ['action' => 'receive', 'reason' => 'Duplicate receipt.', 'condition' => 'intact', 'restock' => true])->assertConflict();
+    expect($shop['product']->fresh()->stock)->toBe(8);
+    expect(DB::table('wallet_transactions')->count())->toBe(1);
+    roleClient($shop['logistics'])->patchJson('/api/v1/logistics/returns/'.$return->id, ['action' => 'record_return_fee', 'leg' => 'return', 'amount' => '25.00', 'reason' => 'Actual completed seller delivery fee.'])
+        ->assertOk()->assertJsonPath('message', 'Completed return-work fee recorded. Actual payment remains separate.');
+    expect(DB::table('wallet_transactions')->count())->toBe(1);
     roleClient(User::factory()->create())->getJson('/api/v1/returns')->assertJsonCount(0, 'data.data');
 });

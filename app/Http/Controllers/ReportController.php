@@ -8,6 +8,7 @@ use App\Models\SellerOrder;
 use App\Models\SellerPayout;
 use App\Services\Admin\AuditLogger;
 use App\Services\Logistics\LogisticsContacts;
+use App\Services\ParcelFinance;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -31,13 +32,13 @@ class ReportController extends Controller
             $orders->whereHas('delivery', fn ($q) => $user->role === 'rider' ? $q->where('rider_id', $user->id) : $q->whereIn('logistics_center_id', $user->logisticsCenters()->operational()->pluck('logistics_centers.id')));
         }
         $financial = in_array($user->role, ['admin', 'seller']);
-        $columns = $financial ? ['*'] : ['id', 'order_id', 'store_id', 'subtotal', 'shipping_fee'];
-        $records = (clone $orders)->with('store:id,name')->latest('id')->paginate(15, $columns)->withQueryString();
+        $columns = $financial ? ['*'] : ['id', 'order_id', 'store_id', 'subtotal', 'shipping_fee', 'cod_due_cents', 'coins_redeemed_cents'];
+        $records = (clone $orders)->with(['store:id,name', 'delivery:id,seller_order_id,status,dispatch_prepared_at,dispatch_accepted_at,delivered_at,tracking_reference'])->latest('id')->paginate(15, $columns)->withQueryString();
         $totals = ['Completed parcels' => (clone $orders)->count()];
         if ($financial) {
             $totals += ['Product sales' => (clone $orders)->sum('subtotal'), 'Commission' => (clone $orders)->sum('commission_amount'), 'Seller proceeds' => (clone $orders)->sum('seller_proceeds')];
         } else {
-            $totals += ['Parcel COD value' => (float) (clone $orders)->sum('subtotal') + (float) (clone $orders)->sum('shipping_fee')];
+            $totals += ['Parcel COD value' => ParcelFinance::decimal((int) (clone $orders)->selectRaw('COALESCE(SUM(COALESCE(cod_due_cents, ROUND(subtotal * 100) + ROUND(shipping_fee * 100) - coins_redeemed_cents)), 0) as cash_total')->value('cash_total'))];
         }
 
         $adjustments = null;

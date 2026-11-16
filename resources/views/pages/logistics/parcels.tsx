@@ -1,10 +1,11 @@
+import ParcelNavigation from '@/components/logistics/parcel-navigation';
 import ParcelNextStep from '@/components/logistics/parcel-next-step';
-import { Badge, Card, Empty, Page, Pager, secondaryClass, type Pagination } from '@/components/shared/marketplace-ui';
+import OrderProductImage from '@/components/marketplace/order-product-image';
+import { Badge, buttonClass, Card, Empty, money, Page, Pager, secondaryClass, type Pagination } from '@/components/shared/marketplace-ui';
 import { RecordHeader } from '@/components/shared/record-header';
-import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Link } from '@inertiajs/react';
-import { Boxes, Download, Eye, History, MapPin, PackageOpen, Search, Truck } from 'lucide-react';
+import { Link, usePage } from '@inertiajs/react';
+import { Boxes, Download, Eye, History, MapPin, PackageOpen, Truck } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { Parcel, type Area, type Collection, type Delivery, type Option, type Rider } from '../marketplace/deliveries';
 
@@ -19,6 +20,9 @@ type Props = {
 };
 export default function LogisticsParcels(props: Props) {
     const { deliveries, available, centers, riders, areas, cod, filters } = props;
+    const page = usePage();
+    const records = new URLSearchParams(page.url.split('?')[1]).get('view') === 'records';
+    const deliveryWorkspace = ['dispatch', 'monitoring', 'exceptions'].includes(filters.stage ?? '');
     const [selected, setSelected] = useState<{ id: number; available: boolean; tracking: string | null; section?: 'history' } | null>(null);
     const [openMenu, setOpenMenu] = useState<number | null>(null);
     const returnFocus = useRef<HTMLElement | null>(null);
@@ -34,16 +38,29 @@ export default function LogisticsParcels(props: Props) {
     const parcel = selected ? [...deliveries.data, ...available].find((row) => row.id === selected.id) : null;
     return (
         <Page
-            title="Parcel Operations"
-            description="Approve pickups, receive and sort parcels, then assign riders by destination."
+            title={records ? 'Parcel records' : deliveryWorkspace ? 'Delivery management' : 'Parcel management'}
+            description={
+                records
+                    ? 'Review parcel history, tracking updates, and completed delivery records.'
+                    : deliveryWorkspace
+                      ? 'Assign delivery riders, monitor parcels in transit, and review delivery exceptions.'
+                      : 'Approve pickups, receive and sort parcels, then assign riders by destination.'
+            }
             action={
-                <Button variant="outline" size="icon" className="self-end" asChild>
-                    <Link href="/dashboard" aria-label="Search parcels on dashboard" title="Search parcels">
-                        <Search aria-hidden="true" />
-                    </Link>
-                </Button>
+                <Link href="/logistics/scan" className={buttonClass}>
+                    Scan parcel
+                </Link>
             }
         >
+            <ParcelNavigation
+                key={`${filters.stage}-${filters.search}-${records}`}
+                filters={filters}
+                records={records}
+                delivery={deliveryWorkspace && !records}
+            />
+            <p className="text-muted-foreground text-sm" role="status">
+                {deliveries.total.toLocaleString()} matching parcels
+            </p>
             {filters.search && (
                 <p role="status" className="text-muted-foreground text-sm break-words">
                     Search results for: {filters.search}
@@ -52,8 +69,33 @@ export default function LogisticsParcels(props: Props) {
             {deliveries.data.length ? (
                 <div className="grid items-start gap-4 lg:grid-cols-2">
                     {deliveries.data.map((row) => (
-                        <Card key={row.id} className="!p-4 sm:!p-5">
+                        <Card key={row.id} className="relative !p-4 sm:!p-5">
+                            <div className="mb-3 flex items-center gap-3 pr-14">
+                                <OrderProductImage
+                                    src={row.seller_order.items[0]?.product_image_url}
+                                    name={row.seller_order.items[0]?.product_name ?? 'Parcel'}
+                                />
+                                <div className="min-w-0 text-sm">
+                                    <p className="font-medium break-words">{row.seller_order.items[0]?.product_name ?? 'Parcel contents'}</p>
+                                    <p className="text-muted-foreground mt-1">
+                                        Product preview / {row.seller_order.items.reduce((total, item) => total + item.quantity, 0)} items
+                                        {row.seller_order.items.length > 1 ? ' / +' + (row.seller_order.items.length - 1) + ' products' : ''}
+                                    </p>
+                                    <p className="mt-1 tabular-nums">
+                                        COD{' '}
+                                        {money(
+                                            row.seller_order.cod_due_cents != null
+                                                ? row.seller_order.cod_due_cents / 100
+                                                : Number(row.seller_order.subtotal) +
+                                                      Number(row.seller_order.shipping_fee) -
+                                                      (row.seller_order.coins_redeemed_cents ?? 0) / 100,
+                                        )}
+                                    </p>
+                                </div>
+                            </div>
                             <RecordHeader
+                                showIcon={false}
+                                actionsClassName="absolute top-4 right-4 sm:top-5 sm:right-5"
                                 label={`Parcel #${row.id}`}
                                 title={row.seller_order.store.name}
                                 reference={row.tracking_reference}
@@ -152,16 +194,17 @@ export default function LogisticsParcels(props: Props) {
                         event.preventDefault();
                         (returnFocus.current?.isConnected ? returnFocus.current : document.getElementById('main-content'))?.focus();
                     }}
-                    className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl"
+                    className="bg-card max-h-[90dvh] overflow-y-auto sm:max-w-5xl"
                 >
-                    <DialogHeader>
-                        <DialogTitle>Parcel #{selected?.id}</DialogTitle>
+                    <DialogHeader className="border-b pb-4 text-left">
+                        <DialogTitle className="text-2xl font-semibold">Parcel #{selected?.id}</DialogTitle>
                         <DialogDescription>Review the parcel and complete the next available action.</DialogDescription>
                     </DialogHeader>
                     {parcel ? (
                         <Parcel
                             key={`${parcel.id}-${parcel.status}-${parcel.received_at}-${parcel.sorted_at}-${parcel.pickup_approved_at}-${parcel.dispatch_prepared_at}-${parcel.dispatch_accepted_at}-${parcel.rider?.name}-${cod[parcel.id]?.status}`}
                             parcel={parcel}
+                            embedded
                             role="logistics"
                             centers={centers}
                             riders={riders}

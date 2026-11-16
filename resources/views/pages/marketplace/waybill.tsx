@@ -1,3 +1,4 @@
+import AppWordmark from '@/components/branding/app-wordmark';
 import ParcelBarcode from '@/components/logistics/parcel-barcode';
 import ParcelQrCode from '@/components/logistics/parcel-qr-code';
 import { notify, useConfirmAction } from '@/components/shared/action-feedback';
@@ -34,7 +35,7 @@ export default function Waybill({ order }: { order: SellerOrder }) {
                             auth.user.role !== 'admin' &&
                             !(await confirm({
                                 title: `Print waybill for parcel #${order.id}?`,
-                                description: `Recipient: ${order.order.shipping_recipient_name}. Destination: ${order.order.shipping_city}, ${order.order.shipping_province}. Collect ${money(Number(order.subtotal) + Number(order.shipping_fee))}. Print one label for this physical parcel. Reprints keep the same tracking identity.`,
+                                description: `Recipient: ${order.order.shipping_recipient_name}. Destination: ${order.order.shipping_city}, ${order.order.shipping_province}. Collect ${money(order.cod_due_cents != null ? order.cod_due_cents / 100 : Number(order.subtotal) + Number(order.shipping_fee) - (order.coins_redeemed_cents ?? 0) / 100)}. Print one label for this physical parcel. Reprints keep the same tracking identity.`,
                                 confirmLabel: 'Request print',
                             }))
                         )
@@ -63,7 +64,7 @@ export default function Waybill({ order }: { order: SellerOrder }) {
             ))}
             <article className="shipping-label" aria-label={`Shipping label for parcel ${order.id}`}>
                 <header className="shipping-label-header">
-                    <span className="shipping-label-brand">LubosMart</span>
+                    <AppWordmark className="shipping-label-brand" />
                     <div>
                         <span className="shipping-label-caption">Parcel ID</span>
                         <strong>#{order.id}</strong>
@@ -75,6 +76,31 @@ export default function Waybill({ order }: { order: SellerOrder }) {
                         <strong>#{order.order_id}</strong>
                     </div>
                     <span className="shipping-label-service">COD</span>
+                </div>
+                <div className="shipping-label-details">
+                    {reference && (
+                        <div className="shipping-label-qr">
+                            <ParcelQrCode reference={reference} />
+                        </div>
+                    )}
+                    <dl className="shipping-label-facts">
+                        <div>
+                            <dt>Quantity</dt>
+                            <dd>
+                                {quantity} {quantity === 1 ? 'item' : 'items'}
+                            </dd>
+                        </div>
+                        <div>
+                            <dt>Weight</dt>
+                            <dd>
+                                {order.shipping_weight_grams != null ? `${order.shipping_weight_grams.toLocaleString('en-PH')} g` : 'Not recorded'}
+                            </dd>
+                        </div>
+                        <div>
+                            <dt>Order date</dt>
+                            <dd>{formattedDate}</dd>
+                        </div>
+                    </dl>
                 </div>
                 {reference ? (
                     <div className="shipping-label-barcode">
@@ -111,37 +137,18 @@ export default function Waybill({ order }: { order: SellerOrder }) {
                         </p>
                     </div>
                 </section>
-                <div className="shipping-label-details">
-                    {reference && (
-                        <div className="shipping-label-qr">
-                            <ParcelQrCode reference={reference} />
-                        </div>
-                    )}
-                    <dl className="shipping-label-facts">
-                        <div>
-                            <dt>Quantity</dt>
-                            <dd>
-                                {quantity} {quantity === 1 ? 'item' : 'items'}
-                            </dd>
-                        </div>
-                        <div>
-                            <dt>Weight</dt>
-                            <dd>
-                                {order.shipping_weight_grams != null ? `${order.shipping_weight_grams.toLocaleString('en-PH')} g` : 'Not recorded'}
-                            </dd>
-                        </div>
-                        <div>
-                            <dt>Order date</dt>
-                            <dd>{formattedDate}</dd>
-                        </div>
-                    </dl>
-                </div>
                 <section className="shipping-label-collection">
                     <div>
                         <h2>COD · Collect from recipient</h2>
                         <p>Includes delivery fee</p>
                     </div>
-                    <strong>{money(Number(order.subtotal) + Number(order.shipping_fee))}</strong>
+                    <strong>
+                        {money(
+                            order.cod_due_cents != null
+                                ? order.cod_due_cents / 100
+                                : Number(order.subtotal) + Number(order.shipping_fee) - (order.coins_redeemed_cents ?? 0) / 100,
+                        )}
+                    </strong>
                 </section>
                 <section className="shipping-label-items">
                     <h2>Parcel contents</h2>

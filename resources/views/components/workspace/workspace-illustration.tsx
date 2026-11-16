@@ -1,23 +1,44 @@
-import { assets } from '@/config/assets';
+import HomeDeliveryTruck from '@/components/marketplace/home-delivery-truck';
+import { ChartNoAxesCombined, Check, Package, ShieldCheck, Store } from 'lucide-react';
 
 /** Decorative delivery scene. Semantic colors follow the selected theme. */
-export function WorkspaceIllustration() {
+export function WorkspaceIllustration({ variant = 'delivery' }: { variant?: 'delivery' | 'store' | 'platform' }) {
+    if (variant !== 'delivery') {
+        const Icon = variant === 'store' ? Store : ChartNoAxesCombined;
+        const DetailIcon = variant === 'store' ? Package : ShieldCheck;
+        return (
+            <svg aria-hidden="true" focusable="false" viewBox="0 0 480 240" className="text-primary h-auto w-full">
+                <circle cx="270" cy="116" r="108" fill="currentColor" opacity=".06" />
+                <circle cx="270" cy="116" r="90" fill="none" stroke="currentColor" strokeDasharray="5 9" opacity=".2" />
+                <ellipse cx="250" cy="222" rx="195" ry="8" fill="currentColor" opacity=".1" />
+                <rect x="99" y="40" width="254" height="168" rx="20" className="fill-card" stroke="currentColor" strokeOpacity=".2" />
+                <rect x="99" y="40" width="254" height="36" rx="18" fill="currentColor" opacity=".1" />
+                <circle cx="119" cy="58" r="4" fill="color-mix(in srgb, var(--brand-orange), white 30%)" />
+                <circle cx="133" cy="58" r="4" fill="currentColor" opacity=".35" />
+                <Icon x="124" y="94" width="90" height="90" strokeWidth="1.4" />
+                <rect x="236" y="103" width="89" height="9" rx="4" fill="currentColor" opacity=".25" />
+                <rect x="236" y="125" width="66" height="7" rx="3" fill="currentColor" opacity=".12" />
+                <rect x="236" y="148" width="80" height="30" rx="8" fill="currentColor" opacity=".1" />
+                <Check x="244" y="155" width="16" height="16" />
+                <path d="M270 163h34" stroke="currentColor" strokeWidth="4" strokeLinecap="round" opacity=".5" />
+                <g transform="rotate(8 364 173)">
+                    <rect x="319" y="129" width="91" height="86" rx="18" className="fill-primary" />
+                    <DetailIcon x="341" y="149" width="46" height="46" className="text-primary-foreground" strokeWidth="1.5" />
+                </g>
+                <circle cx="364" cy="62" r="25" fill="currentColor" opacity=".15" />
+                <Check x="350" y="48" width="28" height="28" strokeWidth="2.5" />
+                <path d="m67 111 4 10 10 4-10 4-4 10-4-10-10-4 10-4Z" fill="color-mix(in srgb, var(--brand-orange), white 30%)" />
+            </svg>
+        );
+    }
     return (
         <svg aria-hidden="true" focusable="false" viewBox="0 0 480 200" className="text-primary h-auto w-full">
             <ellipse cx="265" cy="190" rx="205" ry="5" fill="currentColor" opacity=".12" />
             <path d="M0 190C20 90 95 20 210 35S390 0 480 15V190Z" fill="currentColor" opacity=".06" />
             <path d="M170 190C215 80 370 75 480 105V190Z" fill="currentColor" opacity=".05" />
-            <rect x="170" y="66" width="162" height="108" rx="13" className="fill-accent stroke-primary/25" strokeWidth="2" />
-            <path d="M94 88H158V174H65V139L82 101Q86 88 94 88Z" className="fill-card stroke-primary/30" strokeWidth="2" />
-            <path d="M96 96H142V125H83Z" fill="currentColor" opacity=".8" />
-            <rect x="71" y="139" width="23" height="10" rx="3" className="fill-accent" />
-            <rect x="130" y="139" width="16" height="10" rx="3" className="fill-accent" />
-            <path d="M64 164H333V178H64Z" fill="currentColor" opacity=".7" />
-            <circle cx="108" cy="177" r="17" className="fill-foreground" />
-            <circle cx="108" cy="177" r="8" className="fill-accent" />
-            <circle cx="290" cy="177" r="17" className="fill-foreground" />
-            <circle cx="290" cy="177" r="8" className="fill-accent" />
-            <image href={assets.brand.logo} x="217" y="88" width="65" height="65" />
+            <svg x="20" y="48" width="330" height="145" viewBox="0 0 360 150">
+                <HomeDeliveryTruck animated={false} width="360" height="150" />
+            </svg>
             <g className="fill-brand-orange stroke-brand-orange" strokeWidth="1">
                 <rect x="340" y="134" width="54" height="54" rx="4" fillOpacity=".55" strokeOpacity=".2" />
                 <rect x="398" y="148" width="49" height="40" rx="4" fillOpacity=".35" strokeOpacity=".2" />

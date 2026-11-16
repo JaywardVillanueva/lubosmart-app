@@ -6,9 +6,12 @@ use App\Models\Delivery;
 use App\Models\ParcelReturn;
 use App\Models\Product;
 use App\Models\RegistrationApplication;
+use App\Models\RiderPayment;
 use App\Models\SellerOrder;
+use App\Models\StoreVoucher;
 use App\Models\SupportCase;
 use App\Models\User;
+use App\Models\WeeklyRiderPayment;
 use App\Notifications\WorkflowNotification;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Notifications\DatabaseNotification;
@@ -34,6 +37,7 @@ class NotificationInbox
             'product' => [Product::class, ['store']],
             'support' => [SupportCase::class, []],
             'settlement' => [SellerOrder::class, ['order', 'store']],
+            'platform_handover' => [SellerOrder::class, ['logisticsRemittance']],
         ];
         foreach ($types as $kind => [$class, $relations]) {
             $ids = $notifications->filter(fn ($notification) => $notification->data['kind'] === $kind)->map(fn ($notification) => $notification->data['record'])->unique();
@@ -117,6 +121,15 @@ class NotificationInbox
         $this->accessibleCenters ??= $user->role === 'logistics' ? $user->logisticsCenters()->operational()->pluck('logistics_centers.id')->all() : [];
         $action = false;
         switch ($data['kind']) {
+            case 'platform_handover':
+                $parcel = $this->related(SellerOrder::class, $id, ['logisticsRemittance']);
+                if (! $parcel || ! $user->canAdmin('finance')) {
+                    return null;
+                }
+                $url = '/logistics-settlements';
+                $label = 'Confirm Logistics cash receipt';
+                $action = ! $parcel->logisticsRemittance;
+                break;
             case 'order':
                 $parcel = $this->related(SellerOrder::class, $id, ['order', 'store']);
                 if (! $parcel || ! (($user->role === 'buyer' && $parcel->order?->buyer_id === $user->id) || ($user->role === 'seller' && $parcel->store?->user_id === $user->id))) {
@@ -160,16 +173,16 @@ class NotificationInbox
                     || ($user->role === 'seller' && $return->sellerOrder?->store?->user_id === $user->id)
                     || ($user->role === 'rider' && $return->rider_id === $user->id)
                     || ($user->role === 'logistics' && in_array($return->sellerOrder?->delivery?->logistics_center_id, $this->accessibleCenters, true))
-                    || $user->canAdmin('disputes');
+                    || $user->canAdmin('disputes') || $user->canAdmin('finance');
                 if (! $allowed) {
                     return null;
                 }
                 $url = '/returns?parcel='.$return->seller_order_id;
                 $label = 'Review return';
-                $action = ($user->canAdmin('disputes') && $return->status === 'requested')
-                    || ($user->role === 'logistics' && $return->status === 'approved')
-                    || ($user->role === 'rider' && $return->status === 'assigned')
-                    || ($user->role === 'seller' && $return->status === 'collected');
+                $action = ($user->canAdmin('disputes') && in_array($return->refund_status, ['pending', 'approved_uncredited'], true))
+                    || ($user->role === 'logistics' && $return->task?->status === 'approved')
+                    || ($user->role === 'rider' && $return->task?->status === 'assigned')
+                    || ($user->role === 'seller' && $return->task?->status === 'seller_delivered');
                 break;
             case 'application':
                 $application = $this->related(RegistrationApplication::class, $id);
@@ -205,6 +218,37 @@ class NotificationInbox
                 }
                 $url = '/settlements';
                 $label = 'View settlement';
+                break;
+            case 'parcel_compensation':
+                $payment = RiderPayment::find($id);
+                if (! $payment || $user->role !== 'rider' || $payment->rider_id !== $user->id) {
+                    return null;
+                }
+                $url = '/rider-payments';
+                $label = 'View payment';
+                break;
+            case 'voucher':
+                $voucher = StoreVoucher::find($id);
+                if (! $voucher || $user->role !== 'seller' || $voucher->store_id !== $user->store?->id) {
+                    return null;
+                }
+                $url = '/seller/vouchers';
+                $label = 'View voucher';
+                break;
+            case 'wallet':
+                if ($user->role !== 'buyer' || $id !== $user->id) {
+                    return null;
+                }
+                $url = '/wallet';
+                $label = 'View Lubos Coins';
+                break;
+            case 'compensation':
+                $payment = WeeklyRiderPayment::find($id);
+                if (! $payment || $user->role !== 'rider' || $payment->rider_id !== $user->id) {
+                    return null;
+                }
+                $url = '/rider-payments';
+                $label = 'View payment';
                 break;
             case 'account':
                 if ($id !== $user->id) {

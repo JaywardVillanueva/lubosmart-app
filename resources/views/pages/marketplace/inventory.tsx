@@ -1,158 +1,12 @@
 import SellerListFilters from '@/components/seller/list-filters';
+import ProductForm from '@/components/seller/product-form';
 import VariantForm from '@/components/seller/variant-form';
 import { ActionDropdown } from '@/components/shared/action-dropdown';
-import {
-    Badge,
-    buttonClass,
-    Card,
-    Empty,
-    Field,
-    money,
-    Page,
-    Pager,
-    type Pagination,
-    secondaryClass,
-    Select,
-    Textarea,
-} from '@/components/shared/marketplace-ui';
-import ValidatedForm from '@/components/shared/validated-form';
-import { Link, useForm } from '@inertiajs/react';
+import { Badge, buttonClass, Card, Empty, money, Page, Pager, type Pagination } from '@/components/shared/marketplace-ui';
 import { Pencil, Plus, SlidersHorizontal } from 'lucide-react';
 import { useState } from 'react';
 import { type Product } from './catalog';
 
-function ProductForm({ product, categories, close }: { product: Product | null; categories: { id: number; name: string }[]; close: () => void }) {
-    const form = useForm({
-        name: product?.name ?? '',
-        description: product?.description ?? '',
-        price: product?.price ?? '',
-        stock: product?.stock ?? 0,
-        expected_stock: product?.stock ?? 0,
-        weight_grams: product?.weight_grams?.toString() ?? '',
-        category_id: product?.category_id.toString() ?? '',
-        status: product?.status ?? 'active',
-        image: null as File | null,
-        _method: product ? 'PUT' : 'POST',
-    });
-    return (
-        <Card>
-            <div className="mb-5 flex items-center justify-between">
-                <h2 className="font-semibold">{product ? 'Edit product' : 'New product'}</h2>
-                <button className={secondaryClass} type="button" onClick={close}>
-                    Cancel
-                </button>
-            </div>
-            <ValidatedForm
-                confirmation={{
-                    title: product ? 'Update this product?' : 'Publish this product?',
-                    description: `${form.data.name}: check the price, available stock, packed weight, and visibility. Approved active products become available to buyers.`,
-                    confirmLabel: 'Save product',
-                }}
-                className="grid gap-4 sm:grid-cols-2"
-                onSubmit={(e) => {
-                    e.preventDefault();
-                    const options = { preserveScroll: true, onSuccess: close };
-                    if (product) form.post(`/inventory/${product.id}`, options);
-                    else form.post('/inventory', options);
-                }}
-            >
-                <Field
-                    label="Product name"
-                    required
-                    maxLength={160}
-                    value={form.data.name}
-                    onChange={(e) => form.setData('name', e.target.value)}
-                    error={form.errors.name}
-                />
-                <Select
-                    label="Category"
-                    required
-                    error={form.errors.category_id}
-                    value={form.data.category_id}
-                    onChange={(e) => form.setData('category_id', e.target.value)}
-                >
-                    <option value="">Choose a category</option>
-                    {categories.map((c) => (
-                        <option key={c.id} value={c.id}>
-                            {c.name}
-                        </option>
-                    ))}
-                </Select>
-                <Field
-                    label="Price (PHP)"
-                    type="number"
-                    min="0.01"
-                    max="999999.99"
-                    step="0.01"
-                    required
-                    value={form.data.price}
-                    onChange={(e) => form.setData('price', e.target.value)}
-                    error={form.errors.price}
-                />
-                <Field
-                    label="Packed weight per item (grams)"
-                    hint="Include packaging. Required for logistics shipping quotes."
-                    type="number"
-                    min="1"
-                    max="50000"
-                    step="1"
-                    value={form.data.weight_grams}
-                    onChange={(e) => form.setData('weight_grams', e.target.value)}
-                    error={form.errors.weight_grams}
-                />
-                <Field
-                    label="Available stock"
-                    type="number"
-                    min="0"
-                    max="1000000"
-                    step="1"
-                    required
-                    value={form.data.stock}
-                    readOnly={!!product?.variants?.length}
-                    hint={product?.variants?.length ? 'Stock is managed in size/color options.' : undefined}
-                    onChange={(e) => form.setData('stock', Number(e.target.value))}
-                    error={form.errors.stock}
-                />
-                <div className="sm:col-span-2">
-                    <Textarea
-                        label="Description"
-                        error={form.errors.description}
-                        rows={3}
-                        maxLength={5000}
-                        value={form.data.description}
-                        onChange={(e) => form.setData('description', e.target.value)}
-                    />
-                </div>
-                <Field
-                    label="Product photo (optional, up to 5 MB)"
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    onChange={(e) => form.setData('image', e.target.files?.[0] ?? null)}
-                    error={form.errors.image}
-                />
-                <Select
-                    label="Visibility"
-                    error={form.errors.status}
-                    value={form.data.status}
-                    onChange={(e) => form.setData('status', e.target.value)}
-                >
-                    <option value="active">Published</option>
-                    <option value="hidden">Hidden</option>
-                </Select>
-                <div className="flex items-end">
-                    <button className={buttonClass} disabled={form.processing}>
-                        {form.processing ? 'Saving…' : 'Save product'}
-                    </button>
-                </div>
-                {form.progress && (
-                    <p role="status" className="text-muted-foreground text-sm sm:col-span-2">
-                        Uploading product image: {form.progress.percentage}%
-                    </p>
-                )}
-            </ValidatedForm>
-        </Card>
-    );
-}
 export default function Inventory({
     products,
     categories,
@@ -181,9 +35,6 @@ export default function Inventory({
             }
         >
             <SellerListFilters key={JSON.stringify(filters)} inventory filters={filters} />
-            <Link className={secondaryClass} href="/seller/vouchers">
-                Manage store vouchers
-            </Link>
             {options && <VariantForm key={options.id} product={options} close={() => setOptions(null)} />}
             {!!complianceNotices.length && (
                 <Card className="border-primary/15 !bg-accent/40">

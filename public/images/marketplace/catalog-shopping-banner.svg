@@ -1,18 +1,69 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="480" height="220" viewBox="0 0 480 220" fill="none">
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="256" viewBox="0 0 480 256" fill="none">
   <defs>
-    <linearGradient id="base" x2="1800" y2="200" gradientUnits="userSpaceOnUse"><stop stop-color="#f5f0fc"/><stop offset="1" stop-color="#e5d7f8"/></linearGradient>
-    <linearGradient id="bag" x1="183" y1="39" x2="344" y2="181" gradientUnits="userSpaceOnUse"><stop stop-color="#9668d1"/><stop offset="1" stop-color="#7046b2"/></linearGradient>
+    <linearGradient id="main-bag" x1="212" y1="65" x2="341" y2="223" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#b58ae6"/>
+      <stop offset=".5" stop-color="#9765d1"/>
+      <stop offset="1" stop-color="#7445b2"/>
+    </linearGradient>
+    <linearGradient id="left-bag" x1="87" y1="103" x2="173" y2="224" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f0e5ff"/>
+      <stop offset="1" stop-color="#c6a5e9"/>
+    </linearGradient>
+    <linearGradient id="right-bag" x1="353" y1="139" x2="407" y2="224" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#e5d4fa"/>
+      <stop offset="1" stop-color="#b48bdc"/>
+    </linearGradient>
+    <linearGradient id="handle" x1="224" y1="25" x2="286" y2="85" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#e3caff"/>
+      <stop offset="1" stop-color="#ab7cdb"/>
+    </linearGradient>
+    <radialGradient id="ground">
+      <stop stop-color="#24103e" stop-opacity=".34"/>
+      <stop offset="1" stop-color="#24103e" stop-opacity="0"/>
+    </radialGradient>
   </defs>
-  <g transform="translate(16 20) scale(.95)">
-    <ellipse cx="240" cy="182" rx="190" ry="12" fill="#7046b2" opacity=".12"/>
-    <path d="M65 78h105l13 99H52z" fill="#c4a6e8"/>
-    <path d="M89 83V62a28 28 0 0 1 56 0v21" stroke="#a782d7" stroke-width="7"/>
-    <path d="M183 39h143l18 142H166z" fill="url(#bag)"/>
-    <path d="M220 47V29a35 35 0 0 1 70 0v18" stroke="#7046b2" stroke-width="8"/>
-    <path d="m213 85 13 3 13 49h49l12-36h-70m11 48h1m43 0h1" stroke="#fff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="M354 100h62l9 77h-80z" fill="#b797df"/>
-    <path d="M367 104V89a18 18 0 0 1 36 0v15" stroke="#a782d7" stroke-width="6"/>
-    <path d="m37 39 4 10 10 4-10 4-4 10-4-10-10-4 10-4z" fill="#b797df"/>
-    <circle cx="370" cy="43" r="5" fill="#a782d7"/>
-  </g>
+
+  <circle cx="258" cy="126" r="110" fill="#fff" fill-opacity=".035"/>
+  <circle cx="258" cy="126" r="89" stroke="#e3caff" stroke-opacity=".14"/>
+  <ellipse cx="249" cy="229" rx="189" ry="19" fill="url(#ground)"/>
+
+  <!-- Lavender bag: an inset opening, folded side and rounded rope handle. -->
+  <path d="m82 110 17-12h85l-13 12Z" fill="#b38bdc"/>
+  <path d="M82 110h89l12 111H68Z" fill="url(#left-bag)"/>
+  <path d="m171 110 13-12 14 111-15 12Z" fill="#a47bcc"/>
+  <path d="m171 110 12 111-10-10Z" fill="#b38bdc"/>
+  <path d="M99 114V91a26 26 0 0 1 52 0v23" stroke="#9670bd" stroke-width="7" stroke-linecap="round"/>
+  <path d="M99 109V89a26 26 0 0 1 52 0v20" stroke="#e2ccfa" stroke-width="5" stroke-linecap="round"/>
+  <path d="m77 211 97 1" stroke="#fff" stroke-opacity=".3" stroke-width="2"/>
+
+  <!-- Main bag: the complete handle stays comfortably inside the viewBox. -->
+  <path d="m199 76 17-11h113l-16 11Z" fill="#694098"/>
+  <path d="M216 77V54a32 32 0 0 1 64 0v23" stroke="#633b93" stroke-width="8" stroke-linecap="round"/>
+  <path d="M199 76h114l17 148H182Z" fill="url(#main-bag)"/>
+  <path d="m313 76 16-11 19 145-18 14Z" fill="#643994"/>
+  <path d="m313 76 17 148-13-13Z" fill="#7d4db2"/>
+  <path d="m200 77 111 0" stroke="#ddbcff" stroke-opacity=".6" stroke-width="2"/>
+  <path d="M223 82V56a32 32 0 0 1 64 0v26" stroke="#633b93" stroke-opacity=".25" stroke-width="10" stroke-linecap="round"/>
+  <path d="M223 78V54a32 32 0 0 1 64 0v24" stroke="url(#handle)" stroke-width="7" stroke-linecap="round"/>
+  <circle cx="223" cy="81" r="3" fill="#dab9f8"/>
+  <circle cx="287" cy="81" r="3" fill="#dab9f8"/>
+  <path d="m216 117 12 4 12 46h45l12-33h-65" stroke="#fff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="243" cy="180" r="4" fill="#fff"/>
+  <circle cx="282" cy="180" r="4" fill="#fff"/>
+  <path d="m192 214 127 1" stroke="#d7b3f6" stroke-opacity=".28" stroke-width="2"/>
+
+  <!-- Small bag and a restrained orange brand accent. -->
+  <path d="m346 144 12-9h57l-11 9Z" fill="#a67bce"/>
+  <path d="M346 144h58l11 78h-80Z" fill="url(#right-bag)"/>
+  <path d="m404 144 11-9 12 77-12 10Z" fill="#9766c2"/>
+  <path d="M357 146v-17a18 18 0 0 1 36 0v17" stroke="#9b71c3" stroke-width="6" stroke-linecap="round"/>
+  <path d="M357 142v-15a18 18 0 0 1 36 0v15" stroke="#e4cef9" stroke-width="4" stroke-linecap="round"/>
+  <path d="m391 144 6 12" stroke="#ffe4be" stroke-width="2" stroke-linecap="round"/>
+  <rect x="388" y="154" width="16" height="23" rx="4" fill="#ffc483" transform="rotate(-12 388 154)"/>
+  <circle cx="397" cy="159" r="2" fill="#a86946"/>
+
+  <path d="m57 72 4 10 10 4-10 4-4 10-4-10-10-4 10-4Z" fill="#e2c8fa"/>
+  <path d="m414 66 3 7 7 3-7 3-3 7-3-7-7-3 7-3Z" fill="#ffcf96"/>
+  <circle cx="370" cy="43" r="4" fill="#e2c8fa" fill-opacity=".8"/>
+  <circle cx="80" cy="172" r="2" fill="#fff" fill-opacity=".7"/>
 </svg>

@@ -70,8 +70,9 @@ class WorkflowNotificationObserver
                     $send($operator, 'return.assign', 'Return pickup requires assignment', 'Arrange return transport for parcel #'.$model->seller_order_id.'.', 'return', true);
                 }
             }
-            if ($state === 'assigned') {
-                $send($model->rider_id, 'return.assignment', 'Return pickup assigned', 'Collect the approved return for parcel #'.$model->seller_order_id.'.', 'return', true);
+            if (in_array($state, ['assigned', 'seller_assigned'], true)) {
+                $send($model->rider_id, 'return.assignment', $state === 'seller_assigned' ? 'Seller return handover assigned' : 'Return pickup assigned',
+                    $state === 'seller_assigned' ? 'Collect parcel #'.$model->seller_order_id.' from the facility and return it to the seller.' : 'Collect the approved return for parcel #'.$model->seller_order_id.'.', 'return', true);
                 if ($model->wasChanged('rider_id') && $model->getOriginal('rider_id')) {
                     $send($model->getOriginal('rider_id'), 'return.reassigned', 'Return assignment removed', 'This return has been reassigned.', 'return');
                 }

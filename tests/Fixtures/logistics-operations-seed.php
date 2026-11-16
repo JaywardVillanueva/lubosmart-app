@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Artisan;
 $stage = realpath(getenv('LUBOSMART_AUTH_BROWSER_STAGE') ?: '');
 $temporary = realpath(sys_get_temp_dir());
 if (! $stage || ! $temporary || ! str_starts_with($stage, $temporary.DIRECTORY_SEPARATOR)
+
     || ! str_starts_with(basename($stage), 'lubosmart-auth-browser-')
     || realpath(getenv('DB_DATABASE') ?: '') !== $stage.DIRECTORY_SEPARATOR.'test.sqlite') {
     throw new RuntimeException('This fixture requires an isolated temporary SQLite database.');

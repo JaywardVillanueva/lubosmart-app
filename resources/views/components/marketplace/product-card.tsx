@@ -1,8 +1,20 @@
 import { money, Select } from '@/components/shared/marketplace-ui';
+import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogClose,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from '@/components/ui/dialog';
 import type { SharedData } from '@/types';
 import { Link, useForm, usePage } from '@inertiajs/react';
 import { Heart, ImageIcon, LoaderCircle, ShoppingCart, Star, Store } from 'lucide-react';
 import { useState } from 'react';
+import '../../../css/product-cards.css';
 
 export type ProductCardData = {
     id?: number;
@@ -37,6 +49,7 @@ export default function ProductCard({
     const [failedImage, setFailedImage] = useState<string | null>(null);
     const [feedback, setFeedback] = useState('');
     const [previewLiked, setPreviewLiked] = useState(false);
+    const [variantDialogOpen, setVariantDialogOpen] = useState(false);
     const cart = useForm({ quantity: 1, add: true, product_variant_id: '' });
     const variants = product.variants?.filter((variant) => variant.is_active) ?? [];
     const selectedVariant = variants.find((variant) => String(variant.id) === cart.data.product_variant_id);
@@ -82,34 +95,33 @@ export default function ProductCard({
     );
     return (
         <article
+            data-product-card
             className={
                 compact
                     ? 'product-card bg-card text-card-foreground group flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border shadow-sm transition-[box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:shadow-md motion-reduce:transform-none motion-reduce:transition-none'
                     : 'product-card bg-card text-card-foreground group flex h-full min-w-0 flex-col overflow-hidden rounded-xl border transition-shadow duration-200 hover:shadow-sm motion-reduce:transition-none'
             }
         >
-            <div className="bg-muted/40 relative aspect-square shrink-0 overflow-hidden">
-                {product.image_url && product.image_url !== failedImage ? (
-                    <img
-                        src={product.image_url}
-                        alt={product.name}
-                        loading="lazy"
-                        decoding="async"
-                        width={400}
-                        height={400}
-                        onError={() => setFailedImage(product.image_url!)}
-                        className={
-                            compact
-                                ? 'absolute inset-0 h-full w-full object-cover object-center transition-transform duration-200 group-hover:scale-[1.03] motion-reduce:transform-none motion-reduce:transition-none'
-                                : 'absolute inset-0 h-full w-full object-contain object-center'
-                        }
-                    />
-                ) : (
-                    <div className="text-muted-foreground absolute inset-0 flex flex-col items-center justify-center gap-2">
-                        <ImageIcon aria-hidden="true" className="size-8" />
-                        <span className="text-xs">Photo unavailable</span>
-                    </div>
-                )}
+            <div className="product-card-image relative aspect-square shrink-0 overflow-hidden">
+                <div className="product-card-photo">
+                    {product.image_url && product.image_url !== failedImage ? (
+                        <img
+                            src={product.image_url}
+                            alt={product.name}
+                            loading="lazy"
+                            decoding="async"
+                            width={400}
+                            height={400}
+                            onError={() => setFailedImage(product.image_url!)}
+                            className="h-full w-full object-contain object-center"
+                        />
+                    ) : (
+                        <div className="text-muted-foreground absolute inset-0 flex flex-col items-center justify-center gap-2">
+                            <ImageIcon aria-hidden="true" className="size-8" />
+                            <span className="text-xs">Photo unavailable</span>
+                        </div>
+                    )}
+                </div>
                 {!!discount && (
                     <span className="bg-primary text-primary-foreground absolute top-3 left-3 rounded-md px-2 py-1 text-xs font-semibold">
                         -{discount}%
@@ -175,30 +187,58 @@ export default function ProductCard({
                         {product.name}
                     </Link>
                 </h2>
+                <div className="product-card-variants">
+                    {!!variants.length && (
+                        <Dialog open={variantDialogOpen} onOpenChange={setVariantDialogOpen}>
+                            <DialogTrigger asChild>
+                                <button
+                                    type="button"
+                                    className="text-primary bg-accent focus-visible:ring-ring min-h-6 max-w-full truncate rounded px-2 text-xs font-medium focus-visible:ring-2 focus-visible:outline-none"
+                                    aria-label={'Select size or color for ' + product.name}
+                                >
+                                    {selectedVariant ? selectedVariant.name : 'Options available'}
+                                </button>
+                            </DialogTrigger>
+                            <DialogContent>
+                                <DialogHeader>
+                                    <DialogTitle>Select size / color</DialogTitle>
+                                    <DialogDescription>{product.name} — choose an available option.</DialogDescription>
+                                </DialogHeader>
+                                <Select
+                                    label="Size / color"
+                                    reserveFeedback={false}
+                                    value={cart.data.product_variant_id}
+                                    error={cart.errors.product_variant_id}
+                                    onChange={(event) => cart.setData('product_variant_id', event.target.value)}
+                                >
+                                    <option value="">Choose an option</option>
+                                    {variants.map((variant) => (
+                                        <option key={variant.id} value={variant.id} disabled={!variant.stock}>
+                                            {variant.name} ({variant.stock} available)
+                                        </option>
+                                    ))}
+                                </Select>
+                                <DialogFooter>
+                                    <DialogClose asChild>
+                                        <Button disabled={!selectedVariant || selectedVariant.stock === 0}>Done</Button>
+                                    </DialogClose>
+                                </DialogFooter>
+                            </DialogContent>
+                        </Dialog>
+                    )}
+                </div>
                 {!listView && ratingContent}
-                <p className="text-muted-foreground min-h-5 text-xs leading-5 tabular-nums">
-                    {compact && product.sample
-                        ? 'Sample preview'
-                        : displayedStock != null
-                          ? displayedStock === 0
-                              ? 'Out of stock'
-                              : 'Stock: ' + displayedStock.toLocaleString() + ' available'
-                          : 'Stock not provided'}
-                </p>
-                {!!variants.length && (
-                    <Select
-                        label="Size / color"
-                        value={cart.data.product_variant_id}
-                        onChange={(event) => cart.setData('product_variant_id', event.target.value)}
-                    >
-                        <option value="">Choose an option</option>
-                        {variants.map((variant) => (
-                            <option key={variant.id} value={variant.id} disabled={!variant.stock}>
-                                {variant.name} ({variant.stock} available)
-                            </option>
-                        ))}
-                    </Select>
-                )}
+                <div className="flex min-h-5 flex-wrap items-center justify-between gap-x-2 gap-y-1">
+                    <p className="text-muted-foreground text-xs leading-5 tabular-nums">
+                        {compact && product.sample
+                            ? 'Sample preview'
+                            : displayedStock != null
+                              ? displayedStock === 0
+                                  ? 'Out of stock'
+                                  : displayedStock.toLocaleString() + ' in stock'
+                              : 'Stock not provided'}
+                    </p>
+                </div>
                 {product.seller && (
                     <p className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">
                         <Store aria-hidden="true" className="size-3.5 shrink-0" />
@@ -215,9 +255,15 @@ export default function ProductCard({
                     {live && eligible ? (
                         <button
                             type="button"
-                            disabled={stock === 0 || cart.processing}
+                            disabled={(hasVariants ? displayedStock === 0 : stock === 0) || cart.processing}
                             aria-label={'Add ' + product.name + ' to cart'}
-                            onClick={() => cart.put('/cart/' + product.id, { preserveScroll: true, onSuccess: () => setFeedback('Added to cart') })}
+                            onClick={() => {
+                                if (hasVariants && !selectedVariant) {
+                                    setVariantDialogOpen(true);
+                                    return;
+                                }
+                                cart.put('/cart/' + product.id, { preserveScroll: true, onSuccess: () => setFeedback('Added to cart') });
+                            }}
                             className={
                                 compact
                                     ? 'reference-button w-full'
@@ -249,9 +295,9 @@ export default function ProductCard({
                 <p role="status" className="text-primary text-xs">
                     {feedback}
                 </p>
-                {(cart.errors.quantity || favorite.errors.saved) && (
+                {(cart.errors.quantity || cart.errors.product_variant_id || favorite.errors.saved) && (
                     <p role="alert" className="text-destructive text-xs">
-                        {cart.errors.quantity || favorite.errors.saved}
+                        {cart.errors.quantity || cart.errors.product_variant_id || favorite.errors.saved}
                     </p>
                 )}
             </div>

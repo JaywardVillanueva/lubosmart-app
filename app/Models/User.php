@@ -161,6 +161,12 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->role === 'admin' && $this->canOperate() && in_array($permission, $this->adminPermissions(), true);
     }
 
+    public function canRide(string $leg): bool
+    {
+        return $this->role === 'rider' && $this->canOperate()
+            && in_array($this->rider_capability ?? 'both', ['both', $leg], true);
+    }
+
     public function canOperate(): bool
     {
         return $this->status === 'approved' && $this->hasVerifiedEmail()

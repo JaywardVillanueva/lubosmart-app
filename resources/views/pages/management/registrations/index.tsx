@@ -1,5 +1,7 @@
+import { LogisticsWorkspaceTabs } from '@/components/logistics/parcel-navigation';
+import { AccountDirectory, DirectoryIdentity } from '@/components/shared/account-directory';
 import { InfoModal } from '@/components/shared/info-modal';
-import { Badge, Card, Empty, Page, Pager, type Pagination, Select } from '@/components/shared/marketplace-ui';
+import { Badge, Card, Empty, Page, Pager, type Pagination, Select, roleLabel } from '@/components/shared/marketplace-ui';
 import type { SharedData } from '@/types';
 import { router, usePage } from '@inertiajs/react';
 
@@ -21,8 +23,9 @@ export default function Reviews({
                     : 'Review Buyer, Seller, and Logistics applications. Rider registrations are handled by their Logistics company.'
             }
         >
-            <Card className="flex flex-wrap items-center justify-between gap-4">
-                <div className="w-full sm:max-w-xs">
+            {center && <LogisticsWorkspaceTabs section="riders" />}
+            <Card className="flex flex-wrap items-end gap-4 !p-4">
+                <div className="w-full min-w-0 sm:w-56">
                     <Select
                         label="Application status"
                         reserveFeedback={false}
@@ -34,7 +37,7 @@ export default function Reviews({
                         <option value="rejected">Changes requested</option>
                     </Select>
                 </div>
-                <div>
+                <div className="sm:pb-3">
                     <h2 className="font-semibold">
                         {applications.total}{' '}
                         {filters.status === 'submitted' ? 'awaiting review' : filters.status === 'approved' ? 'approved' : 'with changes requested'}
@@ -42,23 +45,26 @@ export default function Reviews({
                 </div>
             </Card>
             {applications.data.length ? (
-                <Card className="overflow-hidden !p-0">
-                    <ul className="divide-y">
-                        {applications.data.map((application) => (
-                            <li key={application.id} className="flex flex-wrap items-center justify-between gap-4 p-5">
-                                <div className="min-w-0">
-                                    <p className="font-semibold">{application.name}</p>
-                                    <p className="text-muted-foreground mt-1 text-sm break-all">{application.email}</p>
-                                    <div className="mt-3 flex flex-wrap gap-2">
-                                        <Badge status={application.requested_role} />
-                                        <Badge status={application.status} />
-                                    </div>
-                                </div>
-                                <InfoModal kind="registration" id={application.id} label="Review Application" />
-                            </li>
-                        ))}
-                    </ul>
-                </Card>
+                <AccountDirectory
+                    label={center ? 'Rider applications' : 'Account registrations'}
+                    items={applications.data}
+                    columns={[
+                        {
+                            label: 'Applicant',
+                            render: (application) => (
+                                <DirectoryIdentity name={application.name}>
+                                    <p className="text-muted-foreground mt-1 text-xs">{roleLabel(application.requested_role)}</p>
+                                </DirectoryIdentity>
+                            ),
+                        },
+                        { label: 'Email', render: (application) => <span className="text-muted-foreground break-all">{application.email}</span> },
+                        { label: 'Status', render: (application) => <Badge status={application.status} /> },
+                        {
+                            label: 'Actions',
+                            render: (application) => <InfoModal kind="registration" id={application.id} label="Review Application" />,
+                        },
+                    ]}
+                />
             ) : (
                 <Empty title="No matching applications" description="Try another application status." />
             )}

@@ -103,7 +103,7 @@ export function ActionFeedbackProvider({ children }: { children: ReactNode }) {
                     <div
                         key={toast.id}
                         role={toast.tone === 'error' ? 'alert' : 'status'}
-                        className="bg-card text-card-foreground pointer-events-auto flex items-start gap-3 rounded-2xl border p-4 shadow-lg"
+                        className="workflow-feedback bg-card text-card-foreground pointer-events-auto flex items-start gap-3 rounded-2xl border p-4 shadow-lg"
                     >
                         {toast.tone === 'error' ? (
                             <CircleAlert aria-hidden className="text-destructive size-5 shrink-0" />

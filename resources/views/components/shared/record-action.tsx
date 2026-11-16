@@ -1,9 +1,11 @@
 import { buttonClass, Field, secondaryClass, Select, Textarea } from '@/components/shared/marketplace-ui';
 import ValidatedForm from '@/components/shared/validated-form';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { cn } from '@/lib/utils';
 import type { SharedData } from '@/types';
 import { useForm, usePage } from '@inertiajs/react';
-import { useState } from 'react';
+import type { LucideIcon } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
 
 export type ActionField = {
     key: string;
@@ -15,6 +17,7 @@ export type ActionField = {
     max?: string;
     maxLength?: number;
     required?: boolean;
+    readOnly?: boolean;
 };
 
 export default function RecordAction({
@@ -25,6 +28,10 @@ export default function RecordAction({
     fields,
     action,
     forceDialog = false,
+    triggerClassName,
+    triggerIcon: TriggerIcon,
+    values = {},
+    preview,
 }: {
     title: string;
     description: string;
@@ -33,13 +40,17 @@ export default function RecordAction({
     fields: ActionField[];
     action?: string;
     forceDialog?: boolean;
+    triggerClassName?: string;
+    triggerIcon?: LucideIcon;
+    values?: Record<string, string>;
+    preview?: ReactNode;
 }) {
-    const form = useForm<Record<string, string>>(Object.fromEntries(fields.map((field) => [field.key, field.value ?? ''])));
+    const form = useForm<Record<string, string>>({ ...values, ...Object.fromEntries(fields.map((field) => [field.key, field.value ?? ''])) });
     const { auth } = usePage<SharedData>().props;
     const [open, setOpen] = useState(false);
     const content = (
         <ValidatedForm
-            className="mt-4 space-y-4"
+            className="mt-4 min-w-0 space-y-4"
             onSubmit={(event) => {
                 event.preventDefault();
                 form.transform((data) => ({
@@ -50,6 +61,7 @@ export default function RecordAction({
                 form[method](url, { preserveScroll: true, onSuccess: () => setOpen(false) });
             }}
         >
+            {preview && <div className="min-w-0 break-words">{preview}</div>}
             {fields.map((field) => {
                 const common = {
                     label: field.label,
@@ -79,6 +91,7 @@ export default function RecordAction({
                         max={field.max}
                         step={field.type === 'number' ? '0.01' : undefined}
                         maxLength={field.maxLength ?? 100}
+                        readOnly={field.readOnly}
                     />
                 );
             })}
@@ -89,9 +102,16 @@ export default function RecordAction({
                         {error}
                     </p>
                 ))}
-            <button className={buttonClass} disabled={form.processing}>
-                {form.processing ? 'Recording…' : `Confirm: ${title.toLowerCase()}`}
-            </button>
+            <div className="flex flex-wrap justify-end gap-3">
+                {(auth.user.role !== 'admin' || forceDialog) && (
+                    <button type="button" className={secondaryClass} disabled={form.processing} onClick={() => setOpen(false)}>
+                        Cancel
+                    </button>
+                )}
+                <button className={buttonClass} disabled={form.processing}>
+                    {form.processing ? 'Recording…' : `Confirm: ${title.toLowerCase()}`}
+                </button>
+            </div>
         </ValidatedForm>
     );
     if (auth.user.role !== 'admin' || forceDialog)
@@ -103,7 +123,8 @@ export default function RecordAction({
                 }}
             >
                 <DialogTrigger asChild>
-                    <button type="button" className={`${secondaryClass} mt-4`}>
+                    <button type="button" className={cn(secondaryClass, 'mt-4', triggerClassName)}>
+                        {TriggerIcon && <TriggerIcon aria-hidden="true" className="size-4 shrink-0" />}
                         {title}
                     </button>
                 </DialogTrigger>

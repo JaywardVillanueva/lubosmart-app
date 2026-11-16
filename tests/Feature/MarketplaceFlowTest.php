@@ -12,6 +12,7 @@ use App\Models\Store;
 use App\Models\StoreVoucher;
 use App\Models\User;
 use App\Notifications\OrderDeliveryUpdated;
+use App\Services\ParcelFinance;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
@@ -42,10 +43,10 @@ beforeEach(function () {
     }
 });
 
-function placeMarketplaceOrder($test, ?int $variantId = null, ?string $voucherCode = null): SellerOrder
+function placeMarketplaceOrder($test, ?int $variantId = null, ?string $voucherCode = null, int $coins = 0): SellerOrder
 {
     $test->actingAs($test->buyer)->put('/cart/'.$test->product->id, ['quantity' => 2, 'product_variant_id' => $variantId])->assertRedirect();
-    $test->post('/checkout', ['address_id' => $test->address->id, 'checkout_key' => (string) Str::uuid(), 'voucher_code' => $voucherCode, 'expected_discount_total' => $voucherCode ? '25.00' : null])->assertRedirect('/orders');
+    $test->post('/checkout', ['address_id' => $test->address->id, 'checkout_key' => (string) Str::uuid(), 'coins_to_redeem_cents' => $coins, 'voucher_code' => $voucherCode, 'expected_discount_total' => $voucherCode ? '25.00' : null])->assertRedirect('/orders');
 
     return SellerOrder::query()->latest('id')->firstOrFail();
 }
@@ -71,10 +72,13 @@ test('a seller waiting for email verification has hidden products and cannot rec
     expect($this->product->fresh()->stock)->toBe(10);
 });
 
-test('all five roles can complete the connected order delivery and cash workflow', function (bool $withOptions, string $subtotal, string $cod, float $proceeds) {
+test('all five roles can complete the connected order delivery and cash workflow', function (bool $withOptions, string $subtotal, string $cod, float $proceeds, int $coins = 0) {
     $variant = $withOptions ? ProductVariant::query()->create(['product_id' => $this->product->id, 'name' => 'Large / Purple', 'stock' => 10]) : null;
     $voucher = $withOptions ? StoreVoucher::query()->create(['store_id' => $this->store->id, 'code' => 'FLOW-25', 'amount_cents' => 2500, 'minimum_cents' => 10000, 'usage_limit' => 5, 'expires_at' => now()->addDay(), 'is_active' => true]) : null;
-    $sellerOrder = placeMarketplaceOrder($this, $variant?->id, $voucher?->code);
+    if ($coins) {
+        DB::table('buyer_wallets')->insert(['buyer_id' => $this->buyer->id, 'balance_cents' => $coins]);
+    }
+    $sellerOrder = placeMarketplaceOrder($this, $variant?->id, $voucher?->code, $coins);
     expect($sellerOrder->subtotal)->toBe($subtotal)->and($this->product->fresh()->stock)->toBe(8);
     if ($variant) {
         expect($variant->fresh()->stock)->toBe(8);
@@ -103,10 +107,18 @@ test('all five roles can complete the connected order delivery and cash workflow
     $this->actingAs($this->admin)->post('/deliveries/'.$delivery->id, ['action' => 'reconcile_cod'])->assertRedirect();
     $this->assertDatabaseHas('cod_collections', ['delivery_id' => $delivery->id, 'status' => 'reconciled']);
     $this->assertDatabaseCount('parcel_events', 11);
+    if ($coins) {
+        $netCash = ParcelFinance::merchandiseCash($sellerOrder->fresh());
+        if ($netCash) {
+            $this->post('/logistics-settlements/'.$sellerOrder->id, ['amount' => ParcelFinance::decimal($netCash), 'reference' => 'MIXED-PRODUCT-CASH', 'received_on' => now('Asia/Manila')->toDateString(), 'notes' => 'Actual merchandise cash receipt; Logistics retains shipping.'])->assertRedirect()->assertSessionHasNoErrors();
+        }
+        $this->post('/settlements/'.$sellerOrder->id, ['amount' => number_format($proceeds, 2, '.', ''), 'reference' => 'MIXED-PAYOUT'])->assertRedirect()->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('seller_payouts', ['seller_order_id' => $sellerOrder->id, 'amount_cents' => (int) round($proceeds * 100)]);
+    }
     $this->get('/reports')->assertInertia(fn (Assert $page) => $page->component('marketplace/reports')->where('totals.Completed parcels', 1)->where('totals.Seller proceeds', fn ($value) => (float) $value === $proceeds));
     Notification::assertSentToTimes($this->buyer, OrderDeliveryUpdated::class, 3);
     Notification::assertSentToTimes($this->seller, OrderDeliveryUpdated::class, 3);
-})->with(['standard COD' => [false, '798.00', '848.00', 718.2], 'variant and voucher COD' => [true, '773.00', '823.00', 695.7]]);
+})->with(['standard COD' => [false, '798.00', '848.00', 718.2], 'variant and voucher COD' => [true, '773.00', '823.00', 695.7], 'voucher and coins COD' => [true, '773.00', '623.00', 695.7, 20000], 'full merchandise coin payment' => [true, '773.00', '50.00', 695.7, 77300]]);
 
 test('delivered commission ignores browser values rounds cents and is recorded only once', function () {
     $this->product->update(['price' => '100.05']);

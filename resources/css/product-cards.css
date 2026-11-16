@@ -1,0 +1,119 @@
+/* Shared card geometry takes precedence over older storefront overrides. */
+:root :is(body, .reference-home, .catalog-storefront) .product-grid.product-grid:not(.catalog-list-view) {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, max(200px, (100% - 64px) / 5)), 1fr));
+    gap: 16px;
+    align-items: stretch;
+}
+
+:root body article.product-card[data-product-card] {
+    height: 100%;
+    max-width: none;
+    padding: 0;
+    border-radius: 20px;
+    background: var(--card);
+    box-shadow: 0 2px 5px color-mix(in srgb, var(--foreground) 12%, transparent);
+}
+
+:root body article.product-card[data-product-card] > .product-card-image {
+    position: relative;
+    width: 100%;
+    height: 160px;
+    max-height: 160px;
+    aspect-ratio: auto;
+    margin: 0;
+    padding: 16px;
+    background: #fff;
+}
+
+/* Reserve the same compact frame for every photo, independent of source dimensions. */
+.product-card-photo {
+    position: absolute;
+    inset: 16px;
+}
+
+:root body article.product-card[data-product-card] .product-card-photo img {
+    position: static;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    object-position: center;
+    transform: none;
+}
+
+:root body article.product-card[data-product-card] > div:last-child {
+    flex: 1;
+    gap: 4px;
+    padding: 12px;
+}
+
+:root body article.product-card[data-product-card] h2 {
+    height: 44px;
+    min-height: 44px;
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 22px;
+    letter-spacing: -0.4px;
+}
+
+.product-card-variants {
+    height: 24px;
+    min-width: 0;
+}
+
+:root body article.product-card[data-product-card] .product-card-variants button {
+    min-height: 24px;
+    border-radius: 999px;
+    font-size: 12px;
+    line-height: 20px;
+}
+
+:root body article.product-card[data-product-card] > .product-card-image > :is(button, a) {
+    top: 12px;
+    right: 12px;
+    width: 44px;
+    height: 44px;
+    border: 0;
+    border-radius: 50%;
+    background: var(--card);
+    color: var(--primary);
+    box-shadow: 0 2px 8px #0002;
+}
+
+:root body article.product-card[data-product-card] > div:last-child > .text-muted-foreground,
+:root body article.product-card[data-product-card] > div:last-child > div > p.text-muted-foreground {
+    font-size: 14px;
+    line-height: 20px;
+}
+
+:root body article.product-card[data-product-card] .text-primary.text-lg {
+    color: var(--foreground);
+    font-size: 22px;
+    font-weight: 800;
+    line-height: 28px;
+}
+
+:root body article.product-card[data-product-card] .text-warning svg {
+    width: 14px;
+    height: 14px;
+}
+
+:root body article.product-card[data-product-card] .reference-button {
+    min-height: 44px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: var(--primary);
+    color: var(--primary-foreground);
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 20px;
+}
+
+:root body article.product-card[data-product-card] .mt-auto {
+    margin-top: auto;
+    gap: 8px;
+    padding-top: 8px;
+}
+
+.product-card > div:last-child > [role='status']:empty {
+    display: none;
+}

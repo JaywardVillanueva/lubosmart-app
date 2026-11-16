@@ -1,3 +1,4 @@
+import { FinanceNavigation } from '@/components/finance/finance-ui';
 import AutoFilterForm from '@/components/shared/auto-filter-form';
 import { FilterToolbar } from '@/components/shared/filter-toolbar';
 import { Card, Empty, Field, money, Page, Pager, secondaryClass, type Pagination } from '@/components/shared/marketplace-ui';
@@ -9,6 +10,9 @@ type Record = {
     order_id: number;
     subtotal: string;
     shipping_fee: string;
+    cod_due_cents?: number | null;
+    coins_redeemed_cents?: number;
+    delivery?: { delivered_at: string | null; tracking_reference: string | null } | null;
     commission_amount: string;
     seller_proceeds: string;
     store: { name: string };
@@ -59,8 +63,9 @@ export default function Reports({
                     : 'Review completed deliveries and cash-on-delivery totals.'
             }
         >
-            <Card>
-                <div className="mb-5 flex items-start gap-3">
+            <FinanceNavigation section="reports" />
+            <Card className="!p-4 sm:!p-5">
+                <div className="mb-4 flex items-start gap-3">
                     <span className="bg-accent text-primary rounded-xl p-2.5">
                         <CalendarDays className="size-5" />
                     </span>
@@ -125,7 +130,7 @@ export default function Reports({
                     )}
                 </div>
             </Card>
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div className={`grid gap-4 sm:grid-cols-2 ${financial ? 'xl:grid-cols-4' : 'xl:grid-cols-2'}`}>
                 {Object.entries(totals).map(([label, value], index) => {
                     const Icon = icons[index % icons.length];
                     return (
@@ -197,6 +202,11 @@ export default function Reports({
                                     <th scope="col" className="pb-4 text-right font-medium">
                                         {financial ? 'Product Sales' : 'COD Value'}
                                     </th>
+                                    {role === 'rider' && (
+                                        <th scope="col" className="px-4 pb-4 font-medium">
+                                            Delivered on
+                                        </th>
+                                    )}
                                     {financial && (
                                         <>
                                             <th scope="col" className="pb-4 text-right font-medium">
@@ -212,13 +222,33 @@ export default function Reports({
                             <tbody className="divide-y">
                                 {records.data.map((record) => (
                                     <tr key={record.id} className="hover:bg-accent/20 transition-colors">
-                                        <td className="py-5">
+                                        <td className="py-3">
                                             <span className="font-medium">Parcel #{record.id}</span>
                                             <span className="text-muted-foreground mt-1 block text-xs">{record.store.name}</span>
+                                            {record.delivery?.tracking_reference && (
+                                                <span className="text-muted-foreground mt-1 block text-xs break-all">
+                                                    {record.delivery.tracking_reference}
+                                                </span>
+                                            )}
                                         </td>
                                         <td className="text-right tabular-nums">
-                                            {money(financial ? record.subtotal : Number(record.subtotal) + Number(record.shipping_fee))}
+                                            {money(
+                                                financial
+                                                    ? record.subtotal
+                                                    : record.cod_due_cents != null
+                                                      ? record.cod_due_cents / 100
+                                                      : Number(record.subtotal) +
+                                                        Number(record.shipping_fee) -
+                                                        (record.coins_redeemed_cents ?? 0) / 100,
+                                            )}
                                         </td>
+                                        {role === 'rider' && (
+                                            <td className="px-4 text-sm">
+                                                {record.delivery?.delivered_at
+                                                    ? new Date(record.delivery.delivered_at).toLocaleString('en-PH')
+                                                    : 'Not recorded'}
+                                            </td>
+                                        )}
                                         {financial && (
                                             <>
                                                 <td className="text-right tabular-nums">{money(record.commission_amount)}</td>
@@ -233,7 +263,7 @@ export default function Reports({
                     <p className="text-muted-foreground mt-5 border-t pt-4 text-xs leading-relaxed">
                         {financial
                             ? 'Seller proceeds equal product sales minus commission. These amounts do not confirm that a payout has been made.'
-                            : 'COD value includes the product total and delivery fee collected from the buyer.'}
+                            : 'Total parcel COD value uses recorded cash due after coin payment, including shipping. This is separate from rider earnings and pending COD handover.'}
                     </p>
                 </Card>
             ) : (

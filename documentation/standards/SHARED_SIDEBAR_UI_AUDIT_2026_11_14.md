@@ -6,3 +6,8 @@
 - Passed targeted ESLint, TypeScript, production build and the 114 Settings/AccountSettings regression tests (741 assertions). Existing category-atlas-v1.png build warning remains outside this change.
 - Isolated browser checks passed for Buyer, Seller, Rider and Logistics: full logo/action icon containment in collapsed mode, at least 44px action targets, reachable final menu item, mobile drawer logo containment and Escape closing. Buyer/Seller/Rider settings checks also passed; zero runtime errors. Screenshots/results: storage/app/account-settings-ui-check/.
 - Reviewed representative collapsed desktop and mobile drawer screenshots. Full screen reader, measured contrast and 200%/400% zoom checks remain outstanding; automated tests are not WCAG certification. No Git or deployment operations performed.
+
+## Buyer sidebar Settings removal (2026-11-15)
+
+- Removed the Settings navigation entry for buyers in the shared sidebar, including its mobile drawer. Other role navigation and settings routes remain unchanged.
+- Browser visual, keyboard, zoom and screen-reader checks were not performed for this small navigation removal; no WCAG compliance claim is made.

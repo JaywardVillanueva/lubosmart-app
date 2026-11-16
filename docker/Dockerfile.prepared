@@ -1,0 +1,11 @@
+# Use only after verifying composer.lock matches the pinned runtime image.
+# The candidate context must include locally built public/build assets.
+ARG RUNTIME_IMAGE=lubosmart-refund-base:prepared
+FROM ${RUNTIME_IMAGE}
+WORKDIR /var/www/html
+COPY . .
+RUN rm -f bootstrap/cache/*.php \
+    && composer dump-autoload --no-dev --optimize --no-scripts \
+    && php artisan package:discover --ansi \
+    && printf '%s\n' 'upload_max_filesize=5M' 'post_max_size=32M' > /usr/local/etc/php/conf.d/uploads.ini \
+    && chown -R www-data:www-data storage bootstrap/cache

@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="420" height="210" viewBox="0 0 420 210" fill="none">
+  <defs>
+    <linearGradient id="shirt" x1="220" y1="125" x2="330" y2="220" gradientUnits="userSpaceOnUse"><stop stop-color="#B587EB"/><stop offset="1" stop-color="#8151BF"/></linearGradient>
+    <linearGradient id="laptop" x1="100" y1="140" x2="200" y2="210" gradientUnits="userSpaceOnUse"><stop stop-color="#CBB0EE"/><stop offset="1" stop-color="#A17ACF"/></linearGradient>
+  </defs>
+  <g opacity=".4" fill="#BA8FE8"><ellipse cx="354" cy="185" rx="11" ry="34" transform="rotate(35 354 185)"/><ellipse cx="377" cy="185" rx="10" ry="29" transform="rotate(57 377 185)"/><ellipse cx="79" cy="198" rx="9" ry="30" transform="rotate(-50 79 198)"/><ellipse cx="99" cy="195" rx="9" ry="30" transform="rotate(-26 99 195)"/></g>
+  <path d="M235 23C196 23 183 50 188 77C193 105 170 110 180 142C184 157 175 167 171 181H326C326 159 338 155 327 127C319 109 320 90 305 81C301 43 278 21 235 23Z" fill="#332147"/>
+  <path d="M200 139C185 145 177 172 169 210H339C329 165 312 141 282 134Z" fill="url(#shirt)"/>
+  <path d="M230 119V139C239 157 259 159 271 140L262 115Z" fill="#F6BE9F"/>
+  <path d="M212 51C205 64 206 86 213 105C220 126 242 137 258 124C273 113 281 89 277 67C252 69 235 53 227 39Z" fill="#FFD6B5"/>
+  <path d="M205 58C211 48 219 43 225 35C236 54 256 65 278 69" stroke="#332147" stroke-width="10" stroke-linecap="round"/>
+  <path d="M194 70C190 7 283 8 291 68" stroke="#D8C4F5" stroke-width="9"/>
+  <path d="M194 70C194 29 223 17 246 20" stroke="#F4E9FF" stroke-width="3"/>
+  <rect x="276" y="62" width="23" height="33" rx="11.5" fill="#D4B7F5" stroke="#F2E7FF" stroke-width="3"/>
+  <path d="M278 91C272 107 258 110 248 110" stroke="#D9C2F4" stroke-width="4" stroke-linecap="round"/><rect x="237" y="106" width="16" height="7" rx="3.5" fill="#4C2B72"/>
+  <path d="M288 164L281 210M211 162L216 210" stroke="#7646AC" stroke-width="3"/>
+  <path d="M108 153C107 149 110 145 115 145H204C208 145 211 148 212 151L229 210H123Z" fill="url(#laptop)" stroke="#DDC6F7" stroke-width="2"/>
+  <ellipse cx="168" cy="179" rx="7" ry="9" transform="rotate(-13 168 179)" fill="#FAF5FF"/>
+  <path d="M105 210H258" stroke="#E3D1F8" stroke-width="5" stroke-linecap="round"/>
+  <path d="M91 30H153C164 30 171 37 171 48V68C171 79 165 86 155 86H154V99L136 86H91C80 86 73 79 73 68V48C73 37 80 30 91 30Z" fill="#F1E4FF"/>
+  <g fill="#9861CE"><circle cx="100" cy="58" r="5"/><circle cx="122" cy="58" r="5"/><circle cx="144" cy="58" r="5"/></g>
+</svg>

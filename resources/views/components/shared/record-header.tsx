@@ -9,30 +9,36 @@ export function RecordHeader({
     reference,
     status,
     actions,
+    actionsClassName,
     triggerRef,
     onOpen,
     open,
     onOpenChange,
     icon: Icon = Package,
+    showIcon = true,
 }: {
     label: string;
     title: string;
     reference?: string | null;
     status: ReactNode;
     actions: DropdownAction[];
+    actionsClassName?: string;
     triggerRef?: RefObject<HTMLButtonElement | null>;
     onOpen?: (event: MouseEvent<HTMLButtonElement>) => void;
     open?: boolean;
     onOpenChange?: (open: boolean) => void;
     icon?: LucideIcon;
+    showIcon?: boolean;
 }) {
     const actionSelected = useRef(false);
     return (
         <>
             <div className="flex min-w-0 items-start gap-3">
-                <span className="bg-accent text-primary flex size-10 shrink-0 items-center justify-center rounded-xl">
-                    <Icon aria-hidden="true" className="size-5" />
-                </span>
+                {showIcon && (
+                    <span className="bg-accent text-primary flex size-10 shrink-0 items-center justify-center rounded-xl">
+                        <Icon aria-hidden="true" className="size-5" />
+                    </span>
+                )}
                 <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                         <p className="text-muted-foreground text-xs">{label}</p>
@@ -54,22 +60,24 @@ export function RecordHeader({
                     </h2>
                 </div>
                 {actions.some((action) => action.visible !== false) && (
-                    <ActionDropdown
-                        label={`Actions for ${label.toLowerCase()}`}
-                        actions={actions}
-                        triggerRef={triggerRef}
-                        open={open}
-                        onOpenChange={onOpenChange}
-                        onActionSelect={(id) => {
-                            actionSelected.current = !!actions.find((action) => action.id === id)?.onSelect;
-                        }}
-                        onCloseAutoFocus={(event) => {
-                            if (actionSelected.current) {
-                                event.preventDefault();
-                                actionSelected.current = false;
-                            }
-                        }}
-                    />
+                    <div className={cn('shrink-0', actionsClassName)}>
+                        <ActionDropdown
+                            label={`Actions for ${label.toLowerCase()}`}
+                            actions={actions}
+                            triggerRef={triggerRef}
+                            open={open}
+                            onOpenChange={onOpenChange}
+                            onActionSelect={(id) => {
+                                actionSelected.current = !!actions.find((action) => action.id === id)?.onSelect;
+                            }}
+                            onCloseAutoFocus={(event) => {
+                                if (actionSelected.current) {
+                                    event.preventDefault();
+                                    actionSelected.current = false;
+                                }
+                            }}
+                        />
+                    </div>
                 )}
             </div>
             {reference && (

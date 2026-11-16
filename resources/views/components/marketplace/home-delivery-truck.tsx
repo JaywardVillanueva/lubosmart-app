@@ -1,13 +1,17 @@
-export default function HomeDeliveryTruck() {
+import type { SVGProps } from 'react';
+
+type HomeDeliveryTruckProps = SVGProps<SVGSVGElement> & { animated?: boolean };
+
+export default function HomeDeliveryTruck({ animated = true, ...props }: HomeDeliveryTruckProps) {
     return (
-        <svg className="home-delivery-truck" viewBox="0 0 360 150" width="240" height="100" fill="none" aria-hidden="true">
+        <svg className="home-delivery-truck" viewBox="0 0 360 150" width="240" height="100" fill="none" aria-hidden="true" {...props}>
             <ellipse cx="196" cy="140" rx="147" ry="5" fill="currentColor" opacity=".12" />
-            <g className="home-delivery-exhaust" fill="var(--muted-foreground)">
+            <g className="home-delivery-exhaust" fill="var(--muted-foreground)" visibility={animated ? undefined : 'hidden'}>
                 {[0, 1, 2, 3].map((puff) => (
                     <circle key={puff} className="home-delivery-smoke" cx="64" cy="120" r="5" style={{ animationDelay: `${puff * -0.45}s` }} />
                 ))}
             </g>
-            <g className="home-delivery-body">
+            <g className={animated ? 'home-delivery-body' : undefined}>
                 <path d="M67 114H330V130H67z" fill="#292936" />
                 <path d="M72 122H59v5h16" stroke="#737380" strokeWidth="4" strokeLinejoin="round" />
                 <rect x="75" y="20" width="178" height="96" rx="3" fill="var(--brand-orange)" />
@@ -51,7 +55,7 @@ export default function HomeDeliveryTruck() {
                 <path d="M174 121h42v10h-42z" fill="#a9a6b3" />
             </g>
             {[115, 290].map((cx) => (
-                <g className="home-delivery-wheel" key={cx} style={{ transformOrigin: `${cx}px 123px` }}>
+                <g className={animated ? 'home-delivery-wheel' : undefined} key={cx} style={{ transformOrigin: `${cx}px 123px` }}>
                     <circle cx={cx} cy="123" r="18" fill="#252530" />
                     <circle cx={cx} cy="123" r="13" stroke="#777381" strokeWidth="2" />
                     <circle cx={cx} cy="123" r="10" fill="#c8c6d0" />

@@ -41,6 +41,11 @@ function componentModule(filename) {
                 };
             if (name === 'lucide-react') return new Proxy({}, { get: () => () => null });
             if (name === '@/lib/registration-validation') return validationModule();
+            if (name === '@/components/ui/tooltip') return { TooltipProvider: 'div', Tooltip: 'div', TooltipTrigger: 'div', TooltipContent: 'div' };
+            if (name === '@/components/shared/progress-stepper')
+                return componentModule('resources/views/components/shared/progress-stepper.tsx').exports;
+            if (name === '@/components/shared/workflow-stages') return { accountIcons: [] };
+            if (name === '@/lib/utils') return { cn: (...values) => values.filter(Boolean).join(' ') };
             if (name === '@/components/auth/registration-progress')
                 return componentModule('resources/views/components/auth/registration-progress.tsx').exports;
             if (name === '@/components/auth/registration-footer')
@@ -61,7 +66,7 @@ function componentModule(filename) {
 
 function elements(element) {
     if (!element || typeof element !== 'object') return [];
-    if (['RegistrationProgress', 'RegistrationFooter'].includes(element.type?.name)) return elements(element.type(element.props));
+    if (['RegistrationProgress', 'RegistrationFooter', 'ProgressStepper'].includes(element.type?.name)) return elements(element.type(element.props));
     const children = element.props?.children;
     return [element, ...(Array.isArray(children) ? children.flat(Infinity) : [children]).flatMap(elements)];
 }
@@ -213,6 +218,11 @@ function registrationForm(role, processing = false) {
                 return { default: () => null, Upload: () => null, emptyCompanyDetails: defaults, emptySellerDetails: defaults };
             if (name === '@/lib/registration-validation') return validationModule();
             if (name === '@/hooks/use-auth-request-feedback') return { useAuthRequestFeedback: () => ({ requestError: '', setRequestError() {} }) };
+            if (name === '@/components/ui/tooltip') return { TooltipProvider: 'div', Tooltip: 'div', TooltipTrigger: 'div', TooltipContent: 'div' };
+            if (name === '@/components/shared/progress-stepper')
+                return componentModule('resources/views/components/shared/progress-stepper.tsx').exports;
+            if (name === '@/components/shared/workflow-stages') return { accountIcons: [] };
+            if (name === '@/lib/utils') return { cn: (...values) => values.filter(Boolean).join(' ') };
             if (name === '@/components/auth/registration-progress')
                 return componentModule('resources/views/components/auth/registration-progress.tsx').exports;
             if (name === '@/components/auth/registration-footer')

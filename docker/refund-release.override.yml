@@ -1,0 +1,11 @@
+# Apply alongside the live Compose file, from the live application directory.
+# Requires explicit deployment authorization. Never run `up --build` for this image.
+services:
+  app:
+    image: lubosmart-refund-candidate:20261116-assets
+    environment:
+      SESSION_SECURE_COOKIE: 'true'
+  queue:
+    image: lubosmart-refund-candidate:20261116-assets
+    environment:
+      SESSION_SECURE_COOKIE: 'true'

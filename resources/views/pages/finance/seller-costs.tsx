@@ -1,3 +1,4 @@
+import { FinanceNavigation, FinanceRecord, FinanceTable } from '@/components/finance/finance-ui';
 import { Card, money, Page, Pager, type Pagination } from '@/components/shared/marketplace-ui';
 import RecordAction from '@/components/shared/record-action';
 
@@ -24,6 +25,7 @@ export default function SellerCosts({
             title="Seller costs and profit"
             description="Completed proceeds, refund adjustments, recorded costs and actual settlements are shown separately."
         >
+            <FinanceNavigation section="costs" />
             <Card>
                 <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
                     {[
@@ -48,6 +50,7 @@ export default function SellerCosts({
             </Card>
             {canRecord && (
                 <RecordAction
+                    forceDialog
                     title="Record seller cost"
                     description="Record an actual cost for this store. If an entry is incorrect, void it with a reason and create a corrected entry; history is retained."
                     url="/seller/costs"
@@ -65,25 +68,37 @@ export default function SellerCosts({
                 />
             )}
             <h2 className="text-lg font-semibold">Cost history</h2>
-            {costs.data.map((cost) => (
-                <Card key={cost.id}>
-                    <h3 className="font-semibold">
-                        {cost.category} · {cost.incurred_on.slice(0, 10)}
-                    </h3>
-                    <p className="mt-2 text-sm break-words">{cost.description}</p>
-                    <p className="mt-3 font-semibold tabular-nums">{money(cost.amount_cents / 100)}</p>
-                    {cost.voided_at ? (
-                        <p className="text-muted-foreground mt-2 text-sm break-words">Voided: {cost.void_reason}</p>
-                    ) : (
-                        <RecordAction
-                            title="Void cost"
-                            description="This excludes the cost from the profit calculation while retaining the original entry. Confirm the entry and give a reason."
-                            url={`/seller/costs/${cost.id}/void`}
-                            fields={[{ key: 'reason', label: 'Reason for voiding', type: 'textarea' }]}
-                        />
-                    )}
-                </Card>
-            ))}
+            <FinanceTable label="Seller cost history" headers={['Category', 'Incurred on', 'Amount', 'Status']}>
+                {costs.data.map((cost) => (
+                    <FinanceRecord
+                        key={cost.id}
+                        title={`Cost #${cost.id}`}
+                        cells={[
+                            cost.category,
+                            cost.incurred_on.slice(0, 10),
+                            money(cost.amount_cents / 100),
+                            cost.voided_at ? 'Voided: ' + cost.void_reason : 'Recorded',
+                        ]}
+                    >
+                        <h3 className="font-semibold">
+                            {cost.category} · {cost.incurred_on.slice(0, 10)}
+                        </h3>
+                        <p className="mt-2 text-sm break-words">{cost.description}</p>
+                        <p className="mt-3 font-semibold tabular-nums">{money(cost.amount_cents / 100)}</p>
+                        {cost.voided_at ? (
+                            <p className="text-muted-foreground mt-2 text-sm break-words">Voided: {cost.void_reason}</p>
+                        ) : (
+                            <RecordAction
+                                forceDialog
+                                title="Void cost"
+                                description="This excludes the cost from the profit calculation while retaining the original entry. Confirm the entry and give a reason."
+                                url={`/seller/costs/${cost.id}/void`}
+                                fields={[{ key: 'reason', label: 'Reason for voiding', type: 'textarea' }]}
+                            />
+                        )}
+                    </FinanceRecord>
+                ))}
+            </FinanceTable>
             {!costs.data.length && <Card>No seller costs recorded yet.</Card>}
             <Pager links={costs.links} />
         </Page>

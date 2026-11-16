@@ -37,3 +37,25 @@ Validation:
 
 Screen-reader behavior, measured contrast, and 200%/400% browser zoom require
 manual verification. These checks do not establish WCAG conformance.
+
+## Order summary reference update — 2026-11-16
+
+Adapted the buyer cart summary to the supplied visual reference: store count,
+expandable voucher selector with existing manual-code entry, delivery card with
+real provider quotes and existing error/retry states, Lubos Coins switch, explicit
+COD card, itemized payment details, and Place order action. Monetary values retain
+the money helper and existing calculations. Checkout confirmation, eligibility,
+request fields, and backend behavior are preserved. The taller desktop summary
+uses normal page scrolling so its controls remain reachable. Semantic theme tokens
+support light/dark surfaces; the voucher summary is keyboard operable and the coin
+switch keeps its native input with a visible focus outline.
+
+Validation: targeted ESLint, TypeScript, and Prettier passed. Checkout feature
+suite passed: 26 tests, 114 assertions. Production build passed with unresolved
+image warnings for returns-banner.svg, catalog-shopping-banner.svg,
+orders-banner.svg, and category-atlas-v1.png in existing stylesheet references.
+
+The supplied Companion Page snapshot has no connected page or document. Browser
+visual checks, mobile reflow, actual contrast, screen-reader behavior, and
+200%/400% zoom remain unverified for this batch. Automated checks do not establish
+WCAG conformance.

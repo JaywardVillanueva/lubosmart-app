@@ -1,5 +1,7 @@
 import ProductCard from '@/components/marketplace/product-card';
+import PublicVouchers, { type PublicVoucher } from '@/components/marketplace/public-vouchers';
 import { Card, Page, Pager, type Pagination } from '@/components/shared/marketplace-ui';
+import { Link } from '@inertiajs/react';
 import '../../../css/reference-marketplace.css';
 import '../../../css/storefront-catalog.css';
 import type { Product } from './catalog';
@@ -8,13 +10,19 @@ export default function ProductDetails({
     product,
     reviews,
     saved = false,
+    publicVouchers = [],
 }: {
     product: Product;
+    publicVouchers?: PublicVoucher[];
     saved?: boolean;
     reviews: Pagination<{ id: number; rating: number; body: string; created_at: string }>;
 }) {
     return (
         <Page storefront title={product.name} description={`Sold by ${product.store.name}`}>
+            <Link href={'/shop?store=' + product.store.id} className="text-primary inline-flex min-h-11 items-center text-sm underline">
+                Visit {product.store.name}
+            </Link>
+            <PublicVouchers vouchers={publicVouchers} />
             <div className="grid items-start gap-6 md:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
                 <ProductCard product={{ ...product, seller: product.store.name }} saved={saved} />
                 <Card>

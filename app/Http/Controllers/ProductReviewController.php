@@ -6,6 +6,7 @@ use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\ProductReview;
 use App\Services\Admin\AuditLogger;
+use App\Services\PublicShopVouchers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -17,7 +18,7 @@ class ProductReviewController extends Controller
         abort_unless(Product::query()->availableToShoppers()->whereKey($product->id)->exists(), 404);
         $product->load(['store:id,name', 'category:id,name', 'variants'])->loadAvg('reviews', 'rating')->loadCount('reviews');
 
-        return Inertia::render('marketplace/product', ['product' => $product, 'reviews' => $product->reviews()->latest('id')->paginate(10, ['id', 'rating', 'body', 'created_at']), 'saved' => $request->user()?->role === 'buyer' && DB::table('product_wishlists')->where('user_id', $request->user()->id)->where('product_id', $product->id)->exists()]);
+        return Inertia::render('marketplace/product', ['publicVouchers' => app(PublicShopVouchers::class)->forStores([$product->store_id]), 'product' => $product, 'reviews' => $product->reviews()->latest('id')->paginate(10, ['id', 'rating', 'body', 'created_at']), 'saved' => $request->user()?->role === 'buyer' && DB::table('product_wishlists')->where('user_id', $request->user()->id)->where('product_id', $product->id)->exists()]);
     }
 
     public function store(Request $request, OrderItem $item)

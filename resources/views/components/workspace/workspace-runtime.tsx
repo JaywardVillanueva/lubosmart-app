@@ -12,8 +12,8 @@ const rememberStatus = (key: string) => {
     if (announcedStatuses.size > 100) announcedStatuses.delete(announcedStatuses.values().next().value!);
 };
 const pageProps: Record<string, string[]> = {
-    'marketplace/catalog': ['products', 'favoriteIds'],
-    'marketplace/cart': ['items', 'addresses', 'shippingFee', 'logisticsPricing'],
+    'marketplace/catalog': ['products', 'favoriteIds', 'publicVouchers'],
+    'marketplace/cart': ['items', 'addresses', 'shippingFee', 'logisticsPricing', 'publicVouchers'],
     'marketplace/orders': ['orders', 'messages', 'reviews'],
     'marketplace/inventory': ['products', 'store'],
     'marketplace/deliveries': ['deliveries', 'available', 'riders', 'areas', 'cod'],
@@ -34,7 +34,7 @@ const pageProps: Record<string, string[]> = {
     'finance/seller-costs': ['costs', 'totals'],
     'support/index': ['cases'],
     'support/show': ['case', 'messages'],
-    'marketplace/product': ['product', 'reviews'],
+    'marketplace/product': ['product', 'reviews', 'publicVouchers'],
     'logistics/riders/index': ['riders'],
     'logistics/rider-coverage': ['riders', 'assignments', 'centers'],
     'logistics/shipping-rates': ['rates', 'centers', 'pricingEnabled'],
@@ -71,6 +71,7 @@ export function WorkspaceRuntime({ children }: { children: ReactNode }) {
         let delay = 4000;
         let visiting = false;
         let method = 'get';
+        let loggingOut = false;
         let retryRefresh = false;
         let pollAgain = false;
         const initial = currentPage.current.props.status;
@@ -141,13 +142,14 @@ export function WorkspaceRuntime({ children }: { children: ReactNode }) {
         const stopStart = router.on('start', (event) => {
             visiting = true;
             method = event.detail.visit.method;
+            loggingOut = event.detail.visit.url.pathname === '/logout';
         });
         const stopFinish = router.on('finish', () => {
             visiting = false;
             void poll();
         });
         const stopSuccess = router.on('success', (event) => {
-            if (method !== 'get') {
+            if (method !== 'get' && !loggingOut) {
                 const message = typeof event.detail.page.props.status === 'string' ? event.detail.page.props.status : 'Changes saved.';
                 rememberStatus(`${currentPage.current.props.auth.user.id}:${event.detail.page.url}:${message}`);
                 notify(message);

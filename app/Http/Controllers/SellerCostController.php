@@ -6,6 +6,7 @@ use App\Models\ParcelReturn;
 use App\Models\SellerCost;
 use App\Models\SellerOrder;
 use App\Models\SellerPayout;
+use App\Services\ParcelFinance;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -17,12 +18,13 @@ class SellerCostController extends Controller
         $storeId = $request->user()->store?->id;
         $parcels = SellerOrder::query()->where('store_id', $storeId)->where('status', 'completed');
         $costs = SellerCost::query()->where('store_id', $storeId);
-        $proceeds = (int) round((float) (clone $parcels)->sum('seller_proceeds') * 100);
+        $proceeds = (int) (clone $parcels)->selectRaw('COALESCE(SUM(ROUND(seller_proceeds * 100)), 0) as cents')->value('cents');
+        $recoveries = (int) ParcelReturn::query()->whereHas('sellerOrder', fn ($q) => $q->where('store_id', $storeId))->sum('seller_recovered_cents');
         $refunds = ParcelReturn::query()->whereHas('sellerOrder', fn ($q) => $q->where('store_id', $storeId))->sum('seller_debit_cents');
         $paid = SellerPayout::query()->whereHas('sellerOrder', fn ($q) => $q->where('store_id', $storeId))->sum('amount_cents');
         $cost = (clone $costs)->whereNull('voided_at')->sum('amount_cents');
 
-        $data = ['costs' => $costs->latest('incurred_on')->latest('id')->paginate(15), 'totals' => ['proceeds' => $proceeds, 'refunds' => (int) $refunds, 'costs' => (int) $cost, 'profit' => $proceeds - $refunds - $cost, 'paid' => (int) $paid, 'balance' => $proceeds - $refunds - $paid], 'canRecord' => $request->user()->store?->status === 'approved'];
+        $data = ['costs' => $costs->latest('incurred_on')->latest('id')->paginate(15), 'totals' => ['proceeds' => $proceeds, 'refunds' => (int) $refunds, 'costs' => (int) $cost, 'profit' => $proceeds - $refunds - $cost, 'paid' => (int) $paid, 'balance' => $proceeds - $refunds - $paid + $recoveries], 'canRecord' => $request->user()->store?->status === 'approved'];
         if ($request->routeIs('api.v1.*')) {
             $data['costs']->through(fn ($cost) => $cost->only(['id', 'incurred_on', 'category', 'description', 'amount_cents', 'voided_at', 'void_reason']));
 
@@ -36,7 +38,7 @@ class SellerCostController extends Controller
     {
         abort_unless($request->user()->store?->status === 'approved', 403);
         $data = $request->validate(['incurred_on' => ['required', 'date_format:Y-m-d', 'before_or_equal:'.now('Asia/Manila')->toDateString()], 'category' => 'required|in:goods,packaging,operations,other', 'description' => 'required|string|min:3|max:500', 'amount' => 'required|numeric|decimal:0,2|min:0.01|max:99999999.99']);
-        SellerCost::query()->create(['store_id' => $request->user()->store->id, 'recorded_by' => $request->user()->id, 'incurred_on' => $data['incurred_on'], 'category' => $data['category'], 'description' => $data['description'], 'amount_cents' => (int) round((float) $data['amount'] * 100)]);
+        SellerCost::query()->create(['store_id' => $request->user()->store->id, 'recorded_by' => $request->user()->id, 'incurred_on' => $data['incurred_on'], 'category' => $data['category'], 'description' => $data['description'], 'amount_cents' => ParcelFinance::cents((string) $data['amount'])]);
 
         if ($request->routeIs('api.v1.*')) {
             return response()->json(['message' => 'Cost recorded.']);

@@ -58,7 +58,7 @@ export default function SellerListFilters({
                             !!filter.value &&
                             !(filter.key === 'sort' && filter.value === 'name') &&
                             !(filter.key === 'status' && filter.value === 'all') &&
-                            !(filter.key === 'stage' && filter.value === 'all'),
+                            !(filter.key === 'stage' && (!buyer || filter.value === 'all')),
                     )}
                 >
                     {!inventory && (

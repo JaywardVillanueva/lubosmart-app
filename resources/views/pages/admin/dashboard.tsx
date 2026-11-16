@@ -1,17 +1,16 @@
 import { DashboardAnalytics, type DashboardAnalyticsData } from '@/components/admin/dashboard-analytics';
 import { InfoModal } from '@/components/shared/info-modal';
-import { Badge, buttonClass, Card, Page, roleLabel, secondaryClass } from '@/components/shared/marketplace-ui';
+import { Badge, buttonClass, Card, money, Page, roleLabel, secondaryClass } from '@/components/shared/marketplace-ui';
 import { DashboardMetric, DashboardWelcome } from '@/components/workspace/dashboard-panels';
 import { activityAction, activityDate, titleCase } from '@/lib/admin-display';
 import type { SharedData } from '@/types';
-import { Link, usePage } from '@inertiajs/react';
+import { Link, usePage, usePoll } from '@inertiajs/react';
 import {
     ArrowRight,
     ChartNoAxesCombined,
     ClipboardCheck,
     History,
     Inbox,
-    Megaphone,
     MessageCircle,
     MessageSquareWarning,
     Percent,
@@ -30,12 +29,15 @@ export default function AdminDashboard({
     adminOverview: overview,
     records,
     analytics,
+    summary,
 }: {
     stats: Record<string, number>;
+    summary: { orders?: number; commission?: string; sellers?: number; returns?: number };
     analytics?: DashboardAnalyticsData | null;
     adminOverview: AdminOverviewData;
     records: { id: number; label: string; status: string; detail: string; occurredAt?: string }[];
 }) {
+    usePoll(30000, { only: ['summary', 'analytics', 'stats', 'records', 'adminOverview'] });
     const { auth, adminWorkspace } = usePage<SharedData>().props;
     const permissions = adminWorkspace?.permissions ?? [];
     const metrics = [
@@ -89,23 +91,6 @@ export default function AdminDashboard({
         },
     ].filter((item) => item.value > 0 && permissions.includes(item.permission));
     const attentionTotal = attention.reduce((total, item) => total + item.value, 0);
-    const shortcuts = [
-        { title: 'Commission', detail: 'Set the platform share for new orders.', href: '/admin/commission', icon: Percent, permission: 'finance' },
-        {
-            title: 'Sales & Commission Reports',
-            detail: 'Review delivered sales and export records.',
-            href: '/reports',
-            icon: ChartNoAxesCombined,
-            permission: 'reports',
-        },
-        {
-            title: 'Announcements & Policies',
-            detail: 'Prepare and publish platform updates.',
-            href: '/admin/platform',
-            icon: Megaphone,
-            permission: 'system',
-        },
-    ].filter((item) => permissions.includes(item.permission));
     return (
         <Page headerInNavbar title="Admin Dashboard" description="Track sales, commission, and delivery progress, then act on your review queues.">
             <DashboardWelcome
@@ -113,6 +98,7 @@ export default function AdminDashboard({
                 title={'Welcome back, ' + auth.user.name.trim().split(/\s+/)[0] + '.'}
                 description="See how your platform is performing, then take care of the items waiting for review."
                 icon={ChartNoAxesCombined}
+                illustration="platform"
             >
                 <div className="flex flex-wrap gap-3">
                     {attention[0] && (
@@ -129,25 +115,55 @@ export default function AdminDashboard({
                     )}
                 </div>
             </DashboardWelcome>
-            {analytics && <DashboardAnalytics data={analytics} />}
-            <section aria-label="Platform summary" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                {metrics.map((metric) => (
+            <section aria-label="Marketplace summary" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                {summary.orders !== undefined && (
                     <DashboardMetric
-                        key={metric.label}
-                        label={metric.label}
-                        value={metric.value}
-                        hint={metric.hint}
-                        href={metric.href}
-                        icon={metric.icon}
+                        compact
+                        label="Total orders"
+                        value={summary.orders}
+                        hint="All-time marketplace orders, across all statuses"
+                        icon={ChartNoAxesCombined}
+                        href="/reports"
                     />
-                ))}
+                )}
+                {summary.commission !== undefined && (
+                    <DashboardMetric
+                        compact
+                        label="Platform commission"
+                        value={money(summary.commission)}
+                        hint="Completed commission minus recorded refund reversals; excludes gross sales and COD"
+                        icon={Percent}
+                        href="/reports"
+                    />
+                )}
+                {summary.sellers !== undefined && (
+                    <DashboardMetric
+                        compact
+                        label="Approved sellers"
+                        value={summary.sellers}
+                        hint="Approved stores with approved, verified owners"
+                        icon={Users}
+                        href="/admin/compliance"
+                    />
+                )}
+                {summary.returns !== undefined && (
+                    <DashboardMetric
+                        compact
+                        label="Pending return reviews"
+                        value={summary.returns}
+                        hint="Requested or approved return and refund cases"
+                        icon={MessageSquareWarning}
+                        href="/returns"
+                    />
+                )}
             </section>
+
             <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(280px,1fr)]">
                 <div className="space-y-6">
                     <Card>
                         <div className="flex items-center justify-between gap-3">
                             <div>
-                                <h2 className="font-semibold">Needs Attention</h2>
+                                <h2 className="font-semibold">Needs attention</h2>
                                 <p className="text-muted-foreground mt-1 text-xs">Focus on the next action that moves things forward.</p>
                             </div>
                             <span className="bg-accent text-primary rounded-full px-3 py-1 text-xs font-semibold tabular-nums">{attentionTotal}</span>
@@ -182,65 +198,50 @@ export default function AdminDashboard({
                             </div>
                         )}
                     </Card>
-                    <Card>
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                            <div>
-                                <h2 className="font-semibold">Registration Queue</h2>
-                                <p className="text-muted-foreground mt-1 text-xs">Oldest submissions are shown first.</p>
+                    {permissions.includes('registrations') && (
+                        <Card>
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                                <div>
+                                    <h2 className="font-semibold">Registration queue</h2>
+                                    <p className="text-muted-foreground mt-1 text-xs">Oldest submissions are shown first.</p>
+                                </div>
+                                <Link href="/reviews" className="text-primary flex items-center gap-1 text-xs font-semibold hover:underline">
+                                    View Registrations <ArrowRight className="size-3" />
+                                </Link>
                             </div>
-                            <Link href="/reviews" className="text-primary flex items-center gap-1 text-xs font-semibold hover:underline">
-                                View Registrations <ArrowRight className="size-3" />
-                            </Link>
-                        </div>
-                        {overview.applications.length ? (
-                            <ul className="mt-5 divide-y">
-                                {overview.applications.map((item) => (
-                                    <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 py-4">
-                                        <div className="flex min-w-0 items-center gap-3">
-                                            <span className="bg-accent text-primary flex size-10 shrink-0 items-center justify-center rounded-xl text-sm font-semibold">
-                                                {item.name.charAt(0).toUpperCase()}
-                                            </span>
-                                            <div>
-                                                <p className="text-sm font-semibold break-words">{item.name}</p>
-                                                <p className="text-muted-foreground mt-1 text-xs">{roleLabel(item.role)}</p>
+                            {overview.applications.length ? (
+                                <ul className="mt-5 divide-y">
+                                    {overview.applications.map((item) => (
+                                        <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 py-4">
+                                            <div className="flex min-w-0 items-center gap-3">
+                                                <span className="bg-accent text-primary flex size-10 shrink-0 items-center justify-center rounded-xl text-sm font-semibold">
+                                                    {item.name.charAt(0).toUpperCase()}
+                                                </span>
+                                                <div>
+                                                    <p className="text-sm font-semibold break-words">{item.name}</p>
+                                                    <p className="text-muted-foreground mt-1 text-xs">{roleLabel(item.role)}</p>
+                                                </div>
                                             </div>
-                                        </div>
-                                        <InfoModal kind="registration" id={item.id} label="Review Application" />
-                                    </li>
-                                ))}
-                            </ul>
-                        ) : (
-                            <div className="mt-5 flex flex-col items-center rounded-xl border border-dashed px-5 py-8 text-center">
-                                <ClipboardCheck className="text-muted-foreground/50 mb-3 size-7" />
-                                <p className="text-sm font-medium">No pending applications</p>
-                                <p className="text-muted-foreground mt-1 max-w-xs text-xs leading-relaxed">
-                                    Submitted applications will appear here when they are ready for your review.
-                                </p>
-                            </div>
-                        )}
-                    </Card>
+                                            <InfoModal kind="registration" id={item.id} label="Review Application" />
+                                        </li>
+                                    ))}
+                                </ul>
+                            ) : (
+                                <div className="mt-5 flex flex-col items-center rounded-xl border border-dashed px-5 py-8 text-center">
+                                    <ClipboardCheck className="text-muted-foreground/50 mb-3 size-7" />
+                                    <p className="text-sm font-medium">No pending applications</p>
+                                    <p className="text-muted-foreground mt-1 max-w-xs text-xs leading-relaxed">
+                                        Submitted applications will appear here when they are ready for your review.
+                                    </p>
+                                </div>
+                            )}
+                        </Card>
+                    )}
                 </div>
                 <div className="space-y-6">
                     <Card>
-                        <h2 className="font-semibold">Platform Management</h2>
-                        <div className="mt-4 divide-y">
-                            {shortcuts.map((item) => (
-                                <Link key={item.title} href={item.href} className="group flex items-center gap-3 py-4">
-                                    <span className="bg-accent/60 text-primary rounded-xl p-2.5">
-                                        <item.icon className="size-4" />
-                                    </span>
-                                    <span className="min-w-0 flex-1">
-                                        <span className="block text-sm font-semibold">{item.title}</span>
-                                        <span className="text-muted-foreground mt-1 block text-xs leading-relaxed">{item.detail}</span>
-                                    </span>
-                                    <ArrowRight className="text-muted-foreground/60 group-hover:text-primary size-4 shrink-0" />
-                                </Link>
-                            ))}
-                        </div>
-                    </Card>
-                    <Card>
                         <div className="flex items-center justify-between gap-3">
-                            <h2 className="font-semibold">Recent Activity</h2>
+                            <h2 className="font-semibold">Recent activity</h2>
                             <History className="text-muted-foreground size-4" />
                         </div>
                         {records.length ? (
@@ -273,6 +274,7 @@ export default function AdminDashboard({
                     </Card>
                 </div>
             </div>
+            {analytics && <DashboardAnalytics data={analytics} />}
         </Page>
     );
 }

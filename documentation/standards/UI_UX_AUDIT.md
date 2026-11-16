@@ -1478,7 +1478,7 @@ Limitations: full legacy scanner/operations/Seller browser suites were not rerun
 - Browser visual/manual verification was not performed. Light/dark, 320px/mobile, zoom, keyboard, screen reader, confirmation presentation and live location network behavior remain unverified. Automated checks do not establish WCAG compliance.
 Final regression validation: complete LogisticsWorkspaceTest passed (45 tests, 787 assertions).
 
-## Marketplace redesign and responsive layout — 2026-11-14
+## Marketplace redesign and responsive layout ï¿½ 2026-11-14
 
 See [the implementation and validation report](MARKETPLACE_REDESIGN_2026_11_14.md)
 for the modified-file inventory, read-only product provenance review, shared layout
@@ -1494,7 +1494,7 @@ reference. The original category artwork, featured-product presentation and navb
 have been restored; Marketplace and other public Page views reuse the same header.
 See [restoration and validation details](HOME_DESIGN_RESTORATION_2026_11_14.md).
 
-## Stable form feedback — 2026-11-14
+## Stable form feedback ï¿½ 2026-11-14
 
 Login now uses the existing reserved field feedback by default. Shared reserved
 feedback slots retain 40px (two lines at 20px line height) whether empty or showing
@@ -1515,7 +1515,7 @@ appear and clear, plus keyboard focus and unsaved-registration behavior. Earlier
 full runs encountered a missing Vite manifest during concurrent workspace/build
 changes; therefore full viewport verification of the final build remains limited.
 
-## Login notification feedback — 2026-11-14
+## Login notification feedback ï¿½ 2026-11-14
 
 Supersedes reserved inline feedback for login, following the user's compact-form
 preference. Login submits consolidate validation messages into one floating alert
@@ -1530,14 +1530,14 @@ passed: one alert after failed submission, unchanged control/button positions,
 persistence beyond 11 seconds and explicit dismissal. Full manual screen reader,
 zoom, theme and mobile visual verification remain outstanding.
 
-## Sign-up Continue width — 2026-11-14
+## Sign-up Continue width ï¿½ 2026-11-14
 
 The role-selection Continue link now spans the same container width as the account
 options, preserving its existing height, branding and navigation. Targeted ESLint,
 TypeScript, CSS formatting, production build and authentication checks were run.
 Manual browser/mobile visual verification was not performed for this small change.
 
-## Registration feedback and leave confirmation — 2026-11-14
+## Registration feedback and leave confirmation ï¿½ 2026-11-14
 
 Registration fields now route feedback through one persistent dismissible notification
 inside the account dialog. Field errors retain visually hidden associated text and
@@ -1558,14 +1558,14 @@ Focused headless browser check passed: one error notification persisted beyond
 11 seconds, explicit dismissal worked, themed close cancellation retained entered
 values, and confirmed role navigation succeeded.
 
-## Registration footer Back removed — 2026-11-14
+## Registration footer Back removed ï¿½ 2026-11-14
 
 Removed the Back button and unused callback from the registration footer at the
 user's request. Step navigation remains available through the existing progress
 controls. Targeted ESLint, TypeScript, production build, 37 frontend registration
 tests and 5 authentication tests passed. Manual visual verification was not run.
 
-## Auth notification top placement — 2026-11-14
+## Auth notification top placement ï¿½ 2026-11-14
 
 Moved sign-in and registration notifications from the bottom to the top of the
 account modal. Notifications remain outside form flow, single, persistent and
@@ -1573,7 +1573,7 @@ explicitly dismissible. Both variants cap long messages at 40dvh with scrolling.
 Targeted ESLint, TypeScript, production build and 5 authentication tests passed.
 Manual mobile/theme/zoom visual review remains outstanding.
 
-## Shared authentication notification behavior — 2026-11-14
+## Shared authentication notification behavior ï¿½ 2026-11-14
 
 Supersedes the previous sign-in/sign-up-only scope. AccountAccessLayout now provides
 one shared top notification host for every auth/onboarding form. AuthFeedback and
@@ -1630,3 +1630,22 @@ build and 8 homepage feature tests (89 assertions) passed. Full keyboard, screen
 reader and zoom verification remains outstanding.
 Focused Chrome verification also passed on home/login in both themes at 320,
 360, 768, 844 and 1440px, including motion and reduced-motion checks.
+
+## Homepage tagline containment and motion - 2026-11-17
+
+Constrained the after-truck strip to its available width and used its own inline-size container for label spacing. Both tagline tracks now travel left to right on a continuous 14-second linear loop, matching the truck direction and cycle duration; hover/focus no longer pauses decorative text. Reduced-motion preferences remain respected. Targeted ESLint, TypeScript, production build and 8 homepage tests (89 assertions) passed. Build retains runtime image URL warnings. Browser visual verification of clipping, mobile widths, zoom and motion remains outstanding; no WCAG compliance claim.
+
+
+## Hero truck and tagline alignment correction - 2026-11-17
+
+Moved the lower tagline inside the hero with matching rounded bottom corners; reserved a 40px footer below the truck lane and increased content clearance accordingly. The lower marquee group travels the hero width plus 240px per cycle, matching the truck travel distance and 14-second duration. Supersedes the previous separate-bar layout. ESLint, TypeScript, production build and 8 homepage tests (89 assertions) passed. Existing browser runner starts but fails on a missing element getBoundingClientRect call; visual alignment and responsive acceptance remain unverified. Runtime image URL build warnings persist.
+
+
+## Stronger tagline color - 2026-11-17
+
+Changed the lower hero tagline to the semantic primary background and primary-foreground text and stars for a stronger brand-purple band in both themes. Layout and motion retained. ESLint, TypeScript, production build and 8 homepage tests (89 assertions) passed; existing runtime image URL warnings remain. Browser visual/contrast verification remains outstanding.
+
+
+## Remove lower hero tagline - 2026-11-17
+
+Removed the lower text strip at user request and deleted its unused variant/styles. Restored the truck lane to the hero bottom and removed the extra footer clearance. Upper tagline retained. ESLint, TypeScript, production build and 8 homepage tests (89 assertions) passed. Existing runtime image URL warnings persist. Browser visual review remains outstanding.

@@ -15,9 +15,13 @@ use App\Models\SellerOrder;
 use App\Models\Store;
 use App\Models\StoreVoucher;
 use App\Models\User;
+use App\Models\WeeklyRiderPayment;
 use App\Services\Admin\AuditLogger;
+use App\Services\LubosCoins;
 use App\Services\ParcelFinance;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia as Assert;
 
@@ -41,7 +45,7 @@ function settlementScenario(): array
     $order = Order::query()->create(['buyer_id' => $buyer->id, 'shipping_recipient_name' => 'Test buyer', 'shipping_phone' => '09123456789', 'shipping_line1' => '10 Test street', 'shipping_barangay' => 'Test', 'shipping_city' => 'Manila', 'shipping_province' => 'Metro Manila', 'shipping_region' => 'NCR', 'shipping_zip' => '1000', 'subtotal' => 200, 'shipping_total' => 50, 'total' => 250, 'status' => 'completed', 'payment_method' => 'cod']);
     $parcel = SellerOrder::query()->create(['order_id' => $order->id, 'store_id' => $store->id, 'subtotal' => 200, 'shipping_fee' => 50, 'commission_basis_points' => 1000, 'commission_amount' => 20, 'seller_proceeds' => 180, 'status' => 'completed']);
     OrderItem::query()->create(['seller_order_id' => $parcel->id, 'product_id' => $product->id, 'product_name' => $product->name, 'product_variant_id' => $variant->id, 'variant_key' => (string) $variant->id, 'variant_name' => $variant->name, 'quantity' => 2, 'price_each' => 100]);
-    $delivery = Delivery::query()->create(['seller_order_id' => $parcel->id, 'rider_id' => $rider->id, 'logistics_center_id' => $center->id, 'status' => 'delivered', 'delivered_at' => '2026-10-25 10:00:00']);
+    $delivery = Delivery::query()->create(['seller_order_id' => $parcel->id, 'rider_id' => $rider->id, 'logistics_center_id' => $center->id, 'status' => 'delivered', 'delivered_at' => now()]);
     DB::table('cod_collections')->insert(['delivery_id' => $delivery->id, 'rider_id' => $rider->id, 'reference' => (string) Str::uuid(), 'amount' => 250, 'received_amount' => 250, 'handover_reference' => 'CASH-'.$delivery->id, 'status' => 'reconciled', 'collected_at' => now(), 'created_at' => now(), 'updated_at' => now()]);
     LogisticsRemittance::query()->create(['seller_order_id' => $parcel->id, 'logistics_center_id' => $center->id, 'recorded_by' => $admin->id, 'amount_cents' => 20000, 'reference' => 'PRODUCT-CASH-'.$parcel->id, 'received_on' => '2026-10-25', 'notes' => 'Synthetic actual platform receipt evidence; shipping retained by Logistics.']);
     foreach (['picked_up', 'delivered'] as $type) {
@@ -50,6 +54,52 @@ function settlementScenario(): array
 
     return compact('buyer', 'seller', 'logistics', 'rider', 'admin', 'center', 'store', 'product', 'variant', 'parcel', 'delivery');
 }
+
+test('logistics submits fixed product cash and admin separately reconciles and confirms actual receipt', function () {
+    $f = settlementScenario();
+    DB::table('logistics_remittances')->delete();
+    DB::table('cod_collections')->where('delivery_id', $f['delivery']->id)->update(['status' => 'handed_over']);
+    $url = '/logistics-settlements/'.$f['parcel']->id.'/handover';
+    $this->actingAs($f['logistics'])->get('/logistics-settlements')->assertInertia(fn (Assert $page) => $page
+        ->where('can_submit', true)->where('entries.data.0.can_submit', true)->where('entries.data.0.product_remittance_cents', 20000));
+
+    $this->post($url, ['amount' => '1.00', 'reference' => 'ALTERED'])->assertRedirect()->assertSessionHasNoErrors();
+    $this->post($url)->assertSessionHasNoErrors();
+    $events = DB::table('parcel_events')->where('delivery_id', $f['delivery']->id)->where('type', 'submit_platform_handover')->get();
+    expect($events)->toHaveCount(1);
+    $submission = json_decode($events->first()->notes, true)['evidence'];
+    expect($submission['amount_cents'])->toBe(20000);
+    expect($submission['reference'])->toStartWith('LMHO-');
+    $this->assertDatabaseCount('logistics_remittances', 0);
+    $this->assertDatabaseHas('cod_collections', ['delivery_id' => $f['delivery']->id, 'status' => 'handed_over']);
+    expect($f['admin']->notifications()->where('data->event', 'remittance.submitted')->count())->toBe(1);
+    $this->get('/logistics-settlements')->assertInertia(fn (Assert $page) => $page
+        ->where('entries.data.0.can_submit', false)->where('entries.data.0.handover.reference', $submission['reference']));
+
+    $this->withSession(['password_hash_web' => $f['admin']->password])->actingAs($f['admin'])->post($url)->assertForbidden();
+    $receiptUrl = '/logistics-settlements/'.$f['parcel']->id;
+    $payload = ['amount' => '200.00', 'received_on' => now('Asia/Manila')->toDateString(), 'notes' => 'Physically received product cash from Logistics.'];
+    $this->post($receiptUrl, $payload)->assertConflict();
+    $this->get('/logistics-settlements')->assertInertia(fn (Assert $page) => $page
+        ->where('can_reconcile', true)->where('entries.data.0.can_reconcile', true)->where('entries.data.0.can_record', false));
+    $this->post('/deliveries/'.$f['delivery']->id, ['action' => 'reconcile_cod'])->assertSessionHasNoErrors();
+    $this->post($receiptUrl, [...$payload, 'external_reference' => 'ALTERED'])->assertSessionHasErrors('external_reference');
+    $this->post($receiptUrl, $payload)->assertSessionHasNoErrors();
+    $this->assertDatabaseHas('logistics_remittances', ['seller_order_id' => $f['parcel']->id, 'amount_cents' => 20000, 'external_reference' => $submission['reference'], 'recorded_by' => $f['admin']->id]);
+});
+
+test('logistics cannot submit another company cash or unverified rider receipts', function () {
+    $f = settlementScenario();
+    DB::table('logistics_remittances')->delete();
+    $url = '/logistics-settlements/'.$f['parcel']->id.'/handover';
+    $other = User::factory()->create(['role' => 'logistics']);
+    $this->actingAs($other)->post($url)->assertForbidden();
+    $this->withSession(['password_hash_web' => $f['rider']->password])->actingAs($f['rider'])->post($url)->assertForbidden();
+    DB::table('cod_collections')->where('delivery_id', $f['delivery']->id)->update(['status' => 'collected', 'received_amount' => 200, 'discrepancy_reason' => 'Short cash']);
+    $this->withSession(['password_hash_web' => $f['logistics']->password])->actingAs($f['logistics'])->post($url)->assertConflict();
+    $this->assertDatabaseMissing('parcel_events', ['type' => 'submit_platform_handover']);
+    $this->assertDatabaseCount('logistics_remittances', 0);
+});
 
 test('seller preparation rejects financial and external fulfillment overrides without changing the parcel', function () {
     $shop = settlementScenario();
@@ -104,22 +154,61 @@ test('structured fulfillment concerns cannot be submitted without a parcel or as
     $this->assertDatabaseCount('support_cases', 0);
 });
 
+test('buyer and seller return cards receive product photos without the full product record', function (?string $imagePath) {
+    $shop = settlementScenario();
+    $return = requestLedgerReturn($this, $shop);
+    $shop['product']->update(['image_path' => $imagePath]);
+
+    $response = $this->get('/returns');
+
+    $response->assertInertia(fn (Assert $page) => $page
+        ->component('finance/returns')
+        ->has('returns.data', 1)
+        ->where('returns.data.0.id', $return->id)
+        ->where('returns.data.0.seller_order.items.0.product_name', 'Cotton shirt')
+        ->where('returns.data.0.seller_order.items.0.product_image_url', $imagePath ? Storage::disk('public')->url($imagePath) : null)
+        ->missing('returns.data.0.seller_order.items.0.product'));
+
+    $this->actingAs($shop['seller'])->get('/returns')->assertInertia(fn (Assert $page) => $page
+        ->has('returns.data', 1)
+        ->where('returns.data.0.id', $return->id)
+        ->where('returns.data.0.seller_order.items.0.product_image_url', $imagePath ? Storage::disk('public')->url($imagePath) : null)
+        ->missing('returns.data.0.seller_order.items.0.product'));
+})->with(['photo' => 'products/returned-shirt.jpg', 'no photo' => null]);
+
 function requestLedgerReturn($test, array $shop): ParcelReturn
 {
     $test->actingAs($shop['buyer'])->post('/returns', ['seller_order_id' => $shop['parcel']->id, 'reason' => 'The whole parcel is not suitable.'])->assertSessionHasNoErrors();
 
-    return ParcelReturn::query()->where('seller_order_id', $shop['parcel']->id)->firstOrFail();
+    return ParcelReturn::query()->where('seller_order_id', $shop['parcel']->id)->latest('id')->firstOrFail();
+}
+
+function ledgerApproval(ParcelReturn $return, ?string $amount = null, bool $physical = false, string $responsibility = 'seller'): array
+{
+    return ['action' => 'approve', 'items' => $return->requestedItems()->get()->map(fn ($item) => ['order_item_id' => $item->order_item_id, 'quantity' => $item->quantity, 'amount' => $amount ?? ParcelFinance::decimal($item->requested_cents)])->all(),
+        'shipping_amount' => '0.00', 'physical_return_required' => $physical, 'responsibility' => $responsibility,
+        'return_shipping_responsibility' => $physical ? 'platform' : 'not_required', 'reason' => 'Reviewed actual purchase and evidence; approved refund.'];
+}
+
+function approveLedgerRefund($test, array $shop, ParcelReturn $return, ?string $amount = null, string $responsibility = 'seller'): void
+{
+    $test->actingAs($shop['admin'])->patch('/returns/'.$return->id, ledgerApproval($return, $amount, false, $responsibility))->assertSessionHasNoErrors();
 }
 
 function receiveLedgerReturn($test, array $shop, ParcelReturn $return, bool $restock = true): void
 {
+    $shop['parcel']->update(['shipping_quote' => ['pickup_address' => ['province' => 'Metro Manila', 'city' => 'Manila', 'barangay' => 'Test', 'line1' => 'Seller street']]]);
+    $area = DB::table('service_areas')->insertGetId(['logistics_center_id' => $shop['center']->id, 'code' => 'LEDGER-RETURN-'.$return->id, 'name' => 'Return test area', 'province_code' => '130000000', 'city_code' => '133900000', 'barangay_code' => '133900001', 'province_name' => 'Metro Manila', 'city_name' => 'Manila', 'barangay_name' => 'Test', 'is_active' => true]);
+    DB::table('rider_service_area')->insert(['rider_id' => $shop['rider']->id, 'service_area_id' => $area]);
+    $photo = fn () => UploadedFile::fake()->createWithContent('handover.png', base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aV1cAAAAASUVORK5CYII='));
     $url = '/returns/'.$return->id;
-    $test->actingAs($shop['admin'])->patch($url, ['action' => 'approve', 'reason' => 'Return approved after review.'])->assertSessionHasNoErrors();
+    $test->actingAs($shop['admin'])->patch($url, ledgerApproval($return, null, true))->assertSessionHasNoErrors();
     $test->actingAs($shop['logistics'])->patch($url, ['action' => 'assign', 'rider_id' => $shop['rider']->id, 'reason' => 'Assigned to our return rider.'])->assertSessionHasNoErrors();
-    $test->actingAs($shop['rider'])->patch($url, ['action' => 'collect', 'tracking_reference' => $shop['delivery']->tracking_reference, 'reason' => 'Physically collected the complete parcel.'])->assertSessionHasNoErrors();
-    $test->actingAs($shop['seller'])->patch($url, ['action' => 'receive', 'tracking_reference' => $shop['delivery']->tracking_reference, 'condition' => $restock ? 'intact' : 'damaged', 'restock' => $restock, 'reason' => 'Inspected and physically received the return.'])->assertSessionHasNoErrors();
-    $test->actingAs($shop['admin'])->patch($url, ['action' => 'review_responsibility', 'responsibility' => 'seller', 'reason' => 'Seller confirmed the preparation error after evidence review.'])->assertSessionHasNoErrors();
-    $test->actingAs($shop['seller']);
+    $test->actingAs($shop['rider'])->patch($url, ['action' => 'collect', 'proof' => $photo(), 'recipient_name' => 'Buyer', 'reason' => 'Collected the returned goods.'])->assertSessionHasNoErrors();
+    $test->actingAs($shop['logistics'])->patch($url, ['action' => 'facility_receive', 'reason' => 'Actual facility receipt.'])->assertSessionHasNoErrors();
+    $test->actingAs($shop['rider'])->patch($url, ['action' => 'accept_seller_dispatch', 'reason' => 'Accepted actual seller dispatch.'])->assertSessionHasNoErrors();
+    $test->patch($url, ['action' => 'deliver_seller', 'proof' => $photo(), 'recipient_name' => 'Seller', 'reason' => 'Delivered to seller.'])->assertSessionHasNoErrors();
+    $test->actingAs($shop['seller'])->patch($url, ['action' => 'receive', 'condition' => $restock ? 'intact' : 'damaged', 'restock' => $restock, 'reason' => 'Inspected and received returned goods.'])->assertSessionHasNoErrors();
 }
 
 test('only admin records a seller payout after reconciliation and cannot record it twice', function () {
@@ -204,17 +293,15 @@ test('buyer admin logistics rider seller and refund form a traceable return jour
     $shop = settlementScenario();
     $return = requestLedgerReturn($this, $shop);
     receiveLedgerReturn($this, $shop, $return);
-    $this->assertDatabaseHas('parcel_returns', ['id' => $return->id, 'status' => 'received', 'restocked' => true]);
+    $this->assertDatabaseHas('return_tasks', ['parcel_return_id' => $return->id, 'status' => 'received', 'confirmed_by' => $shop['seller']->id]);
     expect($shop['product']->fresh()->stock)->toBe(10);
     expect($shop['variant']->fresh()->stock)->toBe(10);
-    $this->patch('/returns/'.$return->id, ['action' => 'receive', 'tracking_reference' => $shop['delivery']->tracking_reference, 'condition' => 'intact', 'restock' => true, 'reason' => 'Duplicate receipt'])->assertConflict();
-    $this->actingAs($shop['admin'])->patch('/returns/'.$return->id, ['action' => 'refund', 'amount' => 200, 'reference' => 'REFUND-001', 'reason' => 'Actual approved product refund paid manually.'])->assertSessionHasNoErrors();
-    $this->assertDatabaseHas('parcel_returns', ['id' => $return->id, 'status' => 'refunded', 'refund_cents' => 20000, 'seller_debit_cents' => 18000, 'commission_reversal_cents' => 2000]);
-    $this->assertDatabaseCount('return_events', 7);
-    $this->assertDatabaseHas('audit_events', ['action' => 'manual_refund_recorded']);
+    $this->patch('/returns/'.$return->id, ['action' => 'receive', 'condition' => 'intact', 'restock' => true, 'reason' => 'Duplicate receipt'])->assertConflict();
+    $this->assertDatabaseHas('parcel_returns', ['id' => $return->id, 'refund_status' => 'credited', 'refund_cents' => 20000, 'seller_debit_cents' => 18000, 'commission_reversal_cents' => 2000]);
+    $this->assertDatabaseCount('wallet_transactions', 1);
     $this->assertDatabaseHas('seller_orders', ['id' => $shop['parcel']->id, 'status' => 'completed', 'subtotal' => 200, 'seller_proceeds' => 180]);
     $this->assertDatabaseHas('cod_collections', ['delivery_id' => $shop['delivery']->id, 'status' => 'reconciled', 'amount' => 250]);
-    $this->actingAs($shop['seller'])->get('/seller/costs')->assertInertia(fn (Assert $page) => $page->where('totals.profit', 0)->where('totals.balance', 0));
+    $this->get('/seller/costs')->assertInertia(fn (Assert $page) => $page->where('totals.profit', 0)->where('totals.balance', 0));
 });
 
 test('returns require ownership delivered state and correct role for each decision', function () {
@@ -225,7 +312,7 @@ test('returns require ownership delivered state and correct role for each decisi
     $this->actingAs($shop['buyer'])->post('/returns', ['seller_order_id' => $shop['parcel']->id, 'reason' => 'This is not delivered yet.'])->assertConflict();
     $shop['parcel']->update(['status' => 'completed']);
     $return = requestLedgerReturn($this, $shop);
-    $this->post('/returns', ['seller_order_id' => $shop['parcel']->id, 'reason' => 'Duplicate return request.'])->assertConflict();
+    $this->post('/returns', ['seller_order_id' => $shop['parcel']->id, 'reason' => 'Duplicate return request.'])->assertSessionHasErrors('items');
     $this->actingAs($shop['seller'])->patch('/returns/'.$return->id, ['action' => 'approve', 'reason' => 'Seller cannot approve.'])->assertForbidden();
     $this->actingAs($shop['admin'])->patch('/returns/'.$return->id, ['action' => 'assign', 'rider_id' => $shop['rider']->id, 'reason' => 'Admin cannot assign riders.'])->assertForbidden();
     foreach (['buyer', 'seller', 'logistics', 'rider'] as $role) {
@@ -233,24 +320,24 @@ test('returns require ownership delivered state and correct role for each decisi
     }
 });
 
-test('refund cannot precede receipt exceed collected money or repeat and damaged goods cannot restock', function () {
+test('refund can precede receipt but cannot exceed paid value or change after credit', function () {
     $shop = settlementScenario();
     $return = requestLedgerReturn($this, $shop);
-    $this->actingAs($shop['admin'])->patch('/returns/'.$return->id, ['action' => 'refund', 'amount' => 200, 'reference' => 'TOO-EARLY', 'reason' => 'Receipt is required first.'])->assertConflict();
-    receiveLedgerReturn($this, $shop, $return, false);
-    expect($shop['product']->fresh()->stock)->toBe(8);
-    $this->actingAs($shop['admin'])->patch('/returns/'.$return->id, ['action' => 'refund', 'amount' => 251, 'reference' => 'OVER-REFUND', 'reason' => 'Invalid excessive amount.'])->assertSessionHasErrors('amount');
-    $this->patch('/returns/'.$return->id, ['action' => 'refund', 'amount' => 100, 'reference' => 'PARTIAL-REFUND', 'reason' => 'Agreed actual partial product refund.'])->assertSessionHasNoErrors();
-    $this->patch('/returns/'.$return->id, ['action' => 'refund', 'amount' => 100, 'reference' => 'REPEAT-REFUND', 'reason' => 'Duplicate refund attempt.'])->assertConflict();
+    $data = ledgerApproval($return, '250.01');
+    $this->actingAs($shop['admin'])->patch('/returns/'.$return->id, $data)->assertSessionHasErrors('items.0.amount');
+    approveLedgerRefund($this, $shop, $return, '100.00');
+    $this->patch('/returns/'.$return->id, ledgerApproval($return, '100.00'))->assertSessionHasNoErrors();
+    $this->patch('/returns/'.$return->id, ledgerApproval($return, '101.00'))->assertSessionHasErrors('approval');
     $this->assertDatabaseHas('parcel_returns', ['id' => $return->id, 'refund_cents' => 10000, 'seller_debit_cents' => 9000, 'commission_reversal_cents' => 1000]);
+    $this->assertDatabaseCount('wallet_transactions', 1);
 });
 
 test('refund after payout records a seller debt instead of rewriting the historical payment', function () {
     $shop = settlementScenario();
     $this->actingAs($shop['admin'])->post('/settlements/'.$shop['parcel']->id, ['amount' => 180, 'reference' => 'PAID-BEFORE-RETURN'])->assertSessionHasNoErrors();
     $return = requestLedgerReturn($this, $shop);
-    receiveLedgerReturn($this, $shop, $return);
-    $this->actingAs($shop['admin'])->patch('/returns/'.$return->id, ['action' => 'refund', 'amount' => 250, 'reference' => 'REFUND-AFTER-PAY', 'reason' => 'Actual full refund including shipping.'])->assertSessionHasNoErrors();
+    approveLedgerRefund($this, $shop, $return);
+    $this->actingAs($shop['admin'])->patch('/returns/'.$return->id, ['action' => 'refund', 'amount' => 250, 'reference' => 'REFUND-AFTER-PAY', 'reason' => 'Actual full refund including shipping.'])->assertSessionHasErrors('action');
     $this->actingAs($shop['seller'])->get('/seller/costs')->assertInertia(fn (Assert $page) => $page->where('totals.balance', -18000)->where('totals.paid', 18000));
     $this->assertDatabaseCount('seller_payouts', 1);
 });
@@ -258,6 +345,8 @@ test('refund after payout records a seller debt instead of rewriting the histori
 test('seller CSV exports contain only own completed records and preserve delivery date filters', function () {
     $shop = settlementScenario();
     $other = settlementScenario();
+    $shop['delivery']->update(['delivered_at' => '2026-10-25 10:00:00']);
+    $other['delivery']->update(['delivered_at' => '2026-10-25 10:00:00']);
     $csv = $this->actingAs($shop['seller'])->get('/seller/reports/export?type=commission&from=2026-10-25&to=2026-10-25')->assertDownload()->streamedContent();
     expect($csv)->toContain($shop['store']->name)->not->toContain($other['store']->name);
     expect(substr_count($csv, "\n"))->toBe(2);
@@ -269,8 +358,8 @@ test('a prior seller refund debt holds later parcel payouts across the same stor
     $shop = settlementScenario();
     $this->actingAs($shop['admin'])->post('/settlements/'.$shop['parcel']->id, ['amount' => 180, 'reference' => 'OLD-PAYOUT'])->assertSessionHasNoErrors();
     $return = requestLedgerReturn($this, $shop);
-    receiveLedgerReturn($this, $shop, $return);
-    $this->actingAs($shop['admin'])->patch('/returns/'.$return->id, ['action' => 'refund', 'amount' => 200, 'reference' => 'OLD-REFUND', 'reason' => 'Actual product refund paid after settlement.'])->assertSessionHasNoErrors();
+    approveLedgerRefund($this, $shop, $return);
+    $this->actingAs($shop['admin'])->patch('/returns/'.$return->id, ['action' => 'refund', 'amount' => 200, 'reference' => 'OLD-REFUND', 'reason' => 'Actual product refund paid after settlement.'])->assertSessionHasErrors('action');
     $order = $shop['parcel']->order->replicate(['checkout_key']);
     $order->save();
     $parcel = $shop['parcel']->replicate();
@@ -285,35 +374,25 @@ test('a prior seller refund debt holds later parcel payouts across the same stor
     $this->get('/settlements')->assertInertia(fn (Assert $page) => $page->where('parcels.data.0.can_pay', false));
 });
 
-test('wrong return labels foreign riders and damaged restock attempts leave custody and stock unchanged', function () {
+test('foreign riders and repeated damaged receipt leave custody and stock unchanged', function () {
     $shop = settlementScenario();
     $other = settlementScenario();
     $return = requestLedgerReturn($this, $shop);
-    $url = '/returns/'.$return->id;
-    $this->actingAs($shop['admin'])->patch($url, ['action' => 'approve', 'reason' => 'Approved for physical return.'])->assertSessionHasNoErrors();
-    $this->actingAs($other['logistics'])->patch($url, ['action' => 'assign', 'rider_id' => $other['rider']->id, 'reason' => 'Wrong company assignment.'])->assertForbidden();
-    $this->actingAs($shop['logistics'])->patch($url, ['action' => 'assign', 'rider_id' => $shop['rider']->id, 'reason' => 'Correct company assignment.'])->assertSessionHasNoErrors();
-    $this->actingAs($other['rider'])->patch($url, ['action' => 'collect', 'tracking_reference' => $shop['delivery']->tracking_reference, 'reason' => 'Wrong assigned rider.'])->assertForbidden();
-    $this->actingAs($shop['rider'])->patch($url, ['action' => 'collect', 'tracking_reference' => 'LM-WRONG', 'reason' => 'Wrong physical parcel.'])->assertSessionHasErrors('tracking_reference');
-    expect($return->fresh()->status)->toBe('assigned');
-    $this->patch($url, ['action' => 'collect', 'tracking_reference' => $shop['delivery']->tracking_reference, 'reason' => 'Correct physical collection.'])->assertSessionHasNoErrors();
-    $this->actingAs($shop['seller'])->patch($url, ['action' => 'receive', 'tracking_reference' => $shop['delivery']->tracking_reference, 'condition' => 'damaged', 'restock' => true, 'reason' => 'Damaged goods cannot restock.'])->assertSessionHasErrors('restock');
-    expect($return->fresh()->status)->toBe('collected');
+    receiveLedgerReturn($this, $shop, $return, false);
+    $this->actingAs($other['rider'])->patch('/returns/'.$return->id, ['action' => 'collect', 'reason' => 'Unauthorized action.'])->assertNotFound();
+    $this->actingAs($shop['seller'])->patch('/returns/'.$return->id, ['action' => 'receive', 'condition' => 'damaged', 'restock' => true, 'reason' => 'Cannot restock received damaged goods.'])->assertConflict();
+    expect($return->fresh()->task->status)->toBe('received');
     expect($shop['product']->fresh()->stock)->toBe(8);
 });
 
-test('unreconciled COD holds refunds and non financial roles do not receive refund accounting fields', function () {
+test('refund approval does not wait for internal COD reconciliation and operational roles cannot see accounting', function () {
     $shop = settlementScenario();
     $return = requestLedgerReturn($this, $shop);
-    receiveLedgerReturn($this, $shop, $return);
     DB::table('cod_collections')->where('delivery_id', $shop['delivery']->id)->update(['status' => 'collected']);
-    $this->actingAs($shop['admin'])->patch('/returns/'.$return->id, ['action' => 'refund', 'amount' => 200, 'reference' => 'UNFUNDED-REFUND', 'reason' => 'Cash not reconciled yet.'])->assertConflict();
-    expect($return->fresh()->refunded_at)->toBeNull();
+    $this->actingAs($shop['admin'])->patch('/returns/'.$return->id, ledgerApproval($return, null, true))->assertSessionHasNoErrors();
     $this->actingAs($shop['logistics'])->get('/returns')->assertInertia(fn (Assert $page) => $page
-        ->component('finance/returns')->has('returns.data', 1)
-        ->where('returns.data.0.seller_order.delivery.tracking_reference', $shop['delivery']->tracking_reference)
-        ->missing('returns.data.0.seller_order.delivery.fulfillment_status')
-        ->missing('returns.data.0.refund_cents')->missing('returns.data.0.seller_debit_cents')->missing('returns.data.0.seller_order.seller_proceeds'));
+        ->where('returns.data.0.refund_cents', null)->missing('returns.data.0.seller_debit_cents')->missing('returns.data.0.seller_order.seller_proceeds')->has('returns.data.0.wallet_entries', 0));
+    $this->assertDatabaseHas('buyer_wallets', ['balance_cents' => 20000]);
 });
 
 test('seller payout audit failure rolls back the payment record', function () {
@@ -344,29 +423,28 @@ test('cancelling an original purchase after adding options restores held stock w
     expect($shop['variant']->fresh()->stock)->toBe(10);
 });
 
-test('admin can close a received zero COD return without inventing a refund', function () {
+test('zero paid returns preserve physical receipt without inventing a wallet credit', function () {
     $shop = settlementScenario();
     $shop['parcel']->update(['subtotal' => 0, 'shipping_fee' => 0, 'commission_amount' => 0, 'seller_proceeds' => 0]);
     DB::table('cod_collections')->where('delivery_id', $shop['delivery']->id)->update(['amount' => 0, 'received_amount' => 0]);
     $return = requestLedgerReturn($this, $shop);
     receiveLedgerReturn($this, $shop, $return, false);
-    $this->actingAs($shop['seller'])->patch('/returns/'.$return->id, ['action' => 'close', 'reason' => 'Seller cannot close Admin case.'])->assertForbidden();
-    $this->actingAs($shop['admin'])->patch('/returns/'.$return->id, ['action' => 'close', 'reason' => 'Zero-COD return resolved; no refund is due.'])->assertSessionHasNoErrors();
-    $this->patch('/returns/'.$return->id, ['action' => 'close', 'reason' => 'Repeated close attempt.'])->assertConflict();
-    $this->assertDatabaseHas('parcel_returns', ['id' => $return->id, 'status' => 'closed', 'refund_cents' => null]);
-    $this->assertDatabaseHas('audit_events', ['action' => 'return_close']);
+    $this->assertDatabaseHas('parcel_returns', ['id' => $return->id, 'refund_status' => 'approved_no_refund', 'refund_cents' => 0]);
+    $this->assertDatabaseCount('wallet_transactions', 0);
+    expect($return->fresh()->task->status)->toBe('received');
 });
 
 test('return assignment preserves service area eligibility for quoted parcels', function () {
     $shop = settlementScenario();
+    $shop['parcel']->update(['shipping_quote' => ['pickup_address' => ['line1' => 'Seller street', 'province' => 'Metro Manila', 'city' => 'Manila', 'barangay' => 'Test']]]);
     $area = DB::table('service_areas')->insertGetId(['logistics_center_id' => $shop['center']->id, 'code' => 'RETURN-TEST', 'name' => 'Return test area', 'province_code' => '130000000', 'city_code' => '133900000', 'barangay_code' => '133900001', 'province_name' => 'Metro Manila', 'city_name' => 'Manila', 'barangay_name' => 'Test', 'is_active' => true]);
     $shop['delivery']->update(['service_area_id' => $area]);
     $return = requestLedgerReturn($this, $shop);
-    $this->actingAs($shop['admin'])->patch('/returns/'.$return->id, ['action' => 'approve', 'reason' => 'Return approved for collection.'])->assertSessionHasNoErrors();
+    $this->actingAs($shop['admin'])->patch('/returns/'.$return->id, ledgerApproval($return, null, true))->assertSessionHasNoErrors();
     $this->actingAs($shop['logistics'])->patch('/returns/'.$return->id, ['action' => 'assign', 'rider_id' => $shop['rider']->id, 'reason' => 'Assign within provider coverage.'])->assertSessionHasErrors('rider_id');
     DB::table('rider_service_area')->insert(['rider_id' => $shop['rider']->id, 'service_area_id' => $area]);
     $this->patch('/returns/'.$return->id, ['action' => 'assign', 'rider_id' => $shop['rider']->id, 'reason' => 'Assign covered operational rider.'])->assertSessionHasNoErrors();
-    $this->assertDatabaseHas('parcel_returns', ['id' => $return->id, 'status' => 'assigned', 'rider_id' => $shop['rider']->id]);
+    $this->assertDatabaseHas('parcel_returns', ['id' => $return->id, 'status' => 'refunded', 'rider_id' => $shop['rider']->id]);
 });
 
 test('logistics retains shipping while admin records only actual net product remittance once', function () {
@@ -437,8 +515,8 @@ test('unreconciled sales cannot mask old refund debt to release a funded seller 
     $shop = settlementScenario();
     $this->actingAs($shop['admin'])->post('/settlements/'.$shop['parcel']->id, ['amount' => 180, 'reference' => 'ORIGINAL-SELLER-PAY'])->assertSessionHasNoErrors();
     $return = requestLedgerReturn($this, $shop);
-    receiveLedgerReturn($this, $shop, $return);
-    $this->actingAs($shop['admin'])->patch('/returns/'.$return->id, ['action' => 'refund', 'amount' => 200, 'reference' => 'PRODUCT-REFUND-DEBT', 'reason' => 'Actual refund following verified preparation error.'])->assertSessionHasNoErrors();
+    approveLedgerRefund($this, $shop, $return);
+    $this->actingAs($shop['admin'])->patch('/returns/'.$return->id, ['action' => 'refund', 'amount' => 200, 'reference' => 'PRODUCT-REFUND-DEBT', 'reason' => 'Actual refund following verified preparation error.'])->assertSessionHasErrors('action');
     $funded = settlementScenario();
     $funded['parcel']->update(['store_id' => $shop['store']->id]);
     $unfunded = settlementScenario();
@@ -452,17 +530,12 @@ test('unreconciled sales cannot mask old refund debt to release a funded seller 
 test('unreviewed or logistics caused refunds cannot silently charge a seller and finalized classifications are locked', function () {
     $shop = settlementScenario();
     $return = requestLedgerReturn($this, $shop);
-    receiveLedgerReturn($this, $shop, $return, false);
-    $return->fresh()->update(['responsibility' => null, 'responsibility_reviewed_at' => null]);
-    $url = '/returns/'.$return->id;
-    $refund = ['action' => 'refund', 'amount' => 100, 'reference' => 'UNASSIGNED-LIABILITY', 'reason' => 'Actual refund requires verified responsibility.'];
-    $this->actingAs($shop['admin'])->patch($url, $refund)->assertConflict();
-    $this->actingAs($shop['seller'])->patch($url, ['action' => 'review_responsibility', 'responsibility' => 'seller', 'reason' => 'Seller cannot decide financial responsibility.'])->assertForbidden();
-    $this->actingAs($shop['admin'])->patch($url, ['action' => 'review_responsibility', 'responsibility' => 'logistics', 'reason' => 'Confirmed damage occurred during company custody.'])->assertSessionHasNoErrors();
-    $this->patch($url, $refund)->assertConflict();
-    $this->assertDatabaseHas('parcel_returns', ['id' => $return->id, 'seller_debit_cents' => 0, 'refund_cents' => null, 'responsibility' => 'logistics']);
-    $this->patch($url, ['action' => 'close', 'reason' => 'Resolved without payment after review.'])->assertSessionHasNoErrors();
-    $this->patch($url, ['action' => 'review_responsibility', 'responsibility' => 'seller', 'reason' => 'Cannot rewrite a finalized decision.'])->assertConflict();
+    $data = ledgerApproval($return, '100.00', false, '');
+    $this->actingAs($shop['admin'])->patch('/returns/'.$return->id, $data)->assertSessionHasErrors('responsibility');
+    approveLedgerRefund($this, $shop, $return, '100.00', 'logistics');
+    $this->assertDatabaseHas('parcel_returns', ['id' => $return->id, 'seller_debit_cents' => 0, 'logistics_debit_cents' => 10000, 'responsibility' => 'logistics']);
+    $this->patch('/returns/'.$return->id, ledgerApproval($return, '100.00', false, 'seller'))->assertSessionHasErrors('approval');
+    $this->assertDatabaseCount('rider_payments', 0);
 });
 
 test('seller regular order responses minimize buyer contacts while authorized waybills retain them', function () {
@@ -508,9 +581,10 @@ test('refund splits preserve voucher adjusted examples with deterministic centav
     $shop = settlementScenario();
     $shop['parcel']->update(['subtotal' => 900, 'discount_amount' => 100, 'shipping_fee' => 80, 'commission_amount' => 90, 'seller_proceeds' => 810]);
     DB::table('cod_collections')->where('delivery_id', $shop['delivery']->id)->update(['amount' => 980, 'received_amount' => 980]);
+    $shop['parcel']->items()->update(['price_each' => '500.00']);
     $return = requestLedgerReturn($this, $shop);
-    receiveLedgerReturn($this, $shop, $return);
-    $this->actingAs($shop['admin'])->patch('/returns/'.$return->id, ['action' => 'refund', 'amount' => 300, 'reference' => 'DISCOUNTED-PARTIAL', 'reason' => 'Confirmed manual product refund after evidence review.'])->assertSessionHasNoErrors();
+    approveLedgerRefund($this, $shop, $return, '300.00');
+    $this->actingAs($shop['admin'])->patch('/returns/'.$return->id, ['action' => 'refund', 'amount' => 300, 'reference' => 'DISCOUNTED-PARTIAL', 'reason' => 'Confirmed manual product refund after evidence review.'])->assertSessionHasErrors('action');
     $this->assertDatabaseHas('parcel_returns', ['id' => $return->id, 'product_refund_cents' => 30000, 'shipping_refund_cents' => 0, 'seller_debit_cents' => 27000, 'commission_reversal_cents' => 3000]);
     expect(ParcelFinance::commission(5, 1000))->toBe(1);
     expect(ParcelFinance::decimal(-1))->toBe('-0.01');
@@ -523,8 +597,8 @@ test('admin recovery totals do not offset one sellers debt against another selle
     settlementScenario();
     $this->actingAs($shop['admin'])->post('/settlements/'.$shop['parcel']->id, ['amount' => 180, 'reference' => 'DEBT-PAYOUT'])->assertSessionHasNoErrors();
     $return = requestLedgerReturn($this, $shop);
-    receiveLedgerReturn($this, $shop, $return);
-    $this->actingAs($shop['admin'])->patch('/returns/'.$return->id, ['action' => 'refund', 'amount' => 200, 'reference' => 'DEBT-REFUND', 'reason' => 'Actual manual refund for verified seller fault.'])->assertSessionHasNoErrors();
+    approveLedgerRefund($this, $shop, $return);
+    $this->actingAs($shop['admin'])->patch('/returns/'.$return->id, ['action' => 'refund', 'amount' => 200, 'reference' => 'DEBT-REFUND', 'reason' => 'Actual manual refund for verified seller fault.'])->assertSessionHasErrors('action');
     $this->get('/finance')->assertInertia(fn (Assert $page) => $page->where('amounts.Seller recovery balance', 18000)->where('amounts.Seller payable balances before payout holds', 18000));
 });
 
@@ -537,4 +611,207 @@ test('fractional peso cash snapshots remain eligible without floating point equa
     $this->get('/settlements')->assertInertia(fn (Assert $page) => $page->where('parcels.data.0.can_pay', true));
     $this->post('/settlements/'.$shop['parcel']->id, ['amount' => '0.09', 'reference' => 'FRACTIONAL-CASH-PAYOUT'])->assertSessionHasNoErrors();
     $this->assertDatabaseHas('seller_payouts', ['amount_cents' => 9]);
+});
+
+test('weekly compensation belongs to logistics and rejects overlapping periods and duplicate payments', function () {
+    $f = settlementScenario();
+    $payload = ['rider_id' => $f['rider']->id, 'period_start' => now('Asia/Manila')->addDay()->toDateString(), 'payment_date' => now('Asia/Manila')->addDays(7)->toDateString(), 'amount' => '2500.25'];
+    $this->actingAs($f['admin'])->post('/rider-payments/weekly', $payload)->assertForbidden();
+    $this->withSession(['password_hash_web' => $f['logistics']->password])->actingAs($f['logistics'])->post('/rider-payments/weekly', $payload)->assertSessionHasNoErrors();
+    $payment = WeeklyRiderPayment::query()->sole();
+    expect($payment->amount_cents)->toBe(250025);
+    $this->post('/rider-payments/weekly', $payload)->assertConflict();
+    $this->post('/rider-payments/weekly/'.$payment->id.'/pay', ['payment_reference' => 'WEEKLY-ONE'])->assertSessionHasNoErrors();
+    $this->post('/rider-payments/weekly/'.$payment->id.'/pay', ['payment_reference' => 'WEEKLY-TWO'])->assertConflict();
+    $this->assertDatabaseCount('weekly_rider_payments', 1);
+    $this->withSession(['password_hash_web' => $f['rider']->password])->actingAs($f['rider'])->get('/rider-payments')->assertInertia(fn (Assert $page) => $page->has('weekly.data', 1));
+});
+
+test('cash receipt corrections append evidence and preserve the original shortage', function () {
+    $f = settlementScenario();
+    DB::table('cod_collections')->where('delivery_id', $f['delivery']->id)->update(['status' => 'collected', 'received_amount' => null]);
+    $this->actingAs($f['logistics'])->post('/deliveries/'.$f['delivery']->id, ['action' => 'receive_cod', 'amount' => '200.00', 'handover_reference' => 'SHORT-1', 'reason' => 'Fifty pesos short.'])->assertSessionHasNoErrors();
+    $this->post('/deliveries/'.$f['delivery']->id, ['action' => 'receive_cod', 'amount' => '250.00', 'handover_reference' => 'FULL-1'])->assertSessionHasNoErrors();
+    $this->assertDatabaseHas('cod_receipt_entries', ['actual_cents' => 20000, 'discrepancy_cents' => -5000]);
+    $this->assertDatabaseHas('cod_receipt_entries', ['actual_cents' => 25000, 'discrepancy_cents' => 0]);
+    $this->assertDatabaseCount('cod_receipt_entries', 2);
+});
+
+test('reviewed logistics refund credits immediately and records company liability without cash funding', function () {
+    $f = settlementScenario();
+    $return = requestLedgerReturn($this, $f);
+    approveLedgerRefund($this, $f, $return, '200.00', 'logistics');
+    $this->assertDatabaseHas('parcel_returns', ['id' => $return->id, 'seller_debit_cents' => 0, 'logistics_debit_cents' => 20000]);
+    $this->assertDatabaseHas('refund_reserves', ['available_cents' => 0]);
+    $this->assertDatabaseHas('buyer_wallets', ['balance_cents' => 20000]);
+    expect($f['delivery']->fresh()->status)->toBe('delivered');
+});
+
+test('return window requires a documented admin exception and damage evidence is private', function () {
+    $f = settlementScenario();
+    $f['delivery']->update(['delivered_at' => now()->subDays(8)]);
+    $data = ['seller_order_id' => $f['parcel']->id, 'reason' => 'A rights based eligibility review is requested.'];
+    $this->actingAs($f['buyer'])->post('/returns', $data)->assertConflict();
+    $this->actingAs($f['admin'])->post('/returns/exception', $data)->assertSessionHasNoErrors();
+    $this->actingAs($f['buyer'])->post('/returns', ['reason_kind' => 'damaged'] + $data)->assertSessionHasErrors('evidence');
+    $photo = UploadedFile::fake()->createWithContent('issue.png', base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aM1sAAAAASUVORK5CYII='));
+    $this->post('/returns', ['reason_kind' => 'damaged', 'evidence' => [$photo]] + $data)->assertRedirect()->assertSessionHasNoErrors();
+    $return = ParcelReturn::query()->sole();
+    Storage::disk('local')->assertExists($return->evidence_paths[0]);
+    $this->get('/returns/'.$return->id.'/evidence/0')->assertOk()->assertHeader('Cache-Control', 'no-store, private');
+    $this->actingAs($f['seller'])->get('/returns/'.$return->id.'/evidence/0')->assertForbidden();
+    $this->actingAs(User::factory()->create())->get('/returns/'.$return->id.'/evidence/0')->assertForbidden();
+    $this->assertDatabaseCount('parcel_returns', 1);
+});
+
+test('coins credit without buyer acceptance or reserve funding and approval retries cannot duplicate credit', function () {
+    $f = settlementScenario();
+    $return = requestLedgerReturn($this, $f);
+    approveLedgerRefund($this, $f, $return);
+    $this->patch('/returns/'.$return->id, ledgerApproval($return))->assertSessionHasNoErrors();
+    $this->assertDatabaseCount('refund_offers', 0);
+    $this->assertDatabaseCount('wallet_transactions', 1);
+    $this->assertDatabaseHas('buyer_wallets', ['balance_cents' => 20000]);
+});
+
+test('mixed payments settle full proceeds and partial refunds restore original coins plus new coin credit', function () {
+    $f = settlementScenario();
+    $f['parcel']->update(['coins_redeemed_cents' => 5000, 'merchandise_cash_cents' => 15000, 'cod_due_cents' => 20000]);
+    DB::table('buyer_wallets')->insert(['buyer_id' => $f['buyer']->id, 'balance_cents' => 5000]);
+    DB::transaction(fn () => app(LubosCoins::class)->redeem($f['buyer'], $f['parcel']->order, 5000));
+    DB::table('cod_collections')->where('delivery_id', $f['delivery']->id)->update(['amount' => '200.00', 'received_amount' => '200.00']);
+    $f['parcel']->logisticsRemittance->update(['amount_cents' => 15000]);
+    $this->actingAs($f['admin'])->post('/settlements/'.$f['parcel']->id, ['amount' => '180.00', 'reference' => 'MIXED-SELLER-PAID'])->assertSessionHasNoErrors();
+    $return = requestLedgerReturn($this, $f);
+    approveLedgerRefund($this, $f, $return, '100.00');
+    $this->assertDatabaseHas('wallet_transactions', ['type' => 'return_restoration', 'amount_cents' => 2500]);
+    $this->assertDatabaseHas('wallet_transactions', ['type' => 'approved_refund_credit', 'amount_cents' => 7500]);
+    $this->assertDatabaseHas('buyer_wallets', ['balance_cents' => 10000]);
+    $this->assertDatabaseHas('parcel_returns', ['id' => $return->id, 'coins_refunded_cents' => 10000, 'cash_refunded_cents' => 0, 'seller_debit_cents' => 9000]);
+    $this->post('/refund-funding', ['source' => 'seller_recovery', 'parcel_return_id' => $return->id, 'amount' => '90.00', 'reference' => 'SELLER-REPAID', 'notes' => 'Seller physically repaid the approved seller liability.'])->assertSessionHasNoErrors();
+    $this->actingAs($f['seller'])->get('/seller/costs')->assertInertia(fn (Assert $page) => $page->where('totals.balance', 0));
+    $this->assertDatabaseCount('seller_payouts', 1);
+});
+
+test('wallet corrections preserve history require available balance and move funding exactly once', function () {
+    $f = settlementScenario();
+    $return = ParcelReturn::query()->create(['workflow_version' => 2, 'seller_order_id' => $f['parcel']->id, 'buyer_id' => $f['buyer']->id, 'status' => 'refunded', 'reason' => 'Synthetic approved obligation.']);
+    DB::table('buyer_wallets')->insert(['buyer_id' => $f['buyer']->id, 'balance_cents' => 5000]);
+    $entry = DB::table('wallet_transactions')->insertGetId(['buyer_id' => $f['buyer']->id, 'actor_id' => $f['admin']->id, 'parcel_return_id' => $return->id, 'amount_cents' => 5000, 'balance_after_cents' => 5000, 'type' => 'approved_refund_credit', 'reference' => 'SYNTHETIC-CREDIT', 'operation_key' => 'synthetic-credit', 'created_at' => now()]);
+    $this->actingAs($f['buyer'])->post('/wallet-adjustments', ['transaction_id' => $entry, 'reason' => 'Unauthorized correction.'])->assertForbidden();
+    $this->actingAs($f['admin'])->post('/wallet-adjustments', ['transaction_id' => $entry, 'reason' => 'Approved correction of an erroneous duplicate obligation.'])->assertRedirect()->assertSessionHasNoErrors();
+    expect((int) DB::table('buyer_wallets')->value('balance_cents'))->toBe(0);
+    expect((int) DB::table('refund_reserves')->value('available_cents'))->toBe(5000);
+    $this->post('/wallet-adjustments', ['transaction_id' => $entry, 'reason' => 'Repeat correction must fail.'])->assertConflict();
+    $debit = DB::table('wallet_transactions')->where('type', 'corrective_debit')->sole();
+    $this->post('/wallet-adjustments', ['transaction_id' => $debit->id, 'reason' => 'Approved reversal of the erroneous correction.'])->assertRedirect()->assertSessionHasNoErrors();
+    expect((int) DB::table('buyer_wallets')->value('balance_cents'))->toBe(5000);
+    expect((int) DB::table('refund_reserves')->value('available_cents'))->toBe(0);
+    $this->assertDatabaseCount('wallet_transactions', 3);
+});
+
+test('standard return window is admin controlled and return collection compensation follows actual facility receipt', function () {
+    $f = settlementScenario();
+    $this->actingAs($f['buyer'])->patch('/return-settings', ['return_window_days' => 14])->assertForbidden();
+    $this->actingAs($f['admin'])->patch('/return-settings', ['return_window_days' => 14])->assertRedirect()->assertSessionHasNoErrors();
+    // This fixture represents a delivery completed under the new policy.
+    $f['delivery']->update(['delivered_at' => now()->subDays(8), 'return_window_days' => 14]);
+    $this->actingAs($f['buyer'])->post('/returns', ['seller_order_id' => $f['parcel']->id, 'reason' => 'Eligible in configured fourteen day window.'])->assertRedirect()->assertSessionHasNoErrors();
+    $return = ParcelReturn::query()->sole();
+    $return->update(['status' => 'collected', 'collection_rider_id' => $f['rider']->id, 'collected_at' => now()]);
+    $fee = ['delivery_id' => $f['delivery']->id, 'rider_id' => $f['rider']->id, 'leg' => 'return_collection', 'amount' => '25.00', 'notes' => 'Verified return collection fee agreement.'];
+    $this->actingAs($f['logistics'])->post('/rider-payments', $fee)->assertConflict();
+    $return->update(['status' => 'facility_received', 'facility_received_at' => now()]);
+    $this->post('/rider-payments', $fee)->assertRedirect()->assertSessionHasNoErrors();
+    $this->post('/rider-payments', $fee)->assertConflict();
+    $this->assertDatabaseHas('rider_payments', ['leg' => 'return_collection', 'amount_cents' => 2500]);
+});
+
+test('admin receipt generates its own reference while preserving external evidence and rejecting replay', function () {
+    $this->freezeTime();
+    $f = settlementScenario();
+    $f['parcel']->logisticsRemittance()->delete();
+    $payload = ['amount' => '200.00', 'received_on' => now('Asia/Manila')->toDateString(), 'external_reference' => 'SYNTHETIC-PHYSICAL-RECEIPT', 'notes' => 'Verified actual remittance handed to the Platform.'];
+    $url = '/logistics-settlements/'.$f['parcel']->id;
+    $this->actingAs($f['admin'])->post($url, [...$payload, 'notes' => ''])->assertSessionHasErrors('notes');
+    $this->assertDatabaseCount('logistics_remittances', 0);
+    $this->post($url, $payload)->assertRedirect()->assertSessionHasNoErrors();
+    $receipt = LogisticsRemittance::query()->sole();
+    expect($receipt->reference)->toStartWith('LMRC-');
+    expect($receipt->external_reference)->toBe('SYNTHETIC-PHYSICAL-RECEIPT');
+    expect($receipt->created_at->toDateTimeString())->toBe(now()->toDateTimeString());
+    expect($receipt->recorded_by)->toBe($f['admin']->id);
+    $this->post($url, [...$payload, 'external_reference' => null])->assertConflict();
+    $this->assertDatabaseCount('logistics_remittances', 1);
+    $this->assertDatabaseHas('audit_events', ['action' => 'logistics_remittance_received', 'actor_id' => $f['admin']->id]);
+});
+
+test('policy changes preserve existing delivered eligibility and duplicate exceptions preserve the original reason', function () {
+    $this->freezeTime();
+    $f = settlementScenario();
+    $f['delivery']->update(['delivered_at' => now()->subDays(8)]);
+    $this->actingAs($f['admin'])->patch('/return-settings', ['return_window_days' => 14])->assertSessionHasNoErrors();
+    expect($f['delivery']->fresh()->return_window_days)->toBe(7);
+    $this->actingAs($f['buyer'])->get('/returns')->assertInertia(fn (Assert $page) => $page->has('eligible', 0));
+    $this->postJson('/returns', ['seller_order_id' => $f['parcel']->id, 'reason' => 'Outside original policy must remain outside.'])->assertConflict();
+    $this->actingAs($f['admin'])->get('/returns?exception_search='.urlencode($f['delivery']->tracking_reference))
+        ->assertInertia(fn (Assert $page) => $page->has('exceptionParcels', 1)->where('exceptionParcels.0.buyer', $f['buyer']->name)->where('exceptionParcels.0.within_window', false));
+    $payload = ['seller_order_id' => $f['parcel']->id, 'reason' => 'Documented support findings authorize an exception.'];
+    $this->post('/returns/exception', $payload)->assertSessionHasNoErrors();
+    $this->post('/returns/exception', [...$payload, 'reason' => 'A repeat must not overwrite earlier findings.'])->assertConflict();
+    $this->assertDatabaseHas('return_window_exceptions', ['seller_order_id' => $f['parcel']->id, 'reason' => $payload['reason']]);
+    $this->actingAs($f['buyer'])->get('/returns')->assertInertia(fn (Assert $page) => $page->has('eligible', 1));
+    $this->post('/returns', ['seller_order_id' => $f['parcel']->id, 'reason' => 'Documented exception now allows this request.'])->assertSessionHasNoErrors();
+});
+
+test('a shortened policy does not revoke an existing delivered return window', function () {
+    $this->freezeTime();
+    $f = settlementScenario();
+    $f['delivery']->update(['delivered_at' => now()->subDays(5)]);
+    $this->actingAs($f['admin'])->patch('/return-settings', ['return_window_days' => 2])->assertSessionHasNoErrors();
+    $this->actingAs($f['buyer'])->get('/returns')->assertInertia(fn (Assert $page) => $page->has('eligible', 1));
+    $this->post('/returns', ['seller_order_id' => $f['parcel']->id, 'reason' => 'Existing delivery retains its original seven day eligibility.'])->assertSessionHasNoErrors();
+});
+
+test('transaction history distinguishes pending cancelled and missing COD records without inventing receipt times', function () {
+    $f = settlementScenario();
+    $f['parcel']->logisticsRemittance()->delete();
+    DB::table('cod_collections')->where('delivery_id', $f['delivery']->id)->delete();
+    $this->actingAs($f['admin'])->get('/finance')->assertInertia(fn (Assert $page) => $page
+        ->where('transactions.data.0.status_label', 'COD record needs review')->where('transactions.data.0.timeline.2.at', null));
+    $f['delivery']->update(['status' => 'pending', 'delivered_at' => null]);
+    $f['parcel']->update(['status' => 'pending']);
+    $this->get('/finance')->assertInertia(fn (Assert $page) => $page->where('transactions.data.0.status_label', 'Awaiting COD collection'));
+    $f['parcel']->update(['status' => 'cancelled']);
+    $this->get('/finance')->assertInertia(fn (Assert $page) => $page->where('transactions.data.0.status_label', 'Cancelled')->where('amounts.Expected COD', 0));
+});
+
+test('finance cash summaries separate Logistics custody from actual product receipts', function () {
+    $f = settlementScenario();
+    $this->actingAs($f['admin'])->get('/finance')->assertInertia(fn (Assert $page) => $page
+        ->where('amounts.Cash held by Logistics', 5000)->where('amounts.Product cash received by Platform', 20000)
+        ->where('transactions.data.0.status_label', 'Received by Platform'));
+    DB::table('cod_collections')->where('delivery_id', $f['delivery']->id)->update(['received_amount' => '200.00']);
+    $this->get('/finance')->assertInertia(fn (Assert $page) => $page->where('transactions.data.0.status_label', 'Cash discrepancy under review'));
+});
+
+test('refund details load saved requested and credited records without issuing credit on read', function () {
+    $f = settlementScenario();
+    $return = requestLedgerReturn($this, $f);
+    $this->actingAs($f['admin'])->get('/returns')->assertInertia(fn (Assert $page) => $page->where('returns.data.0.refund_status', 'pending')->has('returns.data.0.wallet_entries', 0));
+    $this->assertDatabaseCount('wallet_transactions', 0);
+    approveLedgerRefund($this, $f, $return);
+    $this->get('/returns')->assertInertia(fn (Assert $page) => $page->where('returns.data.0.refund_status', 'credited')->has('returns.data.0.wallet_entries', 1));
+    expect($return->fresh()->refund_reference)->toStartWith('LCRF-');
+    $this->get('/refund-funding')->assertInertia(fn (Assert $page) => $page->where('walletEntries.data.0.buyer', $f['buyer']->name));
+});
+
+test('historical external refunds retain their evidence and are never converted into additional coins', function () {
+    $f = settlementScenario();
+    $return = ParcelReturn::query()->create(['seller_order_id' => $f['parcel']->id, 'buyer_id' => $f['buyer']->id, 'status' => 'refunded', 'reason' => 'Historical external refund.', 'refund_cents' => 10000, 'refund_method' => 'manual', 'cash_refunded_cents' => 10000, 'refunded_at' => now(), 'refund_reference' => 'EXTERNAL-HISTORICAL-RECEIPT']);
+    $return->forceFill(['refund_status' => 'credited'])->save();
+    $this->actingAs($f['admin'])->get('/finance')->assertInertia(fn (Assert $page) => $page->where('amounts.Manual buyer refunds', 10000)->where('amounts.Lubos Coins refunded', 0));
+    $this->artisan('returns:reconcile-refund-credits', ['--apply' => true, '--actor' => $f['admin']->id])->assertSuccessful();
+    $this->assertDatabaseCount('wallet_transactions', 0);
+    $this->assertDatabaseHas('parcel_returns', ['refund_reference' => 'EXTERNAL-HISTORICAL-RECEIPT', 'cash_refunded_cents' => 10000]);
 });

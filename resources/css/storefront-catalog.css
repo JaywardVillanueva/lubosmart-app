@@ -413,15 +413,15 @@
 @media (min-width: 640px) {
     .catalog-storefront .catalog-intro,
     .catalog-categories {
-        margin-inline: -24px;
-        padding-inline: 24px;
+        margin-inline: -16px;
+        padding-inline: 16px;
     }
 }
 @media (min-width: 1024px) {
     .catalog-storefront .catalog-intro,
     .catalog-categories {
-        margin-inline: -32px;
-        padding-inline: 32px;
+        margin-inline: -16px;
+        padding-inline: 16px;
     }
 }
 @media (max-width: 639px) {
@@ -667,6 +667,94 @@
         height: 132px;
         width: 288px;
         max-width: calc(100% - 32px);
+    }
+}
+
+/* Give shopping and order banners the same depth as Returns and Contact us. */
+.catalog-storefront .catalog-intro {
+    isolation: isolate;
+    min-height: 192px;
+    margin: 24px 0;
+    border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent);
+    border-radius: 24px;
+    padding: 32px 40px;
+    padding-right: min(40%, 440px);
+    color: #fff;
+    background:
+        radial-gradient(ellipse at 85% 15%, #ffffff14, transparent 55%),
+        linear-gradient(120deg, color-mix(in srgb, var(--primary) 55%, #160c25), var(--primary));
+    box-shadow: 0 12px 28px color-mix(in srgb, var(--primary) 12%, transparent);
+}
+.catalog-storefront .catalog-intro::before {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    right: -64px;
+    top: -120px;
+    width: 400px;
+    height: 400px;
+    border: 1px solid #ffffff14;
+    border-radius: 50%;
+    pointer-events: none;
+}
+.catalog-storefront .catalog-intro h1 {
+    color: #fff;
+    text-wrap: balance;
+}
+.catalog-storefront .catalog-intro p {
+    max-width: 560px;
+    color: #fff;
+    text-wrap: pretty;
+}
+.catalog-storefront .catalog-intro > div {
+    min-width: 0;
+    max-width: 100%;
+    padding: 0;
+    background: transparent;
+}
+.catalog-storefront .catalog-intro::after {
+    top: 8px;
+    bottom: 8px;
+    right: 24px;
+    width: min(38%, 400px);
+}
+.catalog-storefront .catalog-intro-orders::after {
+    background-image: url('/images/marketplace/orders-banner.svg');
+}
+/* Keep the shopping artwork proportional, with room for handles and shadows. */
+.catalog-storefront .catalog-intro-shopping {
+    min-height: 224px;
+    padding-right: min(44%, 480px);
+}
+.catalog-storefront .catalog-intro-shopping::after {
+    inset-block: 12px;
+    right: 24px;
+    width: min(42%, 432px);
+}
+@media (max-width: 639px) {
+    .catalog-storefront .catalog-intro {
+        margin-block: 16px;
+        padding: 24px 24px 168px;
+        border-radius: 20px;
+    }
+    .catalog-storefront .catalog-intro::after {
+        top: auto;
+        right: 16px;
+        bottom: 8px;
+        width: 288px;
+        height: 144px;
+        max-width: calc(100% - 32px);
+    }
+    .catalog-storefront .catalog-intro-shopping {
+        padding: 24px 24px 192px;
+    }
+    .catalog-storefront .catalog-intro-shopping::after {
+        top: auto;
+        right: 50%;
+        bottom: 12px;
+        width: 320px;
+        height: 168px;
+        transform: translateX(50%);
     }
 }
 

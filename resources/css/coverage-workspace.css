@@ -1,0 +1,108 @@
+@reference './app.css';
+
+.workspace-page:has(.coverage-workspace) {
+    gap: 14px;
+    background: radial-gradient(ellipse at 75% 85%, var(--color-accent), transparent 75%);
+}
+.workspace-page:has(.coverage-workspace) > :first-child:has(svg) {
+    min-height: 140px;
+    border-radius: 18px;
+    padding: 24px 28px;
+}
+.workspace-page:has(.coverage-workspace) > :first-child:has(svg) > svg {
+    height: 150px;
+}
+.workspace-page:has(.coverage-workspace) > :first-child:has(svg) p {
+    margin-top: 8px;
+    font-size: 14px;
+}
+.coverage-stat {
+    @apply bg-card/80 flex min-h-20 min-w-0 flex-1 basis-56 items-center gap-4 rounded-2xl border px-4 py-3 shadow-sm;
+}
+.coverage-stat-icon {
+    @apply bg-accent text-primary flex size-14 shrink-0 items-center justify-center rounded-2xl;
+}
+.coverage-stat-icon > svg {
+    @apply size-7;
+}
+.coverage-editor input:not([type='checkbox']),
+.coverage-editor select {
+    min-height: 40px;
+    padding-block: 7px;
+}
+.coverage-rate-panel,
+.coverage-rider-panel {
+    @apply bg-card border-primary/20 shadow-xl;
+}
+.coverage-rate-panel > button:last-child,
+.coverage-rider-panel > button:last-child {
+    @apply text-muted-foreground bg-transparent;
+}
+@media (min-width: 1280px) {
+    .coverage-rate-panel,
+    .coverage-rider-panel {
+        --tw-translate-x: 0;
+        --tw-translate-y: 0;
+    }
+    .coverage-dialog-overlay {
+        background: transparent;
+        backdrop-filter: none;
+    }
+    body:has(.coverage-rate-panel) .workspace-page:has(.coverage-workspace) {
+        padding-right: 576px;
+    }
+    .coverage-rate-panel {
+        top: 80px;
+        right: 16px;
+        left: auto;
+        width: 536px;
+        max-width: 536px;
+        max-height: calc(100dvh - 96px);
+        transform: none;
+        translate: none;
+        padding: 24px;
+        border-radius: 20px;
+    }
+    body:has(.coverage-rider-panel) .coverage-workspace {
+        margin-right: 568px;
+    }
+    .coverage-rider-panel {
+        top: 53%;
+        right: 28px;
+        left: auto;
+        width: 520px;
+        max-width: 520px;
+        transform: none;
+        translate: 0 -50%;
+        padding: 24px;
+        border-radius: 20px;
+    }
+}
+.coverage-location-field {
+    @apply flex min-w-0 items-center gap-4;
+}
+.coverage-location-field > div {
+    @apply min-w-0 flex-1;
+}
+.coverage-location-field > svg {
+    @apply bg-accent/70 text-primary mt-5 size-10 shrink-0 rounded-2xl p-2;
+}
+
+.coverage-rider-panel .coverage-location-field > div {
+    gap: 4px;
+}
+.coverage-rider-panel .coverage-location-field select {
+    min-height: 36px;
+}
+.coverage-rider-panel .coverage-location-field > svg {
+    margin-top: 16px;
+}
+.coverage-rider-panel form > .grid {
+    gap: 12px;
+}
+.coverage-rider-panel fieldset .grid {
+    gap: 8px;
+}
+.coverage-rider-panel form {
+    gap: 16px;
+}

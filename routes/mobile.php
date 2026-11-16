@@ -9,12 +9,15 @@ use App\Http\Controllers\OrderController;
 use App\Http\Controllers\ParcelReturnController;
 use App\Http\Controllers\ProductReviewController;
 use App\Http\Controllers\ProductVariantController;
+use App\Http\Controllers\RefundOfferController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\ReturnWorkflowController;
 use App\Http\Controllers\SellerCostController;
 use App\Http\Controllers\Settings\AddressController;
 use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\StoreVoucherController;
 use App\Http\Controllers\SupportCaseController;
+use App\Http\Controllers\WalletController;
 use App\Http\Controllers\WishlistController;
 use Illuminate\Support\Facades\Route;
 
@@ -48,6 +51,9 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::patch('settings/profile', [ProfileController::class, 'update'])->name('settings.update');
         Route::post('settings/code', [Auth::class, 'sendCode'])->middleware('throttle:5,1')->name('settings.code');
         Route::post('settings/code/verify', [Auth::class, 'verifyCode'])->middleware('throttle:10,1')->name('settings.verify');
+        Route::get('wallet', [WalletController::class, 'index'])->middleware('role:buyer')->name('wallet');
+        Route::post('returns/{return}/accept-offer', [RefundOfferController::class, 'accept'])->middleware('role:buyer')->name('returns.accept-offer');
+        Route::get('returns/{return}/proof/{proof}', [ReturnWorkflowController::class, 'proof'])->name('returns.proof');
         Route::get('returns', [Data::class, 'returns'])->name('returns.index');
         Route::patch('returns/{return}', [ParcelReturnController::class, 'update'])->middleware('role:seller,rider')->name('returns.update');
         Route::get('support', [Data::class, 'support'])->name('support.index');

@@ -4,6 +4,7 @@ namespace App\Services\Rider;
 
 use App\Models\Delivery;
 use App\Models\User;
+use App\Services\ParcelFinance;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 
@@ -26,10 +27,10 @@ class RiderWorkspace
 
     public function queueCounts(User $user): array
     {
-        $query = Delivery::query()->where('rider_id', $user->id);
+        $query = Delivery::query()->forRider($user);
         $counts = [];
         foreach (self::QUEUES as $queue) {
-            $counts[$queue] = $this->filter(clone $query, $queue)->count();
+            $counts[$queue] = $this->filter($queue === 'all' || $queue === 'completed' ? clone $query : (clone $query)->where('rider_id', $user->id), $queue)->count();
         }
 
         return $counts;
@@ -37,22 +38,24 @@ class RiderWorkspace
 
     public function data(User $user): array
     {
-        $query = Delivery::query()->where('rider_id', $user->id);
+        $query = Delivery::query()->forRider($user);
         $cash = DB::table('cod_collections')->where('rider_id', $user->id)
             ->whereIn('delivery_id', (clone $query)->select('id'))->where('status', 'collected')->sum('amount');
 
         return [
+            'riderCapability' => $user->rider_capability ?? 'both',
             'companyName' => $user->logisticsCenter?->name,
             'queues' => $this->queueCounts($user),
             'pendingCod' => (string) $cash,
-            'activeCount' => (clone $query)->where('status', '!=', 'delivered')->count(),
+            'activeCount' => (clone $query)->where('rider_id', $user->id)->where('status', '!=', 'delivered')->count(),
             'recentParcels' => $query->with(['sellerOrder.store:id,name', 'sellerOrder.order:id,shipping_recipient_name,shipping_barangay,shipping_city'])
                 ->latest('id')->limit(8)->get()->map(fn ($parcel) => [
                     'id' => $parcel->id, 'status' => $parcel->status, 'exception' => $parcel->exception_status,
                     'tracking' => $parcel->tracking_reference, 'store' => $parcel->sellerOrder->store->name,
-                    'recipient' => $parcel->sellerOrder->order->shipping_recipient_name,
+                    'recipient' => $parcel->riderCan($user, 'delivered') ? $parcel->sellerOrder->order->shipping_recipient_name : 'Pickup / facility handover',
+                    'codResponsibility' => $parcel->riderCan($user, 'delivered'),
                     'destination' => implode(', ', array_filter([$parcel->sellerOrder->order->shipping_barangay, $parcel->sellerOrder->order->shipping_city])),
-                    'cod' => number_format((float) $parcel->sellerOrder->subtotal + (float) $parcel->sellerOrder->shipping_fee, 2, '.', ''),
+                    'cod' => ParcelFinance::decimal(ParcelFinance::expected($parcel->sellerOrder)),
                 ]),
         ];
     }

@@ -16,6 +16,7 @@ use App\Services\Logistics\ParcelQueues;
 use App\Services\Notifications\ParcelNotifications;
 use App\Services\ParcelFinance;
 use App\Services\Rider\RiderWorkspace;
+use App\Services\SellerBuyerPrivacy;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -34,15 +35,21 @@ class DeliveryController extends Controller
         $scanning = $request->routeIs('logistics.scan');
         abort_if($scanning && $user->role !== 'logistics', 403);
         $centers = $user->logisticsCenters()->operational()->get(['logistics_centers.id', 'name']);
-        $relations = ['sellerOrder.items', 'sellerOrder.order', 'sellerOrder.store:id,name,user_id', 'sellerOrder.store.user:id,name', 'sellerOrder.store.user.addresses:id,user_id,line1,barangay,city,province,phone', 'rider:id,name'];
+        $relations = ['sellerOrder.items.product:id,image_path', 'sellerOrder.order', 'sellerOrder.store:id,name,user_id', 'sellerOrder.store.user:id,name', 'sellerOrder.store.user.addresses:id,user_id,line1,barangay,city,province,phone', 'rider:id,name'];
         $query = Delivery::query()->with($relations)->with(['sellerOrder.store.user.addresses' => fn ($q) => $q->orderByDesc('is_default')->orderBy('id')]);
         if ($user->role === 'rider') {
-            $query->where('rider_id', $user->id);
+            $query->forRider($user);
+            if ($request->input('workspace') === 'pickup') {
+                $query->where(fn ($q) => $q->where('pickup_rider_id', $user->id)->orWhere(fn ($q) => $q->whereNull('pickup_rider_id')->where('rider_id', $user->id)->whereNull('received_at')));
+            }
+            if ($request->input('workspace') === 'delivery') {
+                $query->where(fn ($q) => $q->where('delivery_rider_id', $user->id)->orWhere(fn ($q) => $q->whereNull('delivery_rider_id')->where('rider_id', $user->id)->whereNotNull('dispatch_prepared_at')));
+            }
         } elseif ($user->role === 'logistics') {
             $query->whereIn('logistics_center_id', $centers->pluck('id'));
         }
         $stages = $user->role === 'rider' ? RiderWorkspace::QUEUES : ParcelQueues::STAGES;
-        $filters = $request->validate(['stage' => ['nullable', Rule::in($stages)], 'search' => 'nullable|string|max:100']);
+        $filters = $request->validate(['workspace' => 'nullable|in:pickup,delivery', 'stage' => ['nullable', Rule::in($stages)], 'search' => 'nullable|string|max:100']);
         if ($user->role === 'rider') {
             app(RiderWorkspace::class)->filter($query, $filters['stage'] ?? 'all');
         }
@@ -61,17 +68,25 @@ class DeliveryController extends Controller
                 ->with($relations)->with(['sellerOrder.store.user.addresses' => fn ($q) => $q->orderByDesc('is_default')->orderBy('id')])->latest('id')->limit(50)->get()
             : [];
         foreach (collect($deliveries->items())->merge($available) as $parcel) {
+            $parcel->sellerOrder->items->each(function ($item) {
+                $item->setAttribute('product_image_url', $item->product?->image_url);
+                $item->unsetRelation('product');
+            });
             $parcel->ensureTrackingReference();
+            if ($user->role === 'rider' && ! $parcel->riderCan($user, 'delivered')) {
+                SellerBuyerPrivacy::minimize($parcel->sellerOrder->order);
+                $parcel->makeHidden(['proof_photo_path']);
+            }
             $store = $parcel->sellerOrder->store;
             $store->setAttribute('pickup_address', $store->user?->addresses->first()?->only(['line1', 'barangay', 'city', 'province', 'phone']));
             $store->unsetRelation('user');
         }
         $riders = $user->role === 'logistics' ? User::query()->managedRiders($user)->where('role', 'rider')->where('status', 'approved')->whereNotNull('email_verified_at')
-            ->whereIn('logistics_center_id', $centers->pluck('id'))->get(['id', 'name', 'logistics_center_id']) : collect();
+            ->whereIn('logistics_center_id', $centers->pluck('id'))->get(['id', 'name', 'logistics_center_id', 'rider_capability']) : collect();
         $areaLinks = DB::table('rider_service_area')->whereIn('rider_id', $riders->pluck('id'))->get()->groupBy('rider_id');
         $riders->each(fn ($rider) => $rider->setAttribute('service_area_ids', ($areaLinks->get($rider->id) ?? collect())->pluck('service_area_id')));
         $areas = DB::table('service_areas')->whereIn('logistics_center_id', $centers->pluck('id'))->where('is_active', true)->orderBy('name')->get(['id', 'name', 'logistics_center_id', 'province_name', 'city_name', 'barangay_name']);
-        $cod = DB::table('cod_collections')->whereIn('delivery_id', $deliveries->pluck('id'))->get()->keyBy('delivery_id');
+        $cod = DB::table('cod_collections')->whereIn('delivery_id', $deliveries->pluck('id'))->when($user->role === 'rider', fn ($q) => $q->where('rider_id', $user->id))->get()->keyBy('delivery_id');
         $events = DB::table('parcel_events')->join('users', 'users.id', '=', 'parcel_events.actor_id')
             ->whereIn('delivery_id', $deliveries->pluck('id'))->orderBy('parcel_events.id')
             ->get(['parcel_events.id', 'delivery_id', 'type', 'notes', 'occurred_at', 'users.name as actor_name'])
@@ -85,7 +100,19 @@ class DeliveryController extends Controller
                 return $event;
             })->groupBy('delivery_id');
         foreach ($deliveries as $parcel) {
-            $parcel->setAttribute('events', $events->get($parcel->id, collect()));
+            $parcel->setAttribute('allowed_actions', $user->role === 'rider' ? $parcel->riderActions($user) : []);
+            $cashEvent = $events->get($parcel->id, collect())->last(fn ($event) => in_array($event->type, ['submit_cod_handover', 'cod_discrepancy', 'receive_cod'], true));
+            if ($collection = $cod->get($parcel->id)) {
+                $submission = $cashEvent?->type === 'submit_cod_handover' ? (json_decode($cashEvent->notes, true)['evidence'] ?? []) : [];
+                $collection->expected_handover_amount = $submission['amount'] ?? $collection->amount;
+                $collection->expected_handover_reference = $submission['handover_reference'] ?? 'COD-'.$collection->reference;
+            }
+            if ($user->role === 'rider' && $parcel->status === 'delivered' && ! $parcel->exception_status
+                && $parcel->riderCan($user, 'delivered') && $cod->get($parcel->id)?->status === 'collected'
+                && $cashEvent?->type !== 'submit_cod_handover') {
+                $parcel->setAttribute('allowed_actions', [...$parcel->allowed_actions, 'submit_cod_handover']);
+            }
+            $parcel->setAttribute('events', $events->get($parcel->id, collect())->filter(fn ($event) => $user->role !== 'rider' || $parcel->riderCan($user, 'delivered') || in_array($event->type, ['assign', 'picked_up', 'receive', 'sort'], true))->values());
         }
 
         $page = $scanning ? 'logistics/scan' : ($user->role === 'logistics' ? 'logistics/parcels' : 'marketplace/deliveries');
@@ -96,7 +123,7 @@ class DeliveryController extends Controller
     public function update(Request $request, Delivery $delivery)
     {
         $data = $request->validate([
-            'action' => 'required|in:claim,approve_pickup,receive,sort,assign,accept_dispatch,picked_up,in_transit,out_for_delivery,delivered,receive_cod,reconcile_cod,failed_attempt,hold,retry,return_to_center,receive_return',
+            'action' => 'required|in:exception_assign,accept_transfer,claim,approve_pickup,receive,sort,assign,accept_dispatch,picked_up,in_transit,out_for_delivery,delivered,submit_cod_handover,receive_cod,reconcile_cod,failed_attempt,hold,retry,return_to_center,receive_return',
             'logistics_center_id' => 'nullable|integer', 'rider_id' => 'nullable|integer',
             'service_area_id' => 'required_if:action,assign,sort|nullable|integer',
             'proof' => 'nullable|image|mimes:jpg,jpeg,png|max:5120',
@@ -106,6 +133,7 @@ class DeliveryController extends Controller
             'note' => 'nullable|string|max:150',
             'remarks' => 'nullable|string|max:500',
             'cod_confirmed' => 'nullable|boolean',
+            'report_discrepancy' => 'nullable|boolean',
             'receipt_condition' => 'required_if:action,receive,receive_return|nullable|in:intact,damaged',
             'sorting_bin' => 'required_if:action,sort|nullable|string|max:80',
             'amount' => 'nullable|numeric|decimal:0,2|min:0|max:99999999.99',
@@ -126,14 +154,20 @@ class DeliveryController extends Controller
                 $action = $data['action'];
                 $previous = $delivery->only(['status', 'rider_id', 'exception_status', 'service_area_id']);
                 $custodyBefore = $this->custody($delivery);
-                if (in_array($action, ['claim', 'approve_pickup', 'receive', 'sort', 'assign', 'receive_cod', 'hold', 'retry', 'return_to_center', 'receive_return'])) {
+                if (in_array($action, ['exception_assign', 'claim', 'approve_pickup', 'receive', 'sort', 'assign', 'receive_cod', 'hold', 'retry', 'return_to_center', 'receive_return'])) {
                     abort_unless($user->role === 'logistics', 403);
                     $centerId = $action === 'claim' ? ($data['logistics_center_id'] ?? null) : $delivery->logistics_center_id;
                     abort_unless($centerId && $user->logisticsCenters()->where('logistics_centers.id', $centerId)->operational()->exists(), 403);
                 } elseif ($action === 'reconcile_cod') {
                     abort_unless($user->canAdmin('finance'), 403);
                 } else {
-                    abort_unless($user->role === 'rider' && $delivery->rider_id === $user->id && $user->logistics_center_id === $delivery->logistics_center_id, 403);
+                    // Preserve the existing conflict response for a dual-capability pickup rider
+                    // attempting a later stage before a delivery assignment exists. State/custody
+                    // checks below still forbid every delivery effect until authorized dispatch.
+                    $awaitingDispatch = $delivery->rider_id === $user->id && ! $delivery->delivery_rider_id
+                        && ! $delivery->dispatch_prepared_at && $user->canRide('delivery')
+                        && $delivery->logistics_center_id === $user->logistics_center_id;
+                    abort_unless($user->role === 'rider' && ($delivery->riderCan($user, $action) || $awaitingDispatch), 403);
                     abort_unless($user->logisticsCenters()->where('logistics_centers.id', $delivery->logistics_center_id)->operational()->exists(), 403);
                 }
                 if (! empty($data['request_key'])) {
@@ -145,11 +179,11 @@ class DeliveryController extends Controller
                     }
                 }
                 abort_if($sellerOrder->status === 'cancelled' || $order->status === 'cancelled', 409, 'This order has been cancelled.');
-                if (in_array($action, ['picked_up', 'receive', 'accept_dispatch', 'receive_return'])) {
+                if (in_array($action, ['picked_up', 'receive', 'accept_dispatch', 'receive_return', 'accept_transfer'])) {
                     if (($data['tracking_reference'] ?? '') !== $delivery->ensureTrackingReference()) {
                         throw ValidationException::withMessages(['tracking_reference' => 'Invalid or unrecognized QR code. Scan the label attached to this parcel.']);
                     }
-                    if (in_array($action, ['picked_up', 'receive', 'accept_dispatch'], true) && ($data['capture_method'] ?? null) !== 'scanner') {
+                    if (in_array($action, ['picked_up', 'receive', 'accept_dispatch', 'accept_transfer'], true) && ($data['capture_method'] ?? null) !== 'scanner') {
                         throw ValidationException::withMessages(['capture_method' => 'Scan the parcel QR code to complete this checkpoint. Manual lookup does not confirm custody.']);
                     }
                     if (! in_array($data['capture_method'] ?? null, ['scanner', 'manual'], true) || (($data['capture_method'] ?? '') === 'manual' && empty($data['reason']))) {
@@ -175,10 +209,33 @@ class DeliveryController extends Controller
                     }
                     $data['reason'] = ($data['note'] === 'Other / Custom notes' ? trim($data['reason']) : $data['note']).(! empty(trim($data['remarks'] ?? '')) ? ' '.$data['remarks'] : '');
                 }
-                if ($delivery->exception_status && ! in_array($action, ['hold', 'retry', 'return_to_center', 'receive_return'], true)) {
+                if ($delivery->exception_status && ! in_array($action, ['hold', 'retry', 'return_to_center', 'receive_return', 'exception_assign', 'accept_transfer'], true)) {
                     abort(409, 'Resolve the parcel exception before continuing.');
                 }
-                if ($action === 'claim') {
+                if ($action === 'submit_cod_handover') {
+                    $collection = DB::table('cod_collections')->where('delivery_id', $delivery->id)->lockForUpdate()->first();
+                    abort_unless($collection && $collection->rider_id === $user->id, 403);
+                    abort_unless($delivery->status === 'delivered' && $collection->status === 'collected', 409, 'Only collected COD can be submitted for handover.');
+                    $cashEvent = DB::table('parcel_events')->where('delivery_id', $delivery->id)
+                        ->whereIn('type', ['submit_cod_handover', 'cod_discrepancy', 'receive_cod'])->latest('id')->first();
+                    if ($cashEvent?->type === 'submit_cod_handover') {
+                        return;
+                    }
+                    $amount = ParcelFinance::decimal(ParcelFinance::cents((string) $collection->amount));
+                    $reference = 'COD-'.$collection->reference;
+                    if ((isset($data['amount']) && ParcelFinance::cents((string) $data['amount']) !== ParcelFinance::cents($amount))
+                        || (! empty($data['handover_reference']) && $data['handover_reference'] !== $reference)) {
+                        throw ValidationException::withMessages(['amount' => 'The COD amount and reference are fixed by the recorded collection.']);
+                    }
+                    $data['amount'] = $amount;
+                    $data['handover_reference'] = $reference;
+                    // Record the rider declaration only; Logistics must independently verify receipt.
+                } elseif ($action === 'exception_assign') {
+                    app(AssignParcelRider::class)->reassignReturned($user, $delivery, (int) ($data['rider_id'] ?? 0), $data['reason'] ?? '');
+                } elseif ($action === 'accept_transfer') {
+                    abort_unless($delivery->exception_status === 'transfer_pending', 409);
+                    $delivery->update(['exception_status' => null, 'status' => 'in_transit']);
+                } elseif ($action === 'claim') {
                     abort_unless(! $delivery->logistics_center_id && $delivery->status === 'unassigned' && $sellerOrder->status === 'shipped', 409);
                     $delivery->forceFill(['logistics_center_id' => $centerId, 'pickup_approved_at' => now()])->save();
                 } elseif ($action === 'approve_pickup') {
@@ -192,8 +249,8 @@ class DeliveryController extends Controller
                     $this->destinationArea($data['service_area_id'], $delivery, $order);
                     $delivery->update(['sorted_at' => now(), 'service_area_id' => $data['service_area_id'], 'sorting_bin' => $data['sorting_bin']]);
                 } elseif ($action === 'assign') {
-                    $data['assignment_leg'] = $delivery->status === 'unassigned' ? 'pickup' : 'delivery';
-                    app(AssignParcelRider::class)->handle($user, $delivery, $order, (int) $data['service_area_id'], (int) ($data['rider_id'] ?? 0));
+                    $data['assignment_leg'] = ! $delivery->picked_up_at ? 'pickup' : 'delivery';
+                    app(AssignParcelRider::class)->handle($user, $delivery, $order, (int) $data['service_area_id'], (int) ($data['rider_id'] ?? 0), $data['reason'] ?? null);
                 } elseif ($action === 'accept_dispatch') {
                     abort_unless($delivery->received_at && $delivery->sorted_at && $delivery->dispatch_prepared_at && ! $delivery->dispatch_accepted_at && $delivery->status === 'in_transit', 409);
                     $delivery->update(['dispatch_accepted_at' => now()]);
@@ -253,17 +310,21 @@ class DeliveryController extends Controller
                         if (! $path) {
                             throw ValidationException::withMessages(['proof' => 'The photo could not be stored. Please retry.']);
                         }
-                        $changes += ['delivered_at' => now(), 'proof_photo_path' => $path];
-                        $cents = (int) round((float) $sellerOrder->subtotal * 100) + (int) round((float) $sellerOrder->shipping_fee * 100);
-                        if (! $request->boolean('cod_confirmed')) {
+                        if (! trim($data['recipient_name'] ?? '')) {
+                            throw ValidationException::withMessages(['recipient_name' => 'Enter the name of the person receiving the parcel.']);
+                        }
+                        $policy = CommerceSetting::query()->whereKey(1)->lockForUpdate()->firstOrFail();
+                        $changes += ['delivered_at' => now(), 'proof_photo_path' => $path, 'return_window_days' => $policy->return_window_days];
+                        $cents = ParcelFinance::expected($sellerOrder);
+                        if ($cents > 0 && ! $request->boolean('cod_confirmed')) {
                             throw ValidationException::withMessages(['cod_confirmed' => 'Confirm receipt of the full COD payment before completing delivery.']);
                         }
-                        $data['amount'] = number_format($cents / 100, 2, '.', '');
-                        DB::table('cod_collections')->insert(['delivery_id' => $delivery->id, 'rider_id' => $user->id, 'reference' => (string) Str::uuid(), 'amount' => number_format($cents / 100, 2, '.', ''), 'status' => 'collected', 'collected_at' => now(), 'created_at' => now(), 'updated_at' => now()]);
-                        $subtotalCents = (int) round((float) $sellerOrder->subtotal * 100);
+                        $data['amount'] = ParcelFinance::decimal($cents);
+                        DB::table('cod_collections')->insert(['delivery_id' => $delivery->id, 'rider_id' => $user->id, 'reference' => (string) Str::uuid(), 'amount' => ParcelFinance::decimal($cents), 'status' => 'collected', 'collected_at' => now(), 'created_at' => now(), 'updated_at' => now()]);
+                        $subtotalCents = ParcelFinance::cents((string) $sellerOrder->subtotal);
                         $rate = $sellerOrder->commission_basis_points ?? CommerceSetting::query()->findOrFail(1)->platform_commission_basis_points;
                         $commissionCents = ParcelFinance::commission($subtotalCents, $rate);
-                        $sellerOrder->update(['status' => 'completed', 'commission_basis_points' => $rate, 'commission_amount' => number_format($commissionCents / 100, 2, '.', ''), 'seller_proceeds' => number_format(($subtotalCents - $commissionCents) / 100, 2, '.', '')]);
+                        $sellerOrder->update(['status' => 'completed', 'commission_basis_points' => $rate, 'commission_amount' => ParcelFinance::decimal($commissionCents), 'seller_proceeds' => ParcelFinance::decimal($subtotalCents - $commissionCents)]);
                         if (! SellerOrder::query()->where('order_id', $order->id)->where('status', '!=', 'completed')->exists()) {
                             $order->update(['status' => 'completed']);
                         }
@@ -286,16 +347,39 @@ class DeliveryController extends Controller
                             409, 'Verify the full cash handover against the delivered parcel before reconciliation.');
                     }
                     if ($action === 'receive_cod') {
+                        $submission = DB::table('parcel_events')->where('delivery_id', $delivery->id)
+                            ->whereIn('type', ['submit_cod_handover', 'cod_discrepancy', 'receive_cod'])->latest('id')->first();
+                        if ($submission?->type === 'submit_cod_handover') {
+                            $submitted = json_decode($submission->notes, true)['evidence'];
+                            if (! empty($data['handover_reference']) && $data['handover_reference'] !== $submitted['handover_reference']) {
+                                throw ValidationException::withMessages(['handover_reference' => 'Use the fixed rider handover reference.']);
+                            }
+                            if (empty($data['report_discrepancy']) && isset($data['amount']) && ParcelFinance::cents((string) $data['amount']) !== ParcelFinance::cents((string) $submitted['amount'])) {
+                                throw ValidationException::withMessages(['amount' => 'Confirm the fixed rider submission or report a cash discrepancy.']);
+                            }
+                            if (empty($data['report_discrepancy'])) {
+                                $data['amount'] = $submitted['amount'];
+                            }
+                            $data['handover_reference'] = $submitted['handover_reference'];
+                        }
                         if (! isset($data['amount']) || empty($data['handover_reference'])) {
                             throw ValidationException::withMessages(['amount' => 'Enter the actual cash received and a handover reference.']);
                         }
-                        $matches = (int) round((float) $data['amount'] * 100) === (int) round((float) $collection->amount * 100);
+                        $matches = ParcelFinance::cents((string) $data['amount']) === ParcelFinance::cents((string) $collection->amount);
                         $previous['cash_changed'] = $collection->received_amount === null
-                            || (int) round((float) $collection->received_amount * 100) !== (int) round((float) $data['amount'] * 100)
+                            || ParcelFinance::cents((string) $collection->received_amount) !== ParcelFinance::cents((string) $data['amount'])
                             || $collection->handover_reference !== $data['handover_reference']
                             || $collection->discrepancy_reason !== ($matches ? null : ($data['reason'] ?? null));
                         if (! $matches && empty($data['reason'])) {
                             throw ValidationException::withMessages(['reason' => 'Explain the cash discrepancy. Cash remains unreconciled until the full amount is received.']);
+                        }
+                        if ($previous['cash_changed']) {
+                            DB::table('cod_receipt_entries')->insert(['delivery_id' => $delivery->id, 'rider_id' => $collection->rider_id,
+                                'received_by' => $user->id, 'expected_cents' => ParcelFinance::expected($sellerOrder),
+                                'actual_cents' => ParcelFinance::cents((string) $data['amount']),
+                                'discrepancy_cents' => ParcelFinance::cents((string) $data['amount']) - ParcelFinance::expected($sellerOrder),
+                                'reference' => $data['handover_reference'], 'operation_key' => $data['request_key'] ?? (string) Str::uuid(),
+                                'notes' => $data['reason'] ?? null, 'recorded_at' => now()]);
                         }
                         DB::table('cod_collections')->where('id', $collection->id)->update(['received_amount' => $data['amount'], 'handover_reference' => $data['handover_reference'], 'discrepancy_reason' => $matches ? null : $data['reason'], 'received_by' => $user->id, 'updated_at' => now()]);
                         if (! $matches) {
@@ -311,13 +395,15 @@ class DeliveryController extends Controller
                 if (in_array($data['action'], ['delivered', 'failed_attempt', 'return_to_center'], true)) {
                     $delivery->forceFill(['delivery_notes' => $data['reason']])->save();
                 }
+                $custody = $this->custody($delivery);
+                $delivery->update(['custody_type' => $custody['party'], 'custody_rider_id' => $custody['party'] === 'rider' ? $custody['id'] : null]);
                 $evidenceFields = match ($data['action']) {
                     'receive', 'receive_return' => ['receipt_condition'],
                     'sort' => ['service_area_id', 'sorting_bin'],
                     'assign' => ['assignment_leg', 'rider_id', 'service_area_id'],
-                    'delivered' => ['amount', 'cod_confirmed', 'note', 'remarks'],
+                    'delivered' => ['amount', 'cod_confirmed', 'note', 'remarks', 'recipient_name'],
                     'failed_attempt' => ['proof_path'],
-                    'receive_cod' => ['amount', 'handover_reference'],
+                    'submit_cod_handover', 'receive_cod' => ['amount', 'handover_reference'],
                     'claim' => ['logistics_center_id'],
                     default => [],
                 };
@@ -336,7 +422,11 @@ class DeliveryController extends Controller
                 ->load(['sellerOrder.store.user.addresses' => fn ($q) => $q->orderByDesc('is_default')->orderBy('id')]));
         }
 
-        return back()->with('status', $data['action'] === 'delivered' ? 'Delivery completed. Proof and COD payment recorded.' : 'Parcel updated.');
+        return back()->with('status', match ($data['action']) {
+            'delivered' => 'Delivery completed. Proof and COD payment recorded.',
+            'submit_cod_handover' => 'COD handover submitted. Awaiting Logistics confirmation.',
+            default => 'Parcel updated.',
+        });
     }
 
     private function destinationArea(int $areaId, Delivery $delivery, Order $order): void
@@ -352,7 +442,7 @@ class DeliveryController extends Controller
         if ($delivery->status === 'delivered') {
             return ['party' => 'recipient', 'order_id' => $delivery->sellerOrder->order_id];
         }
-        if ($delivery->exception_status === 'returned_to_center' || ($delivery->received_at && ! $delivery->dispatch_accepted_at)) {
+        if (in_array($delivery->exception_status, ['returned_to_center', 'transfer_pending'], true) || ($delivery->received_at && ! $delivery->dispatch_accepted_at)) {
             return ['party' => 'logistics', 'id' => $delivery->logistics_center_id];
         }
         if (in_array($delivery->status, ['picked_up', 'in_transit', 'out_for_delivery'], true)) {

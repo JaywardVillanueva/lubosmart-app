@@ -1,4 +1,5 @@
 import ProductCard from '@/components/marketplace/product-card';
+import PublicVouchers, { type PublicVoucher } from '@/components/marketplace/public-vouchers';
 import { buttonClass, Empty, Field, Page, Pager, secondaryClass, Select, type Pagination } from '@/components/shared/marketplace-ui';
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import type { SharedData } from '@/types';
@@ -18,7 +19,7 @@ import {
     Store,
     Utensils,
 } from 'lucide-react';
-import { useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import '../../../css/reference-marketplace.css';
 import '../../../css/storefront-catalog.css';
 
@@ -40,19 +41,32 @@ export type Product = {
     reviews_avg_rating?: number | string | null;
     reviews_count?: number;
 };
-type Filters = { search?: string; category?: string; min_price?: string; max_price?: string; availability?: string; rating?: string; sort?: string };
+type Filters = {
+    store?: string;
+    search?: string;
+    category?: string;
+    min_price?: string;
+    max_price?: string;
+    availability?: string;
+    rating?: string;
+    sort?: string;
+};
 export default function Catalog({
     products,
     categories,
     filters,
     favoriteIds = [],
     wishlist = false,
+    shopName,
+    publicVouchers = [],
 }: {
     products: Pagination<Product>;
     categories: { id: number; name: string; parent_id?: number | null }[];
     filters: Filters;
     favoriteIds?: number[];
     wishlist?: boolean;
+    shopName?: string | null;
+    publicVouchers?: PublicVoucher[];
 }) {
     const { auth } = usePage<SharedData>().props;
     const [drawerOpen, setDrawerOpen] = useState(false);
@@ -73,6 +87,7 @@ export default function Catalog({
         return <Icon className="size-5 shrink-0" aria-hidden="true" />;
     };
     const form = useForm({
+        store: filters.store ?? '',
         search: filters.search ?? '',
         category: String(filters.category ?? ''),
         min_price: filters.min_price ?? '',
@@ -82,6 +97,37 @@ export default function Catalog({
         sort: filters.sort ?? 'latest',
     });
     const destination = wishlist ? '/wishlist' : '/shop';
+    const searchData = useRef(form.data);
+    searchData.current = form.data;
+    const setData = form.setData;
+    useEffect(() => {
+        setData('search', filters.search ?? '');
+    }, [filters.search, setData]);
+    useEffect(() => {
+        const search = form.data.search.trim();
+        if (search === (filters.search ?? '')) return;
+
+        let cancel: (() => void) | undefined;
+        const timeout = window.setTimeout(() => {
+            router.get(
+                destination,
+                { ...searchData.current, search },
+                {
+                    preserveState: true,
+                    preserveScroll: true,
+                    replace: true,
+                    onCancelToken: (token) => {
+                        cancel = () => token.cancel();
+                    },
+                },
+            );
+        }, 350);
+
+        return () => {
+            window.clearTimeout(timeout);
+            cancel?.();
+        };
+    }, [form.data.search, filters.search, destination]);
     const filtered = Object.entries(filters).some(([key, value]) => key !== 'sort' && value != null && value !== '');
     const submit = (event: FormEvent) => {
         event.preventDefault();
@@ -197,9 +243,10 @@ export default function Catalog({
     return (
         <Page
             storefront
-            title={wishlist ? 'Saved products' : 'Marketplace'}
+            title={wishlist ? 'Saved products' : (shopName ?? 'Marketplace')}
             description={wishlist ? 'Your saved marketplace products.' : 'Discover products from approved local sellers.'}
         >
+            <PublicVouchers vouchers={publicVouchers} />
             <nav id="catalog-categories" aria-label="Product categories" className="catalog-categories flex flex-wrap gap-2">
                 <Link href={destination} className={secondaryClass} aria-current={!filters.category ? 'page' : undefined}>
                     <LayoutGrid className="size-4 shrink-0" aria-hidden="true" />
@@ -305,9 +352,6 @@ export default function Catalog({
                                         value={form.data.search}
                                         onChange={(e) => form.setData('search', e.target.value)}
                                     />
-                                    <button className={secondaryClass} type="submit">
-                                        Search
-                                    </button>
                                 </form>
                             )}
                             <Select

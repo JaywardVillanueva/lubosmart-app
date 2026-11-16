@@ -1,10 +1,9 @@
-import { LogisticsCharts } from '@/components/logistics/logistics-charts';
-import SellerNavigation from '@/components/seller/seller-navigation';
 import { Badge, buttonClass, Card, Empty, money, Page, secondaryClass } from '@/components/shared/marketplace-ui';
+import { DashboardFinance, DashboardOverview } from '@/components/workspace/dashboard-overview';
 import { DashboardMetric, DashboardWelcome } from '@/components/workspace/dashboard-panels';
 import type { SharedData } from '@/types';
-import { Link, usePage } from '@inertiajs/react';
-import { Boxes, ClipboardCheck, MessageCircle, Package, PackageCheck, Truck, Wallet } from 'lucide-react';
+import { Link, usePage, usePoll } from '@inertiajs/react';
+import { Boxes, ClipboardCheck, Package, PackageCheck, Wallet } from 'lucide-react';
 
 type RecentOrder = {
     id: number;
@@ -20,9 +19,8 @@ type RecentOrder = {
 export default function SellerDashboard({
     store,
     queues,
-    productCount,
     completedProceeds,
-    activeCount,
+    summary,
     recentOrders,
 }: {
     store: { name: string; status: string } | null;
@@ -30,21 +28,11 @@ export default function SellerDashboard({
     productCount: number;
     completedProceeds: string;
     activeCount: number;
+    summary: { sales: string; activeProducts: number; returns: number; received: string; series: { label: string; value: number }[]; period: string };
     recentOrders: RecentOrder[];
 }) {
+    usePoll(30000, { only: ['summary', 'queues', 'recentOrders', 'completedProceeds'] });
     const { auth } = usePage<SharedData>().props;
-    const cards = [
-        { label: 'New orders', value: queues.pending, href: '/orders?stage=pending', hint: 'Start preparing these parcels', icon: Package },
-        { label: 'Preparing', value: queues.processing, href: '/orders?stage=processing', hint: 'Pack and mark ready for pickup', icon: Boxes },
-        {
-            label: 'Ready for pickup',
-            value: queues.ready,
-            href: '/orders?stage=ready',
-            hint: 'Print labels for logistics collection',
-            icon: ClipboardCheck,
-        },
-        { label: 'In delivery', value: queues.transit, href: '/orders?stage=transit', hint: 'Follow your parcels to the buyer', icon: Truck },
-    ];
     return (
         <Page title="Seller dashboard" headerInNavbar description="Your inventory, order preparation, deliveries, and sales.">
             <DashboardWelcome
@@ -53,6 +41,7 @@ export default function SellerDashboard({
                 description="Keep stock current, prepare incoming orders, and follow each parcel through delivery."
                 context={store?.name ?? 'Your store'}
                 icon={Package}
+                illustration="store"
             >
                 <div className="flex flex-wrap gap-3">
                     <Link href="/orders?stage=pending" className={buttonClass}>
@@ -63,8 +52,51 @@ export default function SellerDashboard({
                     </Link>
                 </div>
             </DashboardWelcome>
-            <div className="workspace-priorities bg-card rounded-xl border p-5">
-                <h3 className="text-sm font-semibold">Needs attention</h3>
+
+            {!store || store.status !== 'approved' ? (
+                <Empty
+                    title="Store approval required"
+                    description="Contact support to check your store approval before publishing products."
+                    href="/support"
+                    label="Contact support"
+                />
+            ) : null}
+            <section aria-label="Store summary" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <DashboardMetric
+                    compact
+                    label="Store sales"
+                    value={money(summary.sales)}
+                    hint="All-time completed product sales, excluding shipping"
+                    icon={Wallet}
+                    href="/reports"
+                />
+                <DashboardMetric
+                    compact
+                    label="Pending orders"
+                    value={queues.pending}
+                    hint="Orders awaiting preparation"
+                    icon={Package}
+                    href="/orders?stage=pending"
+                />
+                <DashboardMetric
+                    compact
+                    label="Active products"
+                    value={summary.activeProducts}
+                    hint="Active listings without a compliance block"
+                    icon={Boxes}
+                    href="/inventory"
+                />
+                <DashboardMetric
+                    compact
+                    label="Return requests"
+                    value={summary.returns}
+                    hint="All recorded store return and refund requests"
+                    icon={ClipboardCheck}
+                    href="/returns"
+                />
+            </section>
+            <div className="bg-card rounded-xl border p-5">
+                <h2 className="text-lg font-semibold">Needs attention</h2>
                 <p className="text-muted-foreground mt-1 text-xs">Current store tasks</p>
                 <ul className="mt-3 divide-y">
                     {[
@@ -84,27 +116,28 @@ export default function SellerDashboard({
                     ))}
                 </ul>
             </div>
-            {!store || store.status !== 'approved' ? (
-                <Empty
-                    title="Store approval required"
-                    description="Contact support to check your store approval before publishing products."
-                    href="/support"
-                    label="Contact support"
+            <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+                <DashboardOverview
+                    compact
+                    title="Sales performance"
+                    description={'Completed product sales by delivery date · ' + summary.period}
+                    items={summary.series}
+                    line
+                    currency
                 />
-            ) : null}
-            <SellerNavigation />
-            <section aria-label="Order workload" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                {cards.map((card) => (
-                    <DashboardMetric key={card.label} {...card} />
-                ))}
-            </section>
-            <LogisticsCharts
-                queues={cards}
-                delivered={queues.completed}
-                active={activeCount}
-                activeDescription="Active includes all your orders awaiting delivery, including preparation and delivery issues. Cancelled orders are excluded."
-            />
-            <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+                <DashboardFinance
+                    title="Settlement summary"
+                    description="Recorded payouts are separate from sales. Review settlements for pending eligibility and refund holds."
+                    rows={[
+                        { label: 'Received settlements · all time', value: money(summary.received) },
+                        { label: 'Completed proceeds · before refund deductions', value: money(completedProceeds) },
+                    ]}
+                    href="/settlements"
+                    action="View settlements"
+                />
+            </div>
+
+            <div className="space-y-6">
                 <Card>
                     <div className="flex flex-wrap items-center justify-between gap-3">
                         <h2 className="text-lg font-semibold">Recent orders</h2>
@@ -152,39 +185,6 @@ export default function SellerDashboard({
                         />
                     )}
                 </Card>
-                <div className="space-y-6">
-                    <Card>
-                        <div className="flex items-center gap-3">
-                            <Wallet aria-hidden="true" className="text-primary size-5" />
-                            <h2 className="text-lg font-semibold">Completed seller proceeds</h2>
-                        </div>
-                        <p className="mt-4 text-3xl font-semibold tabular-nums">{money(completedProceeds)}</p>
-                        <p className="text-muted-foreground mt-2 text-sm">
-                            All-time completed product sales minus commission. These figures do not confirm a payout.
-                        </p>
-                        <Link href="/reports" className={`${secondaryClass} mt-5`}>
-                            View sales reports
-                        </Link>
-                    </Card>
-                    <Card>
-                        <h2 className="text-lg font-semibold">Fulfillment checklist</h2>
-                        <ol className="text-muted-foreground mt-4 list-inside list-decimal space-y-3 text-sm leading-relaxed">
-                            <li>Check stock and packed weight across your {productCount.toLocaleString()} products.</li>
-                            <li>Start preparing, pack the items, and mark the parcel ready.</li>
-                            <li>Print its waybill and attach the label to one physical parcel.</li>
-                            <li>Follow delivery progress and keep the buyer informed.</li>
-                        </ol>
-                        <div className="mt-5 flex flex-wrap gap-3">
-                            <Link href="/support?kind=message" className={secondaryClass}>
-                                <MessageCircle aria-hidden="true" className="size-4" />
-                                Messages
-                            </Link>
-                            <Link href="/settings/profile" className={secondaryClass}>
-                                Account settings
-                            </Link>
-                        </div>
-                    </Card>
-                </div>
             </div>
         </Page>
     );

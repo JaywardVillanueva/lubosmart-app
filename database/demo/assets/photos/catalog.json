@@ -1,0 +1,17 @@
+{
+  "0:0": "openbook", "0:1": "books", "0:2": "bookspines",
+  "0:3": "books", "0:4": "openbook", "0:5": "bookspines",
+  "0:6": "bookspines", "0:7": "books", "0:8": "openbook",
+  "1:0": "coffee", "1:1": "grounds", "1:2": "gingertea",
+  "1:3": "calamansi", "1:4": "tablea", "1:5": "lemongrass",
+  "1:6": "coffee", "1:7": "sachet", "1:8": "coffeecup",
+  "2:0": "spiral", "2:1": "journal", "2:2": "paper",
+  "2:3": "cards", "2:4": "copypaper", "2:5": "sticky",
+  "2:6": "planner", "2:7": "graph", "2:8": "drawing",
+  "3:0": "trowel", "3:1": "shears", "3:2": "gloves",
+  "3:3": "pots", "3:4": "watering", "3:5": "labels",
+  "3:6": "rake", "3:7": "tray", "3:8": "twine",
+  "4:0": "usbc", "4:1": "stand", "4:2": "pouch",
+  "4:3": "organizer", "4:4": "cloth", "4:5": "tablet",
+  "4:6": "earphones", "4:7": "gadgetpouch", "4:8": "grip"
+}

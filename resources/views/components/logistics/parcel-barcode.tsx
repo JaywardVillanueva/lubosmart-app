@@ -17,7 +17,10 @@ export default function ParcelBarcode({ reference }: { reference: string }) {
             background: '#ffffff',
             lineColor: '#000000',
         });
-        element.setAttribute('viewBox', `0 0 ${element.getAttribute('width')} ${element.getAttribute('height')}`);
+        // JsBarcode emits CSS lengths (for example 836px); SVG viewBox requires unitless numbers.
+        const width = Number.parseFloat(element.getAttribute('width') ?? '0');
+        const height = Number.parseFloat(element.getAttribute('height') ?? '0');
+        element.setAttribute('viewBox', `0 0 ${width} ${height}`);
         element.removeAttribute('width');
         element.removeAttribute('height');
     }, [reference, valid]);

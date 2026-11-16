@@ -12,6 +12,7 @@ class SellerOrder extends Model
     protected $fillable = [
         'order_id',
         'store_id',
+        'coins_redeemed_cents', 'cod_due_cents', 'merchandise_cash_cents',
         'subtotal',
         'shipping_fee',
         'shipping_quote',
@@ -27,7 +28,7 @@ class SellerOrder extends Model
 
     protected function casts(): array
     {
-        return [
+        return ['coins_redeemed_cents' => 'integer', 'cod_due_cents' => 'integer', 'merchandise_cash_cents' => 'integer',
             'subtotal' => 'decimal:2',
             'discount_amount' => 'decimal:2',
             'shipping_fee' => 'decimal:2',
@@ -37,6 +38,11 @@ class SellerOrder extends Model
             'commission_amount' => 'decimal:2',
             'seller_proceeds' => 'decimal:2',
         ];
+    }
+
+    public function coinAllocation(): HasOne
+    {
+        return $this->hasOne(CoinAllocation::class);
     }
 
     public function order(): BelongsTo
@@ -71,6 +77,11 @@ class SellerOrder extends Model
 
     public function parcelReturn(): HasOne
     {
-        return $this->hasOne(ParcelReturn::class);
+        return $this->hasOne(ParcelReturn::class)->latestOfMany();
+    }
+
+    public function parcelReturns(): HasMany
+    {
+        return $this->hasMany(ParcelReturn::class);
     }
 }

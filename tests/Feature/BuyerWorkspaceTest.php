@@ -28,7 +28,8 @@ test('buyer dashboard links only owned purchases to their parcels', function () 
     buyerWorkspacePurchase($this, User::factory()->create());
 
     $this->actingAs($buyer)->get('/dashboard/buyer')->assertInertia(fn (Assert $page) => $page
-        ->component('buyer/dashboard')->where('stats.Orders', 1)->where('stats.In progress', 1)
+        ->component('buyer/dashboard')->where('stats.Orders to ship', 1)->where('stats.Orders to receive', 0)
+        ->where('stats.Completed orders', 0)->where('stats.Available Lubos Coins', 0)
         ->has('records', 1)->where('records.0.href', '/orders?search='.$own->order_id));
 });
 

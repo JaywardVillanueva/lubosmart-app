@@ -3,10 +3,10 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\ReturnWorkflowController;
 use App\Http\Resources\Api\ParcelResource;
 use App\Http\Resources\Api\ProductResource;
 use App\Http\Resources\Api\UserResource;
-use App\Models\ParcelReturn;
 use App\Models\Product;
 use App\Models\ProductReview;
 use App\Models\RiderPayment;
@@ -14,6 +14,7 @@ use App\Models\SellerOrder;
 use App\Models\SellerPayout;
 use App\Models\StoreVoucher;
 use App\Models\SupportCase;
+use App\Models\WeeklyRiderPayment;
 use App\Services\Admin\AuditLogger;
 use App\Services\WorkspaceStatus;
 use Illuminate\Http\Request;
@@ -112,34 +113,14 @@ class RoleDataController extends Controller
 
     public function returns(Request $request)
     {
-        $user = $request->user();
-        $query = ParcelReturn::query()->when($user->role === 'buyer', fn ($q) => $q->where('buyer_id', $user->id))
-            ->when($user->role === 'seller', fn ($q) => $q->whereHas('sellerOrder', fn ($p) => $p->where('store_id', $user->store?->id ?? 0)))
-            ->when($user->role === 'rider', fn ($q) => $q->where('rider_id', $user->id)->whereHas('sellerOrder.delivery', fn ($d) => $d->where('logistics_center_id', $user->logistics_center_id)))
-            ->with('events', 'sellerOrder.order', 'sellerOrder.store', 'sellerOrder.items', 'sellerOrder.delivery')
-            ->with(['sellerOrder.store.user.addresses' => fn ($q) => $q->orderByDesc('is_default')->orderBy('id')]);
-
-        return response()->json(['data' => $query->latest('id')->paginate(20)->through(fn ($return) => [
-            ...$return->only(['id', 'seller_order_id', 'status', 'reason', 'decision_reason', 'condition', 'restocked', 'collected_at', 'received_at', 'responsibility', 'responsibility_reason']),
-            'refund_cents' => $user->role === 'rider' ? null : $return->refund_cents,
-            'refund_reference' => $user->role === 'rider' ? null : $return->refund_reference,
-            'parcel' => new ParcelResource($return->sellerOrder),
-            'return_destination' => $return->sellerOrder->shipping_quote['pickup_address']
-                ?? $return->sellerOrder->store->user?->addresses->first()?->only(['recipient_name', 'phone', 'line1', 'barangay', 'city', 'province']),
-            'allowed_actions' => match (true) {
-                $user->role === 'seller' && $return->status === 'collected' => ['receive'],
-                $user->role === 'rider' && $return->status === 'assigned' => ['collect'],
-                default => [],
-            },
-            'events' => $return->events->map(fn ($event) => $event->only(['id', 'action', 'notes', 'created_at'])),
-        ])]);
+        return app(ReturnWorkflowController::class)->index($request);
     }
 
     public function earnings(Request $request)
     {
         $query = RiderPayment::query()->where('rider_id', $request->user()->id);
 
-        return response()->json(['data' => ['totals' => ['fees' => (int) (clone $query)->sum('amount_cents'), 'paid' => (int) (clone $query)->whereNotNull('paid_at')->sum('amount_cents')],
+        return response()->json(['data' => ['weekly' => WeeklyRiderPayment::query()->where('rider_id', $request->user()->id)->latest('period_start')->paginate(20, ['*'], 'weekly_page'), 'totals' => ['fees' => (int) (clone $query)->sum('amount_cents'), 'paid' => (int) (clone $query)->whereNotNull('paid_at')->sum('amount_cents')],
             'entries' => $query->latest('id')->paginate(20, ['id', 'delivery_id', 'leg', 'amount_cents', 'notes', 'payment_reference', 'paid_at']),
         ]]);
     }
