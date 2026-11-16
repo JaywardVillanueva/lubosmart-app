@@ -2,12 +2,16 @@
 
 use App\Http\Controllers\Api\V1\DeviceTokenController;
 use App\Http\Controllers\Api\V1\MarketplaceReadController;
+use App\Http\Controllers\Api\V1\RoleDataController;
 use App\Http\Controllers\DeliveryController;
 use App\Http\Controllers\FinanceController;
 use App\Http\Controllers\LogisticsSettlementController;
 use App\Http\Controllers\MarketplaceController;
 use App\Http\Controllers\NotificationInboxController;
 use App\Http\Controllers\OrderController;
+use App\Http\Controllers\ParcelReturnController;
+use App\Http\Controllers\ReturnWorkflowController;
+use App\Http\Controllers\StoreVoucherController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->name('api.v1.')->group(function () {
@@ -15,6 +19,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
     Route::middleware('throttle:mobile-api')->group(function () {
         Route::get('products', [MarketplaceReadController::class, 'products'])->name('products.index');
         Route::get('products/{product}', [MarketplaceReadController::class, 'product'])->whereNumber('product')->name('products.show');
+        Route::get('shop-vouchers', [StoreVoucherController::class, 'available'])->name('shop-vouchers');
         Route::get('categories', [MarketplaceReadController::class, 'categories'])->name('categories.index');
     });
 
@@ -45,6 +50,9 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
             Route::patch('seller/orders/{sellerOrder}', [OrderController::class, 'prepare'])->name('seller.prepare');
         });
         Route::middleware('mobile.token:logistics')->group(function () {
+            Route::get('logistics/returns/{return}/proof/{proof}', [ReturnWorkflowController::class, 'proof'])->name('logistics.returns.proof');
+            Route::get('logistics/returns', [RoleDataController::class, 'returns'])->name('logistics.returns');
+            Route::patch('logistics/returns/{return}', [ParcelReturnController::class, 'update'])->name('logistics.returns.update');
             Route::get('logistics/settlements', [LogisticsSettlementController::class, 'index'])->name('logistics.settlements');
             Route::get('logistics/configuration', [MarketplaceReadController::class, 'logisticsConfiguration'])->name('logistics.configuration');
             Route::get('logistics/available-pickups', [MarketplaceReadController::class, 'availablePickups'])->name('logistics.available-pickups');

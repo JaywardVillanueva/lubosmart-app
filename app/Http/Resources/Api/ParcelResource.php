@@ -2,16 +2,26 @@
 
 namespace App\Http\Resources\Api;
 
+use App\Services\ParcelFinance;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 class ParcelResource extends JsonResource
 {
+    private bool $hideBuyerContacts = false;
+
+    public function limitBuyerContacts(bool $limit): self
+    {
+        $this->hideBuyerContacts = $limit;
+
+        return $this;
+    }
+
     public function toArray(Request $request): array
     {
         $delivery = $this->delivery;
         $order = $this->order;
-        $limited = $request->user()?->role === 'seller' && ! $request->routeIs('api.v1.seller.orders.waybill');
+        $limited = $this->hideBuyerContacts || ($request->user()?->role === 'seller' && ! $request->routeIs('api.v1.seller.orders.waybill')) || ($request->user()?->role === 'rider' && ! $request->routeIs('api.v1.returns.index') && $delivery && ! $delivery->riderCan($request->user(), 'delivered'));
 
         return [
             'id' => $this->id, 'order_id' => $this->order_id, 'status' => $this->status,
@@ -22,7 +32,10 @@ class ParcelResource extends JsonResource
             'store' => ['id' => $this->store_id, 'name' => $this->store->name],
             'subtotal' => $this->subtotal, 'shipping_fee' => $this->shipping_fee,
             'discount_amount' => $this->discount_amount, 'currency' => 'PHP',
-            'cod_total' => number_format(((int) round((float) $this->subtotal * 100) + (int) round((float) $this->shipping_fee * 100)) / 100, 2, '.', ''),
+            'cod_total' => ParcelFinance::decimal(ParcelFinance::expected($this->resource)),
+            'cod_due_cents' => ParcelFinance::expected($this->resource),
+            'coins_redeemed_cents' => (int) $this->coins_redeemed_cents,
+            'merchandise_cash_cents' => ParcelFinance::merchandiseCash($this->resource),
             'items' => $this->items->map(fn ($item) => $item->only([
                 'id', 'product_id', 'product_name', 'quantity', 'price_each', 'product_variant_id', 'variant_name',
             ])),

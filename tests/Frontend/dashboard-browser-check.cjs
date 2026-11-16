@@ -265,6 +265,10 @@ if (PHP_SAPI === 'cli-server' && str_starts_with(parse_url($_SERVER['REQUEST_URI
                 continue;
             }
             if (process.env.LUBOSMART_WORKSPACE_DESIGN) {
+                if (process.env.LUBOSMART_DASHBOARD_REDESIGN) {
+                    await require('./dashboard-redesign-check.cjs')({ role, viewport, evaluate, delay, record, screenshot });
+                    continue;
+                }
                 await require('./workspace-design-check.cjs')({ role, navigate, viewport, evaluate, until, delay, record, screenshot, click });
                 continue;
             }
@@ -277,7 +281,7 @@ if (PHP_SAPI === 'cli-server' && str_starts_with(parse_url($_SERVER['REQUEST_URI
             assert.equal(await evaluate(`!!document.querySelector('nav[aria-label="Logistics mobile navigation"]')`), role === 'logistics');
             await delay(400);
             const page = await evaluate('JSON.parse(document.querySelector("#app").dataset.page).props');
-            if (role === 'buyer') assert.equal(page.stats.Orders, 1);
+            if (role === 'buyer') assert.equal(page.stats['Orders to receive'], 1);
             if (role === 'seller') assert.equal(page.queues.all, 1);
             if (role === 'rider') assert.equal(page.queues.all, 1);
             if (role === 'logistics') assert.equal(page.metrics.incoming, 1);

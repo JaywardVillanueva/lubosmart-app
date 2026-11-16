@@ -1,6 +1,6 @@
+import { ThemeModeIcon } from '@/components/navigation/theme-toggle-visual';
 import { Button } from '@/components/ui/button';
 import { useAppearance } from '@/hooks/use-appearance';
-import { Moon, Sun } from 'lucide-react';
 
 export function ThemeToggle() {
     const { appearance, updateAppearance } = useAppearance();
@@ -12,12 +12,12 @@ export function ThemeToggle() {
             type="button"
             variant="outline"
             size="icon"
-            className="size-11"
+            className="size-11 rounded-2xl"
             aria-label={label}
             title={label}
             onClick={() => updateAppearance(dark ? 'light' : 'dark')}
         >
-            {dark ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
+            <ThemeModeIcon dark={dark} />
         </Button>
     );
 }

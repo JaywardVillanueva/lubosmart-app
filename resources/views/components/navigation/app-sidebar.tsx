@@ -10,6 +10,7 @@ import {
     ChartNoAxesCombined,
     ClipboardCheck,
     ClipboardList,
+    Coins,
     Heart,
     History,
     LayoutDashboard,
@@ -18,7 +19,6 @@ import {
     MessageSquareWarning,
     Package,
     ScanLine,
-    Settings,
     ShieldAlert,
     ShoppingBag,
     ShoppingCart,
@@ -68,18 +68,13 @@ export function AppSidebar() {
     ];
     const logisticsItems: NavItem[] = [
         { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard },
+        { title: 'Parcel Management', url: '/deliveries?stage=all', icon: Package },
         { title: 'Scan Parcel', url: '/logistics/scan', icon: ScanLine },
-        { title: 'Pickup Requests', url: '/deliveries?stage=pickups', icon: Package },
-        { title: 'Incoming Parcels', url: '/deliveries?stage=incoming', icon: Truck },
-        { title: 'Parcel Sorting', url: '/deliveries?stage=sorting', icon: Package },
-        { title: 'Delivery Assignment', url: '/deliveries?stage=dispatch', icon: Truck },
-        { title: 'Delivery Monitoring', url: '/deliveries?stage=monitoring', icon: Truck },
-        { title: 'Rider Applications', url: '/reviews', icon: ClipboardCheck },
+        { title: 'Delivery Management', url: '/deliveries?stage=dispatch', icon: Truck },
+        { title: 'Parcel Records', url: '/deliveries?stage=all&view=records', icon: History },
         { title: 'Rider Management', url: '/logistics/riders', icon: UsersRound },
-        { title: 'Rider Coverage', url: '/logistics/rider-coverage', icon: MapPinned },
-        { title: 'Shipping Rates', url: '/logistics/shipping-rates', icon: Truck },
-        { title: 'Rider payments', url: '/rider-payments', icon: BadgePercent },
-        { title: 'Shipping allocations', url: '/logistics-settlements', icon: Truck },
+        { title: 'Coverage & Rates', url: '/logistics/rider-coverage', icon: MapPinned },
+        { title: 'Finance Center', url: '/finance', icon: BadgePercent },
         { title: 'Return assignments', url: '/returns', icon: Package },
         { title: 'Delivery Reports', url: '/reports', icon: ChartNoAxesCombined },
         { title: 'Messages', url: '/support?kind=message', icon: MessageCircle },
@@ -97,7 +92,6 @@ export function AppSidebar() {
         { title: 'Earnings & payments', url: '/rider-payments', icon: BadgePercent },
         { title: 'Assigned returns', url: '/returns', icon: Package },
         { title: 'Messages', url: '/support?kind=message', icon: MessageCircle },
-        { title: 'Account settings', url: '/settings/profile', icon: Settings },
     ];
     const role = auth.user.role;
     const sellerItems: NavItem[] = [
@@ -116,9 +110,8 @@ export function AppSidebar() {
         { title: 'Returned goods', url: '/returns', icon: Package },
         { title: 'Messages', url: '/support?kind=message', icon: MessageCircle },
         { title: 'Support', url: '/support?kind=complaint', icon: MessageSquareWarning },
-        { title: 'Account settings', url: '/settings/profile', icon: Settings },
     ];
-    for (const navigation of [adminItems, logisticsItems, riderItems, sellerItems]) {
+    for (const navigation of [adminItems, riderItems, sellerItems]) {
         navigation.push({ title: 'Finance overview', url: '/finance', icon: BadgePercent });
     }
     useEffect(() => {
@@ -131,6 +124,7 @@ export function AppSidebar() {
             { title: 'Discover', url: '/shop', icon: ShoppingBag },
             { title: 'Shopping bag', url: '/cart', icon: ShoppingCart },
             { title: 'Saved products', url: '/wishlist', icon: Heart },
+            { title: 'Lubos Coins', url: '/wallet', icon: Coins },
             { title: 'Returns & refunds', url: '/returns', icon: Package },
         );
     if (role === 'seller') items.push({ title: 'Inventory', url: '/inventory', icon: Package });
@@ -144,13 +138,12 @@ export function AppSidebar() {
         );
     if (role !== 'admin') items.push({ title: 'Support', url: '/support', icon: MessageCircle });
     if (role !== 'buyer') items.push({ title: 'Reports', url: '/reports', icon: ChartNoAxesCombined });
-    items.push({ title: 'Settings', url: '/settings/profile', icon: Settings });
     if (auth.user.status !== 'approved')
         items.splice(0, items.length, { title: 'Registration & approval', url: '/application', icon: ClipboardCheck });
     if (auth.user.status === 'pending')
         items.splice(0, items.length, { title: 'Waiting for approval', url: '/application/waiting', icon: ClipboardCheck });
     return (
-        <Sidebar collapsible="icon" variant="sidebar" className="[&_[data-sidebar=sidebar]]:bg-card">
+        <Sidebar collapsible="icon" variant="sidebar">
             <SidebarHeader className="h-18 shrink-0 flex-row items-center gap-2 border-b px-3 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-2">
                 <SidebarLogoToggle className="group-data-[collapsible=icon]:mx-auto" />
                 <Link
@@ -172,14 +165,32 @@ export function AppSidebar() {
                         </>
                     ) : role === 'logistics' && auth.user.status === 'approved' ? (
                         <>
-                            <NavMain title="Operations" items={logisticsItems.slice(0, 7)} admin />
-                            <NavMain title="Riders & Coverage" items={logisticsItems.slice(7, 11)} admin />
-                            <NavMain title="Workspace" items={logisticsItems.slice(11)} admin />
+                            <NavMain title="Operations" items={logisticsItems.slice(0, 5)} admin />
+                            <NavMain title="Riders & Coverage" items={logisticsItems.slice(5, 7)} admin />
+                            <NavMain title="Workspace" items={logisticsItems.slice(7)} admin />
                         </>
                     ) : role === 'rider' && auth.user.status === 'approved' ? (
                         <>
-                            <NavMain title="My deliveries" items={riderItems.slice(0, 6)} admin />
-                            <NavMain title="Cash & history" items={riderItems.slice(6, 9)} admin />
+                            <NavMain
+                                title="My deliveries"
+                                items={riderItems
+                                    .slice(0, 6)
+                                    .filter((item) =>
+                                        auth.user.rider_capability === 'pickup'
+                                            ? !['/deliveries?stage=dispatch', '/deliveries?stage=monitoring'].includes(item.url)
+                                            : auth.user.rider_capability === 'delivery'
+                                              ? item.url !== '/deliveries?stage=pickups'
+                                              : true,
+                                    )}
+                                admin
+                            />
+                            <NavMain
+                                title="Cash & history"
+                                items={riderItems
+                                    .slice(6, 9)
+                                    .filter((item) => auth.user.rider_capability !== 'pickup' || item.url !== '/deliveries?stage=cash')}
+                                admin
+                            />
                             <NavMain title="Workspace" items={riderItems.slice(9)} admin />
                         </>
                     ) : role === 'seller' && auth.user.status === 'approved' ? (

@@ -1,6 +1,6 @@
+import { ThemeModeIcon, ThemeSwitchTrack } from '@/components/navigation/theme-toggle-visual';
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { useAppearance } from '@/hooks/use-appearance';
-import { Moon, Sun } from 'lucide-react';
 
 export function SidebarThemeToggle() {
     const { appearance, updateAppearance } = useAppearance();
@@ -11,13 +11,19 @@ export function SidebarThemeToggle() {
         <SidebarMenu>
             <SidebarMenuItem>
                 <SidebarMenuButton
+                    type="button"
+                    role="switch"
+                    aria-checked={dark}
                     onClick={() => updateAppearance(dark ? 'light' : 'dark')}
-                    aria-label={label}
+                    aria-label="Dark mode"
                     tooltip={label}
-                    className="min-h-11 rounded-xl px-3 group-data-[collapsible=icon]:[&>span]:hidden [&>svg]:size-5"
+                    className="border-primary/15 bg-accent/60 text-foreground hover:bg-accent min-h-14 gap-3 rounded-2xl border px-3 shadow-sm group-data-[collapsible=icon]:justify-center"
                 >
-                    {dark ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
-                    <span>{dark ? 'Light mode' : 'Dark mode'}</span>
+                    <ThemeModeIcon dark={dark} className="group-data-[collapsible=icon]:size-5" />
+                    <span className="min-w-0 flex-1 text-sm font-medium group-data-[collapsible=icon]:hidden">
+                        {dark ? 'Dark mode' : 'Light mode'}
+                    </span>
+                    <ThemeSwitchTrack dark={dark} className="group-data-[collapsible=icon]:hidden" />
                 </SidebarMenuButton>
             </SidebarMenuItem>
         </SidebarMenu>

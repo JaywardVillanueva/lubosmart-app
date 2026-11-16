@@ -11,17 +11,7 @@ class DeliveryResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
-        $actions = [];
-        if ($request->user()?->role === 'rider' && $this->rider_id === $request->user()->id && ! $this->exception_status) {
-            $actions = match (true) {
-                $this->status === 'assigned' => ['picked_up'],
-                $this->status === 'in_transit' && $this->sorted_at && $this->dispatch_prepared_at && ! $this->dispatch_accepted_at => ['accept_dispatch'],
-                $this->status === 'in_transit' && $this->dispatch_accepted_at => ['out_for_delivery'],
-                $this->status === 'out_for_delivery' => ['delivered', 'failed_attempt'],
-                default => [],
-            };
-        }
-
+        $actions = $request->user()?->role === 'rider' ? $this->resource->riderActions($request->user()) : [];
         if ($request->user()?->role === 'logistics' && $request->user()->logisticsCenters()->operational()->whereKey($this->logistics_center_id)->exists() && ! $this->exception_status && $this->sellerOrder->status === 'shipped') {
             $actions = match (true) {
                 $this->status === 'unassigned' && ! $this->pickup_approved_at => ['approve_pickup'],
@@ -37,6 +27,8 @@ class DeliveryResource extends JsonResource
             'id' => $this->id, 'tracking_reference' => $this->tracking_reference,
             'fulfillment_status' => $this->fulfillment_status,
             'status' => $this->status, 'exception_status' => $this->exception_status,
+            'pickup_rider_id' => $this->pickup_rider_id, 'delivery_rider_id' => $this->delivery_rider_id,
+            'custody_type' => $this->custody_type, 'custody_rider_id' => $this->custody_rider_id,
             'rider_id' => $this->rider_id, 'logistics_center_id' => $this->logistics_center_id,
             'service_area_id' => $this->service_area_id,
             'allowed_actions' => $actions,

@@ -10,6 +10,7 @@ use App\Models\OrderItem;
 use App\Models\ProductReview;
 use App\Models\SellerOrder;
 use App\Services\Admin\AuditLogger;
+use App\Services\LubosCoins;
 use App\Services\RestorePurchasedStock;
 use App\Services\Seller\SellerWorkspace;
 use App\Services\SellerBuyerPrivacy;
@@ -32,6 +33,7 @@ class OrderController extends Controller
             foreach ($parcels as $parcel) {
                 $parcel->update(['status' => 'cancelled']);
             }
+            app(LubosCoins::class)->cancel($order, $order->buyer);
             $order->update(['status' => 'cancelled']);
         }, 3);
 
@@ -90,6 +92,7 @@ class OrderController extends Controller
             'search' => 'nullable|string|max:100',
         ]) : [];
         $query = SellerOrder::query()->with(['items', 'delivery', 'store:id,name', 'order'])
+            ->when(in_array($user->role, ['buyer', 'seller'], true), fn ($q) => $q->with('items.product:id,image_path'))
             ->when($user->role === 'buyer', fn ($q) => $q->whereHas('order', fn ($q) => $q->where('buyer_id', $user->id)))
             ->when($user->role === 'seller', fn ($q) => $q->where('store_id', $user->store?->id));
         if (in_array($user->role, ['buyer', 'seller'], true)) {
@@ -111,6 +114,14 @@ class OrderController extends Controller
             }
         }
         $orders = $query->latest('id')->paginate(10)->withQueryString();
+        if (in_array($user->role, ['buyer', 'seller'], true)) {
+            $orders->getCollection()->each(function ($parcel) {
+                $parcel->items->each(function ($item) {
+                    $item->setAttribute('product_image_url', $item->product?->image_url);
+                    $item->unsetRelation('product');
+                });
+            });
+        }
         if ($user->role === 'seller') {
             $orders->getCollection()->each(fn ($parcel) => SellerBuyerPrivacy::minimize($parcel->order));
         }
@@ -124,7 +135,7 @@ class OrderController extends Controller
     public function prepare(Request $request, SellerOrder $sellerOrder, AuditLogger $audit)
     {
         abort_unless($request->user()->role === 'seller' && $sellerOrder->store_id === $request->user()->store?->id, 403);
-        $protected = array_fill_keys(['subtotal', 'total', 'shipping_fee', 'commission_basis_points', 'commission_amount',
+        $protected = array_fill_keys(['coins_redeemed_cents', 'cod_due_cents', 'merchandise_cash_cents', 'pickup_rider_id', 'delivery_rider_id', 'subtotal', 'total', 'shipping_fee', 'commission_basis_points', 'commission_amount',
             'seller_proceeds', 'discount_amount', 'voucher_code', 'logistics_center_id', 'rider_id', 'tracking_reference',
             'courier', 'external_courier', 'delivery_status', 'cod_status', 'settlement_status', 'payment_status',
             'delivered_at', 'proof_photo_path', 'cod_amount', 'received_amount'], 'missing');

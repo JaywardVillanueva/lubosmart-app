@@ -1,4 +1,5 @@
 import AuthFeedback from '@/components/auth/auth-feedback';
+import LogisticsPageBanner from '@/components/logistics/page-banner';
 import PublicHeader from '@/components/navigation/public-header';
 import { SkipLink } from '@/components/shell/skip-link';
 import { buttonVariants } from '@/components/ui/button';
@@ -38,6 +39,9 @@ export function Page({
     embedded = false,
     headerInNavbar = false,
     storefront = false,
+    banner = 'shopping',
+    showLogisticsBanner = true,
+    logisticsBannerTitle,
 }: {
     title: string;
     description?: string;
@@ -46,14 +50,19 @@ export function Page({
     embedded?: boolean;
     headerInNavbar?: boolean;
     storefront?: boolean;
+    banner?: 'shopping' | 'orders';
+    showLogisticsBanner?: boolean;
+    logisticsBannerTitle?: string;
 }) {
     const { auth, status, errors } = usePage<SharedData>().props;
+    const logisticsBanner = showLogisticsBanner && auth.user?.role === 'logistics' && !embedded && !storefront;
+    const NavbarHeading = logisticsBanner ? 'span' : 'h1';
     const ContentHeading = embedded ? 'h2' : 'h1';
     const useNavbarHeader = (headerInNavbar || !!auth.user) && !embedded && !storefront;
     const pageHeader = (
         <div className="min-w-0">
-            <h1 className="text-foreground text-xl font-semibold tracking-tight sm:text-2xl">{title}</h1>
-            {description && (
+            <NavbarHeading className="text-foreground text-xl font-semibold tracking-tight sm:text-2xl">{title}</NavbarHeading>
+            {description && !logisticsBanner && (
                 <p
                     title={description}
                     className={cn(
@@ -67,15 +76,16 @@ export function Page({
         </div>
     );
     const content = (
-        <div
-            className={cn(
-                'workspace-page flex w-full min-w-0 flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8',
-                storefront && 'catalog-storefront gap-4 py-4',
-            )}
-        >
+        <div className={cn('workspace-page flex w-full min-w-0 flex-col gap-6 px-4 py-6', storefront && 'catalog-storefront gap-4 py-4')}>
             {!embedded && <Head title={title} />}
+            {logisticsBanner && <LogisticsPageBanner title={logisticsBannerTitle ?? title} description={description} />}
             {!useNavbarHeader && (
-                <div className={cn('flex flex-wrap items-start justify-between gap-4 border-b pb-6', storefront && 'catalog-intro')}>
+                <div
+                    className={cn(
+                        'flex flex-wrap items-start justify-between gap-4 border-b pb-6',
+                        storefront && `catalog-intro catalog-intro-${banner}`,
+                    )}
+                >
                     <div className="min-w-0">
                         <ContentHeading className="text-2xl font-semibold tracking-tight sm:text-3xl">{title}</ContentHeading>
                         {description && <p className="text-muted-foreground mt-2 max-w-xl text-sm leading-relaxed">{description}</p>}
@@ -84,9 +94,6 @@ export function Page({
                 </div>
             )}
             {useNavbarHeader && action && <div className="flex min-w-0 flex-wrap items-center justify-end gap-3">{action}</div>}
-            {useNavbarHeader && auth.user?.role === 'logistics' && description && (
-                <p className="text-muted-foreground text-sm leading-relaxed sm:hidden">{description}</p>
-            )}
             {status && !['buyer', 'seller', 'rider', 'logistics'].includes(auth.user?.role ?? '') && <Notice>{status}</Notice>}
             {Object.keys(errors).length > 0 && (
                 <Notice tone="error">
@@ -211,12 +218,12 @@ export function Select({
     const generatedId = useId();
     const id = props.id ?? generatedId;
     return (
-        <div className="grid min-w-0 content-start gap-2">
+        <div className="grid min-w-0 grid-cols-1 content-start gap-2">
             <label htmlFor={id} className={cn('text-sm font-medium', reserveFeedback && 'min-h-5')}>
                 {label}
             </label>
             <select
-                className={cn(inputClass, className)}
+                className={cn(inputClass, 'max-w-full min-w-0', className)}
                 {...props}
                 id={id}
                 aria-invalid={error ? true : props['aria-invalid']}
@@ -240,7 +247,7 @@ export function Textarea({ label, error, className, ...props }: TextareaHTMLAttr
             <textarea
                 {...props}
                 id={id}
-                className={cn(inputClass, 'resize-y', className)}
+                className={cn(inputClass, 'resize-none overflow-y-auto', className)}
                 aria-invalid={error ? true : props['aria-invalid']}
                 aria-describedby={[props['aria-describedby'], error && `${id}-error`].filter(Boolean).join(' ') || undefined}
             />

@@ -30,8 +30,8 @@ export default function ChangeRequests() {
     }
     return (
         <Page title="Account change requests" description="Compare approved registration details with proposed changes before deciding.">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-                <div className="w-full sm:w-64">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+                <div className="w-full min-w-0 sm:w-56">
                     <Select
                         label="Request status"
                         reserveFeedback={false}

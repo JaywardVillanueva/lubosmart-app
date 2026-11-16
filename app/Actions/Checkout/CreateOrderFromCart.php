@@ -16,6 +16,7 @@ use App\Models\Store;
 use App\Models\User;
 use App\Observers\WorkflowNotificationObserver;
 use App\Services\Logistics\ShippingQuotes;
+use App\Services\LubosCoins;
 use App\Services\ParcelFinance;
 use App\Services\StoreDiscount;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -24,9 +25,9 @@ use Illuminate\Validation\ValidationException;
 
 class CreateOrderFromCart
 {
-    public function handle(User $buyer, int $addressId, ?int $logisticsCenterId = null, ?int $expectedShippingCents = null, ?string $voucherCode = null, ?int $expectedDiscountCents = null, ?int $expectedItemsSubtotalCents = null): Order
+    public function handle(User $buyer, int $addressId, ?int $logisticsCenterId = null, ?int $expectedShippingCents = null, ?string $voucherCode = null, ?int $expectedDiscountCents = null, ?int $expectedItemsSubtotalCents = null, int $coinsToRedeem = 0): Order
     {
-        return DB::transaction(function () use ($buyer, $addressId, $logisticsCenterId, $expectedShippingCents, $voucherCode, $expectedDiscountCents, $expectedItemsSubtotalCents): Order {
+        return DB::transaction(function () use ($buyer, $addressId, $logisticsCenterId, $expectedShippingCents, $voucherCode, $expectedDiscountCents, $expectedItemsSubtotalCents, $coinsToRedeem): Order {
             $buyer = User::query()
                 ->whereKey($buyer->id)
                 ->lockForUpdate()
@@ -182,6 +183,11 @@ class CreateOrderFromCart
             }
             $subtotalCents -= $discount['cents'];
 
+            $netByStore = $storeSubtotals;
+            if ($discount['voucher']) {
+                $netByStore[$discount['voucher']->store_id] -= $discount['cents'];
+            }
+            $coinAllocation = app(LubosCoins::class)->allocation($coinsToRedeem, $netByStore);
             $order = Order::query()->create([
                 'buyer_id' => $buyer->id,
                 'address_id' => $address->id,
@@ -212,6 +218,9 @@ class CreateOrderFromCart
                 $sellerOrder = SellerOrder::query()->create([
                     'order_id' => $order->id,
                     'store_id' => $storeId,
+                    'coins_redeemed_cents' => $coinAllocation[$storeId],
+                    'merchandise_cash_cents' => $storeSubtotalCents - $coinAllocation[$storeId],
+                    'cod_due_cents' => $storeSubtotalCents - $coinAllocation[$storeId] + $quotes[$storeId]['fee_cents'],
                     'subtotal' => $this->fromCents($storeSubtotalCents),
                     'discount_amount' => $this->fromCents($storeDiscountCents),
                     'store_voucher_id' => $storeDiscountCents ? $discount['voucher']->id : null,
@@ -263,6 +272,8 @@ class CreateOrderFromCart
                     'status' => 'unassigned',
                 ]);
             }
+
+            app(LubosCoins::class)->redeem($buyer, $order, $coinsToRedeem);
 
             CartItem::query()->whereKey($cartItems->modelKeys())->delete();
 

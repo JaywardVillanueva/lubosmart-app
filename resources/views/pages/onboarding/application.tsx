@@ -1,12 +1,13 @@
 import InputError from '@/components/auth/input-error';
 import OnboardingSteps from '@/components/onboarding/onboarding-steps';
 import { buttonClass, roleLabel, secondaryClass } from '@/components/shared/marketplace-ui';
+import ProgressStepper from '@/components/shared/progress-stepper';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/app-layout';
 import { type SharedData } from '@/types';
 import { Head, Link, useForm, usePage } from '@inertiajs/react';
-import { Check, Save, ShieldCheck } from 'lucide-react';
+import { Check, ClipboardList, Save, ShieldCheck } from 'lucide-react';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 
 type Option = { id: number; name: string };
@@ -311,7 +312,41 @@ export default function ApplicationPage({
         <AppLayout breadcrumbs={[{ title: 'Application', href: route('application.edit') }]}>
             <Head title="Your application" />
             <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-4 md:p-8">
-                <OnboardingSteps current={3} />
+                <OnboardingSteps current={submitted ? 4 : 3} />
+                <ProgressStepper
+                    label="Application review"
+                    layout="responsive"
+                    variant="detailed"
+                    stages={[
+                        {
+                            id: 'submission',
+                            label: 'Application submitted',
+                            icon: ClipboardList,
+                            state: application.submitted_at ? 'completed' : 'current',
+                            timestamp: application.submitted_at,
+                        },
+                        {
+                            id: 'review',
+                            label:
+                                application.status === 'rejected'
+                                    ? 'Changes requested'
+                                    : application.status === 'approved'
+                                      ? 'Approved'
+                                      : 'Admin review',
+                            icon: ShieldCheck,
+                            state:
+                                application.status === 'rejected'
+                                    ? 'failed'
+                                    : application.status === 'approved'
+                                      ? 'completed'
+                                      : submitted
+                                        ? 'current'
+                                        : 'pending',
+                            timestamp: application.reviewed_at,
+                            description: application.rejection_reason ?? undefined,
+                        },
+                    ]}
+                />
                 <div>
                     <p className="text-muted-foreground text-sm">{roleLabel(role)} registration</p>
                     <h1 className="mt-2 text-3xl font-semibold">Your application</h1>

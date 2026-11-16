@@ -330,7 +330,7 @@ async function until(predicate, label) {
         await viewport(1280, 900);
         await evaluate('document.documentElement.classList.remove("dark")');
         await navigate('/deliveries?stage=incoming');
-        assert.equal(await evaluate('document.body.innerText.includes("Scan with camera")'), false);
+        assert.equal(await evaluate('document.body.innerText.includes("Start camera")'), false);
         await navigate('/logistics/scan');
         assert.equal(await evaluate(`!!document.querySelector('a[href="/logistics/scan"][aria-current="page"]')`), true);
         assert.equal(await evaluate('document.querySelectorAll("button").length > 0 && document.body.innerText.includes("Ready to scan")'), true);
@@ -470,19 +470,19 @@ async function until(predicate, label) {
         await evaluate(
             'window.BarcodeDetector = undefined; Object.defineProperty(navigator.mediaDevices, "getUserMedia", { configurable:true, value:undefined })',
         );
-        await evaluate('[...document.querySelectorAll("button")].find(el=>el.textContent.includes("Scan with camera")).click()');
+        await evaluate('[...document.querySelectorAll("button")].find(el=>el.textContent.includes("Start camera")).click()');
         await until(() => evaluate('document.body.innerText.includes("does not support camera")'), 'camera fallback');
         record('Unsupported camera fallback', 'Camera failure leaves scanner and manual input available without submitting a parcel action');
         await evaluate(
             `window.BarcodeDetector = class { static async getSupportedFormats(){return ['code_39','code_128']} async detect(){return []} }; Object.defineProperty(navigator.mediaDevices, 'getUserMedia', { configurable:true, value:async()=>{throw new DOMException('Denied','NotAllowedError')} })`,
         );
-        await evaluate('[...document.querySelectorAll("button")].find(el=>el.textContent.includes("Scan with camera")).click()');
+        await evaluate('[...document.querySelectorAll("button")].find(el=>el.textContent.includes("Start camera")).click()');
         await until(() => evaluate('document.body.innerText.includes("Camera access was denied")'), 'camera denial');
         record('Camera permission denial', 'Denied permission displays a usable scanner / manual entry fallback');
         await evaluate(
             `window.__scanReady=false; window.BarcodeDetector=class { static async getSupportedFormats(){return ['code_39','code_128']} async detect(){return [{rawValue:window.__scanReady?${JSON.stringify(tracking)}:'https://untrusted.example/'}]} }; Object.defineProperty(navigator.mediaDevices,'getUserMedia',{configurable:true,value:async()=>{const canvas=document.createElement('canvas');canvas.width=640;canvas.height=240;canvas.getContext('2d').fillRect(0,0,640,240);window.__scanMedia=canvas.captureStream(5);return window.__scanMedia}})`,
         );
-        await evaluate('[...document.querySelectorAll("button")].find(el=>el.textContent.includes("Scan with camera")).click()');
+        await evaluate('[...document.querySelectorAll("button")].find(el=>el.textContent.includes("Start camera")).click()');
         await until(() => evaluate('!!document.querySelector("video:not(.hidden)")'), 'camera preview');
         assert.equal(await evaluate('location.hostname'), '127.0.0.1');
         await evaluate('window.__scanReady=true');
@@ -505,7 +505,7 @@ async function until(predicate, label) {
                 for(let i=0;i<bits.length;i++)if(bits[i]==='1')context.fillRect(40+i*2,40,2,160);
                 window.__scanMedia=canvas.captureStream(5);return window.__scanMedia;
             }})`);
-            await evaluate('[...document.querySelectorAll("button")].find(el=>el.textContent.includes("Scan with camera")).click()');
+            await evaluate('[...document.querySelectorAll("button")].find(el=>el.textContent.includes("Start camera")).click()');
             await until(
                 () =>
                     evaluate(
@@ -538,7 +538,7 @@ async function until(predicate, label) {
                     if(window.__scanScenario==='inverted'){draw.globalCompositeOperation='difference';draw.fillStyle='white';draw.fillRect(0,0,frame.width,frame.height)}
                     window.__scanMedia=frame.captureStream(5);return window.__scanMedia;
                 }})`);
-            await evaluate('[...document.querySelectorAll("button")].find(el=>el.textContent.includes("Scan with camera")).click()');
+            await evaluate('[...document.querySelectorAll("button")].find(el=>el.textContent.includes("Start camera")).click()');
             await until(
                 () =>
                     evaluate(
@@ -558,7 +558,7 @@ async function until(predicate, label) {
             const frame=document.createElement('canvas');frame.width=640;frame.height=360;
             frame.getContext('2d').fillRect(0,0,640,360);window.__scanMedia=frame.captureStream(5);return window.__scanMedia;
         }})`);
-        await evaluate('[...document.querySelectorAll("button")].find(el=>el.textContent.includes("Scan with camera")).click()');
+        await evaluate('[...document.querySelectorAll("button")].find(el=>el.textContent.includes("Start camera")).click()');
         await until(() => evaluate('document.body.innerText.includes("No barcode captured yet")'), 'unreadable label guidance');
         assert.equal(await evaluate('document.body.innerText.includes("Captured tracking reference:")'), false);
         await screenshot('camera-guidance-dark-320');
@@ -572,7 +572,7 @@ async function until(predicate, label) {
         await evaluate(
             `window.__cameraPermissionResolve=null;Object.defineProperty(navigator.mediaDevices,'getUserMedia',{configurable:true,value:()=>new Promise(resolve=>window.__cameraPermissionResolve=resolve)})`,
         );
-        await evaluate('[...document.querySelectorAll("button")].find(el=>el.textContent.includes("Scan with camera")).click()');
+        await evaluate('[...document.querySelectorAll("button")].find(el=>el.textContent.includes("Start camera")).click()');
         await until(() => evaluate('!!window.__cameraPermissionResolve'), 'pending camera permission');
         await evaluate('[...document.querySelectorAll("button")].find(el=>el.textContent.trim()==="Stop camera").click()');
         await evaluate(
@@ -705,7 +705,7 @@ async function until(predicate, label) {
             const bits=${JSON.stringify(riderBits)};for(let i=0;i<bits.length;i++)if(bits[i]==='1')context.fillRect(40+i*2,40,2,160);
             window.__scanMedia=frame.captureStream(5);return window.__scanMedia;
         }})`);
-        await evaluate('[...document.querySelectorAll("button")].find(el=>el.textContent.includes("Scan with camera")).click()');
+        await evaluate('[...document.querySelectorAll("button")].find(el=>el.textContent.includes("Start camera")).click()');
         await until(() => evaluate('document.body.innerText.includes("Captured tracking reference:")'), 'rider captures assigned label');
         const riderTrackingInput = await evaluate(
             'document.querySelector("[id="+JSON.stringify([...document.querySelectorAll("label")].find(el=>el.textContent.includes("Scan parcel label or enter tracking reference")).htmlFor)+"]").value',
@@ -759,7 +759,7 @@ async function until(predicate, label) {
                 context.fillStyle='white';context.fillRect(0,0,720,720);context.translate(360,360);context.rotate(${angle}*Math.PI/180);context.drawImage(image,-148,-148);
                 window.__scanMedia=canvas.captureStream(5);return window.__scanMedia;
             }})`);
-            await evaluate('[...document.querySelectorAll("button")].find(el=>el.textContent.includes("Scan with camera")).click()');
+            await evaluate('[...document.querySelectorAll("button")].find(el=>el.textContent.includes("Start camera")).click()');
             await until(
                 () =>
                     evaluate(
@@ -794,7 +794,7 @@ async function until(predicate, label) {
             for(let y=0;y<bits.length;y++)for(let x=0;x<bits[y].length;x++)if(bits[y][x])context.fillRect(x*8,y*8,8,8);
             window.__scanMedia=canvas.captureStream(5);return window.__scanMedia;
         }})`);
-        await evaluate('[...document.querySelectorAll("button")].find(el=>el.textContent.includes("Scan with camera")).click()');
+        await evaluate('[...document.querySelectorAll("button")].find(el=>el.textContent.includes("Start camera")).click()');
         await until(() => evaluate('document.body.innerText.includes("No barcode captured yet")'), 'untrusted QR ignored');
         assert.equal(await evaluate('location.pathname'), '/logistics/scan');
         assert.equal(await evaluate('document.body.innerText.includes("Captured tracking reference:")'), false);
@@ -816,7 +816,7 @@ async function until(predicate, label) {
         );
         assert.equal(
             await evaluate(
-                '[...document.querySelectorAll("button")].find(e=>e.textContent.includes("Scan with camera")).getBoundingClientRect().top < innerHeight-80',
+                '[...document.querySelectorAll("button")].find(e=>e.textContent.includes("Start camera")).getBoundingClientRect().top < innerHeight-80',
             ),
             true,
         );

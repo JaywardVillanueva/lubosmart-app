@@ -14,8 +14,11 @@ use App\Models\Order;
 use App\Models\Product;
 use App\Models\ProductReview;
 use App\Models\ProductVariant;
+use App\Models\Store;
 use App\Models\User;
 use App\Services\Logistics\ShippingQuotes;
+use App\Services\ParcelFinance;
+use App\Services\PublicShopVouchers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -26,6 +29,7 @@ class MarketplaceController extends Controller
     public function index(Request $request)
     {
         $filters = $request->validate([
+            'store' => 'nullable|integer|exists:stores,id',
             'search' => 'nullable|string|max:100',
             'category' => 'nullable|integer',
             'min_price' => 'nullable|numeric|min:0|max:99999999.99',
@@ -36,7 +40,7 @@ class MarketplaceController extends Controller
         ]);
         $products = Product::query()->with(['store:id,name', 'category:id,name', 'variants'])
             ->withAvg('reviews', 'rating')->withCount('reviews')
-            ->availableToShoppers()
+            ->availableToShoppers()->when($filters['store'] ?? null, fn ($q, $id) => $q->where('store_id', $id))
             ->when($request->routeIs('wishlist.index'), fn ($q) => $q->whereIn('id', DB::table('product_wishlists')->where('user_id', $request->user()->id)->select('product_id')))
             ->when($filters['search'] ?? null, fn ($q, $search) => $q->where('name', 'like', '%'.$search.'%'))
             ->when($filters['category'] ?? null, fn ($q, $id) => $q->where(fn ($q) => $q->where('category_id', $id)->orWhereHas('category', fn ($q) => $q->where('parent_id', $id))))
@@ -61,7 +65,7 @@ class MarketplaceController extends Controller
 
         $categories = Category::query()->with('parent:id,name')->where('is_active', true)->where(fn ($q) => $q->whereNull('parent_id')->orWhereHas('parent', fn ($parent) => $parent->where('is_active', true)))->orderBy('name')->get(['id', 'name', 'parent_id'])->map(fn ($category) => ['id' => $category->id, 'parent_id' => $category->parent_id, 'name' => $category->parent ? $category->parent->name.' / '.$category->name : $category->name]);
 
-        return Inertia::render('marketplace/catalog', ['products' => $products, 'categories' => $categories, 'filters' => $filters, 'wishlist' => $request->routeIs('wishlist.index'), 'favoriteIds' => $request->user()?->role === 'buyer' ? DB::table('product_wishlists')->where('user_id', $request->user()->id)->pluck('product_id') : []]);
+        return Inertia::render('marketplace/catalog', ['shopName' => isset($filters['store']) ? Store::query()->whereKey($filters['store'])->value('name') : null, 'publicVouchers' => isset($filters['store']) ? app(PublicShopVouchers::class)->forStores([(int) $filters['store']]) : [], 'products' => $products, 'categories' => $categories, 'filters' => $filters, 'wishlist' => $request->routeIs('wishlist.index'), 'favoriteIds' => $request->user()?->role === 'buyer' ? DB::table('product_wishlists')->where('user_id', $request->user()->id)->pluck('product_id') : []]);
     }
 
     public function cart(Request $request)
@@ -73,7 +77,15 @@ class MarketplaceController extends Controller
             $item->product?->setAttribute('is_available', $availableIds->contains($item->product_id));
         });
 
-        return Inertia::render('marketplace/cart', ['items' => $cart?->items ?? [], 'addresses' => Address::query()->where('user_id', $request->user()->id)->orderByDesc('is_default')->latest('id')->get(), 'shippingFee' => CommerceSetting::query()->findOrFail(1)->shipping_fee_per_seller_order, 'logisticsPricing' => app(ShippingQuotes::class)->enabled()]);
+        $storeTotals = [];
+        foreach ($cart?->items ?? [] as $item) {
+            if ($item->product) {
+                $storeTotals[$item->product->store_id] = ($storeTotals[$item->product->store_id] ?? 0) + ParcelFinance::cents($item->product->price) * $item->quantity;
+            }
+        }
+        $publicVouchers = app(PublicShopVouchers::class)->forStores(array_keys($storeTotals), $request->user()->id, $storeTotals);
+
+        return Inertia::render('marketplace/cart', ['publicVouchers' => $publicVouchers, 'items' => $cart?->items ?? [], 'addresses' => Address::query()->where('user_id', $request->user()->id)->orderByDesc('is_default')->latest('id')->get(), 'shippingFee' => CommerceSetting::query()->findOrFail(1)->shipping_fee_per_seller_order, 'walletBalanceCents' => (int) DB::table('buyer_wallets')->where('buyer_id', $request->user()->id)->value('balance_cents'), 'logisticsPricing' => app(ShippingQuotes::class)->enabled()]);
     }
 
     public function shippingQuote(Request $request, ShippingQuotes $quotes)
@@ -146,7 +158,7 @@ class MarketplaceController extends Controller
     public function checkout(Request $request, CreateOrderFromCart $checkout)
     {
         abort_unless($request->user()->role === 'buyer', 403);
-        $data = $request->validate(['address_id' => 'required|integer', 'checkout_key' => 'required|uuid', 'expected_items_subtotal' => 'nullable|numeric|decimal:0,2|min:0', 'logistics_center_id' => 'nullable|integer', 'voucher_code' => 'nullable|string|max:30', 'expected_discount_total' => 'required_with:voucher_code|nullable|numeric|decimal:0,2|min:0', 'expected_shipping_total' => [app(ShippingQuotes::class)->enabled() ? 'required' : 'nullable', 'numeric', 'decimal:0,2', 'min:0']]);
+        $data = $request->validate(['coins_to_redeem_cents' => 'nullable|integer|min:0|max:9999999999', 'address_id' => 'required|integer', 'checkout_key' => 'required|uuid', 'expected_items_subtotal' => 'nullable|numeric|decimal:0,2|min:0', 'logistics_center_id' => 'nullable|integer', 'voucher_code' => 'nullable|string|max:30', 'expected_discount_total' => 'required_with:voucher_code|nullable|numeric|decimal:0,2|min:0', 'expected_shipping_total' => [app(ShippingQuotes::class)->enabled() ? 'required' : 'nullable', 'numeric', 'decimal:0,2', 'min:0']]);
         if ($request->routeIs('api.v1.*')) {
             $request->validate([
                 'expected_items_subtotal' => 'required|numeric|decimal:0,2|min:0',
@@ -159,7 +171,7 @@ class MarketplaceController extends Controller
             if ($existing) {
                 return $existing;
             }
-            $order = $checkout->handle($request->user(), $data['address_id'], $data['logistics_center_id'] ?? null, isset($data['expected_shipping_total']) ? (int) round((float) $data['expected_shipping_total'] * 100) : null, $data['voucher_code'] ?? null, isset($data['expected_discount_total']) ? (int) round((float) $data['expected_discount_total'] * 100) : null, isset($data['expected_items_subtotal']) ? (int) round((float) $data['expected_items_subtotal'] * 100) : null);
+            $order = $checkout->handle($request->user(), $data['address_id'], $data['logistics_center_id'] ?? null, isset($data['expected_shipping_total']) ? (int) round((float) $data['expected_shipping_total'] * 100) : null, $data['voucher_code'] ?? null, isset($data['expected_discount_total']) ? (int) round((float) $data['expected_discount_total'] * 100) : null, isset($data['expected_items_subtotal']) ? ParcelFinance::cents((string) $data['expected_items_subtotal']) : null, (int) ($data['coins_to_redeem_cents'] ?? 0));
             $order->forceFill(['checkout_key' => $data['checkout_key']])->save();
 
             return $order;

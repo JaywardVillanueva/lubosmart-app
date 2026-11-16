@@ -3,7 +3,7 @@ import { Empty } from '@/components/shared/marketplace-ui';
 
 type DiscoveryProduct = ProductCardData & { key: string; category: string };
 export default function HomeDiscovery({ products, favoriteIds }: { products: DiscoveryProduct[]; favoriteIds: number[] }) {
-    const featured = products.slice(0, 8);
+    const featured = products.slice(0, 15);
     if (!featured.length)
         return (
             <Empty

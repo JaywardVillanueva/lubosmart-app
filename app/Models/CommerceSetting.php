@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class CommerceSetting extends Model
 {
     protected $fillable = [
+        'return_window_days',
         'shipping_fee_per_seller_order',
         'platform_commission_basis_points',
     ];

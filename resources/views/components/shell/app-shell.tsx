@@ -1,6 +1,8 @@
 import { SkipLink } from '@/components/shell/skip-link';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { WorkspaceRuntime } from '@/components/workspace/workspace-runtime';
+import type { SharedData } from '@/types';
+import { usePage } from '@inertiajs/react';
 import { useState } from 'react';
 
 interface AppShellProps {
@@ -9,6 +11,7 @@ interface AppShellProps {
 }
 
 export function AppShell({ children, variant = 'header' }: AppShellProps) {
+    const admin = usePage<SharedData>().props.auth.user?.role === 'admin';
     const [isOpen, setIsOpen] = useState(() => (typeof window !== 'undefined' ? localStorage.getItem('sidebar') !== 'false' : true));
 
     const handleSidebarChange = (open: boolean) => {
@@ -29,7 +32,12 @@ export function AppShell({ children, variant = 'header' }: AppShellProps) {
     }
 
     return (
-        <SidebarProvider className="workspace-shell" defaultOpen={isOpen} open={isOpen} onOpenChange={handleSidebarChange}>
+        <SidebarProvider
+            className={admin ? 'workspace-shell admin-workspace' : 'workspace-shell'}
+            defaultOpen={isOpen}
+            open={isOpen}
+            onOpenChange={handleSidebarChange}
+        >
             <SkipLink />
             <WorkspaceRuntime>{children}</WorkspaceRuntime>
         </SidebarProvider>

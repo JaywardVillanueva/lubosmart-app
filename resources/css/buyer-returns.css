@@ -1,0 +1,54 @@
+/* Buyer returns reference, scoped to this page and the shared semantic theme. */
+.returns-role-banner {
+    background: var(--primary);
+    color: var(--primary-foreground);
+    min-height: 168px;
+}
+
+.catalog-storefront:has(.buyer-return-guide) {
+    gap: 24px;
+    padding-top: 24px;
+}
+.catalog-storefront:has(.buyer-return-guide) .catalog-intro {
+    min-height: 168px;
+    margin: 0;
+    border-radius: 20px;
+    background: linear-gradient(125deg, color-mix(in srgb, var(--primary) 55%, #160c25), var(--primary));
+    color: #fff;
+    overflow: hidden;
+}
+.catalog-storefront:has(.buyer-return-guide) .catalog-intro h1 {
+    color: #fff;
+}
+.catalog-storefront:has(.buyer-return-guide) .catalog-intro p {
+    color: #fff;
+    max-width: 560px;
+}
+.catalog-storefront:has(.buyer-return-guide) .catalog-intro::after {
+    background-image: url('/images/marketplace/returns-banner.svg');
+}
+.catalog-storefront:has(.buyer-return-guide) .catalog-intro > div {
+    background: transparent;
+}
+.return-filter {
+    min-height: 48px;
+    border-radius: 14px;
+    box-shadow: 0 2px 4px color-mix(in srgb, var(--primary) 8%, transparent);
+}
+.return-filter-active {
+    background: var(--accent);
+    color: var(--primary);
+    border-color: color-mix(in srgb, var(--primary) 30%, var(--border));
+    box-shadow: 0 2px 0 var(--primary);
+}
+.buyer-return-card {
+    border-color: color-mix(in srgb, var(--primary) 16%, var(--border));
+}
+@media (max-width: 639px) {
+    .catalog-storefront:has(.buyer-return-guide) .catalog-intro {
+        padding: 24px 16px 144px;
+    }
+    .return-filter {
+        flex: 1 1 auto;
+    }
+}

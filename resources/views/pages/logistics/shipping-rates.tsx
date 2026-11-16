@@ -1,11 +1,14 @@
+import '@/../css/coverage-workspace.css';
 import InputError from '@/components/auth/input-error';
+import { LogisticsWorkspaceTabs } from '@/components/logistics/parcel-navigation';
 import { useLocations } from '@/components/logistics/rider-service-area-form';
-import { Badge, Card, Field, Page, Select, buttonClass, money, secondaryClass } from '@/components/shared/marketplace-ui';
+import { Badge, Empty, Field, Page, Select, buttonClass, inputClass, money, secondaryClass } from '@/components/shared/marketplace-ui';
 import ValidatedForm from '@/components/shared/validated-form';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { router, useForm } from '@inertiajs/react';
-import { MapPinned, Pencil, Plus, Scale } from 'lucide-react';
-import { useState } from 'react';
+import { Check, FileText, MapPin, MoreHorizontal, Package, Plus, Search, Tag } from 'lucide-react';
+import { useRef, useState } from 'react';
 
 type Center = { id: number; name: string };
 type Rate = {
@@ -13,6 +16,9 @@ type Rate = {
     logistics_center_id: number;
     center_name: string;
     area_name: string;
+    barangay_name: string | null;
+    city_name: string | null;
+    province_name: string | null;
     province_code: string;
     city_code: string;
     barangay_code: string;
@@ -22,176 +28,287 @@ type Rate = {
     max_weight_grams: number;
     is_active: boolean | number;
 };
-function RateEditor({ centers, rate, close, pricingEnabled }: { centers: Center[]; rate: Rate | null; close: () => void; pricingEnabled: boolean }) {
+
+function RateEditor({
+    centers,
+    rates,
+    rate,
+    close,
+    pricingEnabled,
+    setSaving,
+}: {
+    centers: Center[];
+    rates: Rate[];
+    rate: Rate | null;
+    close: () => void;
+    pricingEnabled: boolean;
+    setSaving: (saving: boolean) => void;
+}) {
     const form = useForm({
-        logistics_center_id: (rate?.logistics_center_id ?? centers[0]?.id)?.toString() ?? '',
+        rate_id: rate?.id ?? null,
+        logistics_center_id: String(rate?.logistics_center_id ?? centers[0]?.id ?? ''),
         province_code: rate?.province_code ?? '',
         city_code: rate?.city_code ?? '',
         barangay_code: rate?.barangay_code ?? '',
+        barangay_codes: [] as string[],
         base_fee: rate ? (rate.base_fee_cents / 100).toFixed(2) : '',
-        included_weight_grams: rate?.included_weight_grams ?? 1000,
         extra_kg_fee: rate ? (rate.extra_kg_fee_cents / 100).toFixed(2) : '',
+        included_weight_grams: rate?.included_weight_grams ?? 1000,
         max_weight_grams: rate?.max_weight_grams ?? 20000,
         is_active: Boolean(rate?.is_active),
     });
     const provinces = useLocations('');
     const cities = useLocations(form.data.province_code ? `?province=${form.data.province_code}` : null);
     const barangays = useLocations(form.data.city_code ? `?city=${form.data.city_code}` : null);
-    const [sample, setSample] = useState(1500);
+    const [search, setSearch] = useState('');
     const [review, setReview] = useState(false);
-    const save = () => form.post('/logistics/shipping-rates', { preserveScroll: true, onSuccess: close, onError: () => setReview(false) });
-    const extra = Math.ceil(Math.max(0, sample - Number(form.data.included_weight_grams)) / 1000);
-    const preview = Number(form.data.base_fee || 0) + extra * Number(form.data.extra_kg_fee || 0);
+    const existing = new Set(
+        rates.filter((item) => item.logistics_center_id === Number(form.data.logistics_center_id)).map((item) => item.barangay_code),
+    );
+    const visible = barangays.items.filter((item) => item.name.toLocaleLowerCase().includes(search.toLocaleLowerCase()));
+    const eligible = barangays.items.filter((item) => !existing.has(item.code));
+    const selectedCount = rate ? 1 : form.data.barangay_codes.length;
+    const municipality = cities.items.find((item) => item.code === form.data.city_code)?.name ?? rate?.city_name ?? 'Choose a municipality';
+    const selectionError = Object.entries(form.errors)
+        .filter(([key]) => key === 'barangay_codes' || key === 'barangay_code' || key.startsWith('barangay_codes.'))
+        .map(([, message]) => message)
+        .join(' ');
+    const save = () => {
+        if (form.processing) return;
+        form.transform((data) =>
+            rate
+                ? Object.fromEntries(Object.entries(data).filter(([key]) => key !== 'barangay_codes'))
+                : Object.fromEntries(Object.entries(data).filter(([key]) => key !== 'barangay_code' && key !== 'rate_id')),
+        );
+        form.post('/logistics/shipping-rates', {
+            preserveScroll: true,
+            onStart: () => setSaving(true),
+            onFinish: () => setSaving(false),
+            onSuccess: close,
+            onError: () => setReview(false),
+        });
+    };
     return (
         <ValidatedForm
+            className="coverage-editor space-y-4"
             onSubmit={(event) => {
                 event.preventDefault();
+                if (form.processing || !selectedCount) return;
                 if (form.data.is_active) setReview(true);
                 else save();
             }}
-            className="space-y-5"
         >
-            <div className="grid gap-4 sm:grid-cols-2">
+            {centers.length > 1 && (
                 <Select
-                    label="Logistics Center"
+                    label="Logistics center"
+                    reserveFeedback={false}
                     required
-                    disabled={Boolean(rate)}
+                    disabled={!!rate}
                     value={form.data.logistics_center_id}
-                    onChange={(event) => form.setData('logistics_center_id', event.target.value)}
                     error={form.errors.logistics_center_id}
+                    onChange={(event) => {
+                        form.setData('logistics_center_id', event.target.value);
+                        form.setData('barangay_codes', []);
+                    }}
                 >
-                    {centers.map((center) => (
-                        <option key={center.id} value={center.id}>
-                            {center.name}
+                    {centers.map((item) => (
+                        <option key={item.id} value={item.id}>
+                            {item.name}
                         </option>
                     ))}
                 </Select>
+            )}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {(
                     [
                         ['province_code', 'Province', provinces],
                         ['city_code', 'Municipality / City', cities],
-                        ['barangay_code', 'Barangay', barangays],
                     ] as const
                 ).map(([key, label, choices]) => (
-                    <div key={key}>
-                        <Select
-                            label={label}
-                            required
-                            value={form.data[key]}
-                            disabled={Boolean(rate)}
-                            onChange={(event) => {
-                                form.setData(key, event.target.value);
-                                if (key === 'province_code') {
-                                    form.setData('city_code', '');
-                                    form.setData('barangay_code', '');
-                                }
-                                if (key === 'city_code') form.setData('barangay_code', '');
-                            }}
-                            error={form.errors[key]}
-                        >
-                            <option value="">Choose {label.toLowerCase()}</option>
-                            {choices.items.map((location) => (
-                                <option key={location.code} value={location.code}>
-                                    {location.name}
-                                </option>
-                            ))}
-                        </Select>
-                        <InputError message={choices.error} />
-                    </div>
+                    <Select
+                        key={key}
+                        label={label}
+                        reserveFeedback={false}
+                        required
+                        value={form.data[key]}
+                        error={form.errors[key] || choices.error}
+                        aria-busy={choices.loading}
+                        disabled={!!rate || choices.loading || (key === 'city_code' && !form.data.province_code)}
+                        onChange={(event) => {
+                            form.setData(key, event.target.value);
+                            if (key === 'province_code') form.setData('city_code', '');
+                            setSearch('');
+                            form.setData('barangay_codes', []);
+                        }}
+                    >
+                        <option value="">{choices.loading ? 'Loading...' : `Choose ${label.toLowerCase()}`}</option>
+                        {choices.items.map((item) => (
+                            <option key={item.code} value={item.code}>
+                                {item.name}
+                            </option>
+                        ))}
+                    </Select>
                 ))}
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
+            {rate ? (
+                <Field label="Barangay" reserveFeedback={false} value={rate.barangay_name || rate.area_name} disabled />
+            ) : (
+                <fieldset className="space-y-3">
+                    <legend className="sr-only">Barangays</legend>
+                    <div className="flex items-center justify-between gap-3">
+                        <span className="text-sm font-semibold">Barangay</span>
+                        <button
+                            type="button"
+                            className="text-primary focus-visible:ring-ring flex min-h-6 items-center gap-2 text-sm focus-visible:ring-2"
+                            disabled={!eligible.length || form.processing}
+                            onClick={() => form.setData('barangay_codes', selectedCount === eligible.length ? [] : eligible.map((item) => item.code))}
+                        >
+                            <span aria-hidden="true" className="border-primary flex size-4 items-center justify-center rounded border">
+                                {selectedCount === eligible.length && selectedCount > 0 && <Check className="size-3" />}
+                            </span>
+                            {selectedCount === eligible.length && selectedCount > 0 ? 'Deselect All' : 'Select All'}
+                        </button>
+                    </div>
+                    <label className="relative block">
+                        <span className="sr-only">Search barangays</span>
+                        <Search aria-hidden="true" className="text-muted-foreground absolute top-3 left-3 size-4" />
+                        <input
+                            className={inputClass + ' pl-10'}
+                            type="search"
+                            placeholder="Search barangays..."
+                            value={search}
+                            onChange={(event) => setSearch(event.target.value)}
+                        />
+                    </label>
+                    <div
+                        className="bg-accent/35 max-h-48 overflow-y-auto rounded-xl border"
+                        role="group"
+                        aria-label="Barangay choices"
+                        aria-describedby="barangay-selection-error"
+                        aria-busy={barangays.loading}
+                    >
+                        {visible.map((item) => (
+                            <label
+                                key={item.code}
+                                className={`flex min-h-10 items-center gap-3 border-b px-4 py-2 text-sm last:border-0 ${existing.has(item.code) ? 'text-muted-foreground' : ''}`}
+                            >
+                                <input
+                                    type="checkbox"
+                                    className="accent-primary size-4"
+                                    disabled={existing.has(item.code) || form.processing}
+                                    checked={form.data.barangay_codes.includes(item.code)}
+                                    onChange={(event) =>
+                                        form.setData(
+                                            'barangay_codes',
+                                            event.target.checked
+                                                ? [...form.data.barangay_codes, item.code]
+                                                : form.data.barangay_codes.filter((code) => code !== item.code),
+                                        )
+                                    }
+                                />
+                                {item.name}
+                                {existing.has(item.code) && <span className="ml-auto text-xs">Rate exists</span>}
+                            </label>
+                        ))}
+                        {!visible.length && (
+                            <p className="text-muted-foreground p-4 text-sm">
+                                {barangays.loading
+                                    ? 'Loading barangays...'
+                                    : !form.data.city_code
+                                      ? 'Choose a municipality / city first.'
+                                      : 'No matching barangays.'}
+                            </p>
+                        )}
+                    </div>
+                    <InputError id="barangay-selection-error" message={selectionError || barangays.error} />
+                </fieldset>
+            )}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Field
-                    label="Base Fee (PHP)"
+                    label="Base fee (₱)"
+                    reserveFeedback={false}
                     type="number"
                     min="0"
                     max="10000"
                     step="0.01"
                     required
                     value={form.data.base_fee}
-                    onChange={(event) => form.setData('base_fee', event.target.value)}
                     error={form.errors.base_fee}
+                    onChange={(event) => form.setData('base_fee', event.target.value)}
                 />
                 <Field
-                    label="Included Weight (grams)"
-                    type="number"
-                    min="1"
-                    max="50000"
-                    step="1"
-                    required
-                    value={form.data.included_weight_grams}
-                    onChange={(event) => form.setData('included_weight_grams', Number(event.target.value))}
-                    error={form.errors.included_weight_grams}
-                />
-                <Field
-                    label="Each Extra Kilogram (PHP)"
+                    label="Extra kilogram fee (₱)"
+                    reserveFeedback={false}
                     type="number"
                     min="0"
                     max="10000"
                     step="0.01"
                     required
                     value={form.data.extra_kg_fee}
-                    onChange={(event) => form.setData('extra_kg_fee', event.target.value)}
                     error={form.errors.extra_kg_fee}
+                    onChange={(event) => form.setData('extra_kg_fee', event.target.value)}
                 />
                 <Field
-                    label="Maximum Parcel Weight (grams)"
+                    label="Included weight (kg)"
+                    reserveFeedback={false}
                     type="number"
-                    min={form.data.included_weight_grams}
-                    max="50000"
-                    step="1"
+                    min="0.001"
+                    max="50"
+                    step="0.001"
                     required
-                    value={form.data.max_weight_grams}
-                    onChange={(event) => form.setData('max_weight_grams', Number(event.target.value))}
+                    value={form.data.included_weight_grams / 1000}
+                    error={form.errors.included_weight_grams}
+                    onChange={(event) => form.setData('included_weight_grams', Math.round(Number(event.target.value) * 1000))}
+                />
+                <Field
+                    label="Maximum weight (kg)"
+                    reserveFeedback={false}
+                    type="number"
+                    min={form.data.included_weight_grams / 1000}
+                    max="50"
+                    step="0.001"
+                    required
+                    value={form.data.max_weight_grams / 1000}
                     error={form.errors.max_weight_grams}
+                    onChange={(event) => form.setData('max_weight_grams', Math.round(Number(event.target.value) * 1000))}
                 />
             </div>
-            <div className="bg-accent/40 rounded-xl border p-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                    <span className="text-sm font-medium">Quote Preview</span>
-                    <span className="text-primary text-xl font-semibold">
-                        {!form.data.base_fee || !form.data.extra_kg_fee
-                            ? 'Enter Fees'
-                            : sample > form.data.max_weight_grams
-                              ? 'Over Limit'
-                              : money(preview)}
+            <label className="flex min-h-6 items-center gap-2 text-sm">
+                <input
+                    type="checkbox"
+                    className="accent-primary size-4"
+                    checked={form.data.is_active}
+                    onChange={(event) => form.setData('is_active', event.target.checked)}
+                />
+                Publish rates for new orders
+            </label>
+            <InputError message={form.errors.is_active} />
+            <section aria-label="Rate preview" className="bg-accent/40 space-y-3 rounded-xl border p-4">
+                <div className="flex items-center gap-4">
+                    <span className="coverage-stat-icon">
+                        <Package aria-hidden="true" />
                     </span>
+                    <div>
+                        <h3 className="text-muted-foreground text-xs">Rate assignment preview</h3>
+                        <p className="mt-1 font-semibold tabular-nums">
+                            {selectedCount} {selectedCount === 1 ? 'barangay' : 'barangays'} · {money(form.data.base_fee || 0)} base fee
+                        </p>
+                        <p className="text-muted-foreground mt-1 text-sm">{money(form.data.extra_kg_fee || 0)} per extra kilogram</p>
+                        <p className="sr-only">{municipality}</p>
+                    </div>
                 </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                    {[500, 1000, 1500, 3000].map((grams) => (
-                        <button
-                            key={grams}
-                            type="button"
-                            onClick={() => setSample(grams)}
-                            aria-pressed={sample === grams}
-                            className={`rounded-lg border px-3 py-1.5 text-xs ${sample === grams ? 'border-primary bg-primary text-primary-foreground' : 'bg-card'}`}
-                        >
-                            {grams / 1000} kg
-                        </button>
-                    ))}
-                </div>
-                <p className="text-muted-foreground mt-3 text-xs leading-relaxed">
-                    Extra weight rounds up to the next kilogram. Includes packed item weights for one seller parcel.
-                </p>
-            </div>
-            <Select
-                label="Rate Status"
-                value={form.data.is_active ? 'published' : 'draft'}
-                onChange={(event) => form.setData('is_active', event.target.value === 'published')}
-            >
-                <option value="draft">Draft — unavailable at checkout</option>
-                <option value="published">Published — available at checkout</option>
-            </Select>
-            <p className="text-muted-foreground text-xs leading-relaxed">
-                Published areas cover pickup and delivery. Changes apply to new orders; confirmed fees stay unchanged. Saving an existing barangay
-                updates its rate.
-            </p>
-            <div className="flex justify-end gap-3 border-t pt-4">
-                <button type="button" className={secondaryClass} onClick={close}>
+            </section>
+            <div className="flex flex-wrap justify-end gap-3 border-t pt-4">
+                <button type="button" className={secondaryClass} disabled={form.processing} onClick={close}>
                     Cancel
                 </button>
-                <button className={buttonClass} disabled={form.processing}>
-                    {form.processing ? 'Saving…' : form.data.is_active ? 'Review & Publish' : 'Save Draft'}
+                <button className={buttonClass} disabled={form.processing || (!rate && (!selectedCount || barangays.loading || !!barangays.error))}>
+                    <Check aria-hidden="true" className="size-4" />
+                    {form.processing
+                        ? 'Saving...'
+                        : rate
+                          ? 'Apply Rates'
+                          : `Apply rates to ${selectedCount} ${selectedCount === 1 ? 'barangay' : 'barangays'}`}
                 </button>
             </div>
             <Dialog
@@ -202,25 +319,25 @@ function RateEditor({ centers, rate, close, pricingEnabled }: { centers: Center[
             >
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Publish This Shipping Rate?</DialogTitle>
-                        <DialogDescription>New orders will use this rate for the selected barangay.</DialogDescription>
+                        <DialogTitle>Publish shipping rates?</DialogTitle>
+                        <DialogDescription>New orders will use these barangay rates. Existing orders keep their original fees.</DialogDescription>
                     </DialogHeader>
-                    <div className="bg-accent/30 rounded-xl border p-4 text-sm leading-relaxed">
-                        {money(form.data.base_fee)} covers {form.data.included_weight_grams / 1000} kg, plus {money(form.data.extra_kg_fee)} for each
-                        extra kilogram. Maximum: {form.data.max_weight_grams / 1000} kg.
-                    </div>
+                    <p className="text-sm">
+                        {money(form.data.base_fee)} covers {form.data.included_weight_grams / 1000} kg, plus {money(form.data.extra_kg_fee)} per
+                        started extra kilogram. Maximum: {form.data.max_weight_grams / 1000} kg.
+                    </p>
                     {!pricingEnabled && (
-                        <p className="text-muted-foreground text-sm leading-relaxed">
-                            This is the first publication and activates logistics quotes at checkout. Ensure seller pickup areas, buyer destinations,
-                            and packed product weights are ready before continuing.
+                        <p className="text-muted-foreground text-sm">
+                            First publication activates logistics quotes at checkout. Prepare seller pickup areas, buyer destinations, and packed
+                            product weights before continuing.
                         </p>
                     )}
                     <div className="flex justify-end gap-3">
                         <button type="button" className={secondaryClass} disabled={form.processing} onClick={() => setReview(false)}>
-                            Go Back
+                            Go back
                         </button>
                         <button type="button" className={buttonClass} disabled={form.processing} onClick={save}>
-                            Publish Rate
+                            {form.processing ? 'Publishing...' : 'Publish rates'}
                         </button>
                     </div>
                 </DialogContent>
@@ -228,200 +345,221 @@ function RateEditor({ centers, rate, close, pricingEnabled }: { centers: Center[
         </ValidatedForm>
     );
 }
+
 export default function ShippingRates({ centers, rates, pricingEnabled }: { centers: Center[]; rates: Rate[]; pricingEnabled: boolean }) {
     const [editing, setEditing] = useState<Rate | null | undefined>();
     const [confirm, setConfirm] = useState<Rate | null>(null);
     const [busy, setBusy] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const addButton = useRef<HTMLButtonElement>(null);
+    const lastAction = useRef<HTMLButtonElement | null>(null);
     const [search, setSearch] = useState('');
     const [status, setStatus] = useState('');
     const published = rates.filter((rate) => rate.is_active).length;
-    const visibleRates = rates.filter(
+    const visible = rates.filter(
         (rate) =>
-            (!search.trim() || (rate.area_name + ' ' + rate.center_name).toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())) &&
-            (!status || (status === 'published' ? Boolean(rate.is_active) : !rate.is_active)),
+            (!search.trim() ||
+                [rate.area_name, rate.barangay_name, rate.city_name, rate.province_name, rate.center_name]
+                    .join(' ')
+                    .toLocaleLowerCase()
+                    .includes(search.trim().toLocaleLowerCase())) &&
+            (!status || (status === 'published' ? !!rate.is_active : !rate.is_active)),
     );
     return (
-        <Page title="Shipping Rates & Coverage" description="Set fair, consistent shipping fees for the barangays your center serves.">
-            <Card>
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div className="min-w-0">
-                        <h2 className="text-lg font-semibold">Barangay coverage</h2>
-                        <p className="text-muted-foreground mt-1 max-w-xl text-sm leading-relaxed">
-                            Manage the pickup and delivery areas your company serves, with a clear rate for each destination.
-                        </p>
+        <Page title="Coverage & Rates" description="Manage rider coverage areas and set shipping rates for your service locations.">
+            <section className="coverage-workspace space-y-5">
+                <LogisticsWorkspaceTabs section="coverage" />
+                <div className="flex flex-wrap items-center gap-4">
+                    <div className="coverage-stat">
+                        <span className="coverage-stat-icon">
+                            <Tag aria-hidden="true" />
+                        </span>
+                        <div>
+                            <p className="text-xs font-semibold">Published Rates</p>
+                            <p className="text-2xl font-semibold tabular-nums">{published}</p>
+                        </div>
+                        <Check aria-hidden="true" className="text-success ml-auto size-5" />
                     </div>
-                    <button className={buttonClass} disabled={!centers.length} onClick={() => setEditing(null)}>
+                    <div className="coverage-stat">
+                        <span className="coverage-stat-icon bg-warning/10 text-warning">
+                            <FileText aria-hidden="true" />
+                        </span>
+                        <div>
+                            <p className="text-xs font-semibold">Draft Rates</p>
+                            <p className="text-2xl font-semibold tabular-nums">{rates.length - published}</p>
+                        </div>
+                    </div>
+                    <button
+                        ref={addButton}
+                        className={buttonClass + ' ml-auto'}
+                        disabled={!centers.length}
+                        onClick={() => {
+                            lastAction.current = null;
+                            setEditing(null);
+                        }}
+                    >
                         <Plus aria-hidden="true" className="size-4" />
-                        Add barangay rate
+                        Add Shipping Rates
                     </button>
                 </div>
-                <dl className="mt-5 flex flex-wrap gap-x-8 gap-y-3 border-t pt-4 text-sm">
-                    <div className="flex items-center gap-2">
-                        <dt className="text-muted-foreground">Published</dt>
-                        <dd className="text-primary font-semibold tabular-nums">{published}</dd>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <dt className="text-muted-foreground">Drafts</dt>
-                        <dd className="font-semibold tabular-nums">{rates.length - published}</dd>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <dt className="text-muted-foreground">Pricing</dt>
-                        <dd className="font-medium">Area + weight</dd>
-                    </div>
-                </dl>
-                {!centers.length && (
-                    <p className="text-muted-foreground mt-4 text-sm">An approved logistics center is required before adding coverage.</p>
-                )}
-            </Card>
-            {rates.length > 0 && (
-                <Card>
-                    <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_200px]">
-                        <Field
-                            label="Search coverage"
-                            placeholder="Barangay or logistics center"
+                <div className="flex flex-col gap-4 sm:flex-row">
+                    <label className="relative min-w-0 flex-1">
+                        <span className="sr-only">Search shipping rates</span>
+                        <Search aria-hidden="true" className="text-muted-foreground absolute top-3 left-4 size-5" />
+                        <input
+                            type="search"
+                            className={inputClass + ' pl-12'}
+                            placeholder="Search barangay, municipality, or province..."
                             value={search}
                             onChange={(event) => setSearch(event.target.value)}
                         />
-                        <Select label="Publication status" value={status} onChange={(event) => setStatus(event.target.value)}>
-                            <option value="">All rates</option>
-                            <option value="published">Published</option>
-                            <option value="draft">Draft</option>
-                        </Select>
+                    </label>
+                    <select
+                        aria-label="Publication status"
+                        className={inputClass + ' sm:w-48'}
+                        value={status}
+                        onChange={(event) => setStatus(event.target.value)}
+                    >
+                        <option value="">All Status</option>
+                        <option value="published">Published</option>
+                        <option value="draft">Draft</option>
+                    </select>
+                </div>
+                {visible.length ? (
+                    <div className="overflow-x-auto rounded-2xl border" role="region" aria-label="Shipping rates" tabIndex={0}>
+                        <table aria-label="Barangay shipping rates" className="w-full min-w-[680px] text-left text-sm">
+                            <thead className="bg-accent/70">
+                                <tr>
+                                    {['Service Area', 'Base Fee', 'Extra / kg', 'Max. Weight', 'Status', 'Actions'].map((label) => (
+                                        <th scope="col" key={label} className="px-4 py-3 font-medium">
+                                            {label}
+                                        </th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody className="bg-card/80 divide-y">
+                                {visible.map((rate) => (
+                                    <tr key={rate.id}>
+                                        <td className="px-4 py-4">
+                                            <div className="flex items-center gap-3">
+                                                <span className="bg-accent/60 text-primary flex size-10 shrink-0 items-center justify-center rounded-full">
+                                                    <MapPin aria-hidden="true" className="size-5" />
+                                                </span>
+                                                <div>
+                                                    <p className="font-semibold">{rate.barangay_name || rate.area_name.split(',')[0]}</p>
+                                                    <p className="text-muted-foreground mt-1">
+                                                        {[rate.city_name, rate.province_name].filter(Boolean).join(', ') ||
+                                                            rate.area_name.split(',').slice(1).join(',').trim()}
+                                                    </p>
+                                                    {centers.length > 1 && <p className="text-muted-foreground text-xs">{rate.center_name}</p>}
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="px-4 py-4 tabular-nums">
+                                            <p className="font-semibold">{money(rate.base_fee_cents / 100)}</p>
+                                            <p className="text-muted-foreground mt-1 text-xs">Up to {rate.included_weight_grams / 1000} kg</p>
+                                        </td>
+                                        <td className="px-4 py-4 font-semibold tabular-nums">{money(rate.extra_kg_fee_cents / 100)}</td>
+                                        <td className="px-4 py-4 tabular-nums">{rate.max_weight_grams / 1000} kg</td>
+                                        <td className="px-4 py-4">
+                                            <Badge status={rate.is_active ? 'published' : 'draft'} />
+                                        </td>
+                                        <td className="px-4 py-4">
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <button
+                                                        className="hover:bg-accent focus-visible:ring-ring inline-flex size-11 items-center justify-center rounded-xl border focus-visible:ring-2"
+                                                        aria-label={`Actions for ${rate.area_name}`}
+                                                        onClick={(event) => {
+                                                            lastAction.current = event.currentTarget;
+                                                        }}
+                                                    >
+                                                        <MoreHorizontal className="size-5" />
+                                                    </button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end">
+                                                    <DropdownMenuItem onSelect={() => setEditing(rate)}>Edit rate</DropdownMenuItem>
+                                                    <DropdownMenuItem onSelect={() => setConfirm(rate)}>
+                                                        {rate.is_active ? 'Pause rate' : 'Publish rate'}
+                                                    </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
                     </div>
-                    <p role="status" className="text-muted-foreground mt-4 text-xs">
-                        {visibleRates.length} of {rates.length} rates{search || status ? ' matching your filters' : ''}
-                    </p>
-                </Card>
-            )}
-            {visibleRates.length ? (
-                <div className="grid gap-4 lg:grid-cols-2">
-                    {visibleRates.map((rate) => (
-                        <Card key={rate.id}>
-                            <div className="flex flex-wrap items-start justify-between gap-3">
-                                <div>
-                                    <p className="text-muted-foreground text-xs">{rate.center_name}</p>
-                                    <h2 className="mt-1 font-semibold">{rate.area_name}</h2>
-                                </div>
-                                <Badge status={rate.is_active ? 'published' : 'draft'} />
-                            </div>
-                            <div className="bg-background my-5 grid grid-cols-2 gap-4 rounded-xl p-4">
-                                <div>
-                                    <p className="text-muted-foreground text-xs">Base Fee</p>
-                                    <p className="mt-1 text-xl font-semibold">{money(rate.base_fee_cents / 100)}</p>
-                                    <p className="text-muted-foreground mt-1 text-xs">Up to {rate.included_weight_grams / 1000} kg</p>
-                                </div>
-                                <div>
-                                    <p className="text-muted-foreground text-xs">Each Extra Kilogram</p>
-                                    <p className="mt-1 text-xl font-semibold">{money(rate.extra_kg_fee_cents / 100)}</p>
-                                    <p className="text-muted-foreground mt-1 text-xs">Maximum {rate.max_weight_grams / 1000} kg</p>
-                                </div>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                                <button className={secondaryClass} onClick={() => setEditing(rate)}>
-                                    <Pencil className="size-4" />
-                                    Edit Rate
-                                </button>
-                                <button className={secondaryClass} onClick={() => setConfirm(rate)}>
-                                    {rate.is_active ? 'Pause Rate' : 'Publish Rate'}
-                                </button>
-                            </div>
-                        </Card>
-                    ))}
-                </div>
-            ) : (
-                <Card className="flex flex-col items-center px-6 py-10 text-center sm:py-12">
-                    <span aria-hidden="true" className="bg-accent text-primary flex size-14 items-center justify-center rounded-2xl">
-                        <MapPinned className="size-7" />
-                    </span>
-                    <h2 className="mt-5 text-lg font-semibold">{rates.length ? 'No matching coverage' : 'Build your delivery coverage'}</h2>
-                    <p className="text-muted-foreground mt-2 max-w-md text-sm leading-relaxed">
-                        {rates.length
-                            ? 'Try another barangay, center name, or publication status.'
-                            : 'Start with a barangay you can serve. Set a base fee and weight allowance, then publish when your team is ready.'}
-                    </p>
-                    {rates.length ? (
-                        <button
-                            className={secondaryClass + ' mt-5'}
-                            onClick={() => {
-                                setSearch('');
-                                setStatus('');
-                            }}
-                        >
-                            Clear filters
-                        </button>
-                    ) : (
-                        <button className={secondaryClass + ' mt-5'} disabled={!centers.length} onClick={() => setEditing(null)}>
-                            <Plus aria-hidden="true" className="size-4" />
-                            Add your first rate
-                        </button>
-                    )}
-                </Card>
-            )}
-            <Card>
-                <div className="flex items-center gap-3">
-                    <span aria-hidden="true" className="bg-accent text-primary rounded-xl p-3">
-                        <Scale className="size-5" />
-                    </span>
-                    <div>
-                        <h2 className="font-semibold">How shipping is calculated</h2>
-                        <p className="text-muted-foreground mt-1 text-xs">A destination base fee, plus any extra weight.</p>
-                    </div>
-                </div>
-                <div className="mt-5 grid gap-4 sm:grid-cols-3">
-                    {[
-                        { title: '1. Base fee', text: 'The destination barangay rate covers the included parcel weight.' },
-                        { title: '2. Extra weight', text: 'Each started kilogram above the allowance adds the extra kilogram fee.' },
-                        { title: '3. Coverage check', text: 'Pickup and destination must both be covered, with product weights available.' },
-                    ].map((item) => (
-                        <div key={item.title} className="bg-muted/40 rounded-xl p-4">
-                            <h3 className="text-sm font-semibold">{item.title}</h3>
-                            <p className="text-muted-foreground mt-2 text-xs leading-relaxed">{item.text}</p>
-                        </div>
-                    ))}
-                </div>
-                <p className="text-muted-foreground mt-4 border-t pt-4 text-xs leading-relaxed">
-                    Example: {money(50)} for 1 kg + {money(15)} per extra kg = <strong className="text-foreground">{money(65)} for 1.5 kg</strong>.
-                    Rates depend on your published coverage. No distance or volumetric charges apply.
+                ) : (
+                    <Empty
+                        title={rates.length ? 'No matching rates' : 'No shipping rates yet'}
+                        description={
+                            centers.length
+                                ? 'Add shipping rates for the barangays your center serves, or adjust your filters.'
+                                : 'An approved logistics center is required before adding rates.'
+                        }
+                    />
+                )}
+                <p role="status" className="text-muted-foreground px-1 text-sm">
+                    {visible.length} of {rates.length} rates
                 </p>
-            </Card>
+            </section>
             <Dialog
                 open={editing !== undefined}
                 onOpenChange={(open) => {
-                    if (!open) setEditing(undefined);
+                    if (!open && !saving) setEditing(undefined);
                 }}
             >
-                <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
+                <DialogContent
+                    className="coverage-rate-panel"
+                    overlayClassName="coverage-dialog-overlay"
+                    onCloseAutoFocus={(event) => {
+                        event.preventDefault();
+                        (lastAction.current?.isConnected ? lastAction.current : addButton.current)?.focus();
+                    }}
+                >
                     <DialogHeader>
-                        <DialogTitle>{editing ? 'Edit Shipping Rate' : 'Add Barangay Rate'}</DialogTitle>
-                        <DialogDescription>Choose your coverage and review the fee calculation.</DialogDescription>
+                        <DialogTitle className="text-2xl">{editing ? 'Edit Shipping Rate' : 'Add Shipping Rates'}</DialogTitle>
+                        <DialogDescription>
+                            {editing
+                                ? 'Edit this barangay independently. Other rates stay unchanged.'
+                                : 'Apply the same shipping rate to multiple barangays.'}
+                        </DialogDescription>
                     </DialogHeader>
                     {editing !== undefined && (
                         <RateEditor
                             key={editing?.id ?? 'new'}
                             centers={centers}
+                            rates={rates}
                             rate={editing}
-                            pricingEnabled={pricingEnabled}
                             close={() => setEditing(undefined)}
+                            pricingEnabled={pricingEnabled}
+                            setSaving={setSaving}
                         />
                     )}
                 </DialogContent>
             </Dialog>
             <Dialog
-                open={Boolean(confirm)}
+                open={!!confirm}
                 onOpenChange={(open) => {
                     if (!open && !busy) setConfirm(null);
                 }}
             >
-                <DialogContent>
+                <DialogContent
+                    onCloseAutoFocus={(event) => {
+                        event.preventDefault();
+                        (lastAction.current?.isConnected ? lastAction.current : addButton.current)?.focus();
+                    }}
+                >
                     <DialogHeader>
-                        <DialogTitle>{confirm?.is_active ? 'Pause This Rate?' : 'Publish This Rate?'}</DialogTitle>
+                        <DialogTitle>{confirm?.is_active ? 'Pause this rate?' : 'Publish this rate?'}</DialogTitle>
                         <DialogDescription>
                             {confirm?.area_name} will {confirm?.is_active ? 'stop being available' : 'be available'} for new checkout quotes. Existing
                             orders keep their fee.
                         </DialogDescription>
                     </DialogHeader>
                     {!pricingEnabled && !confirm?.is_active && (
-                        <p className="text-muted-foreground text-sm leading-relaxed">
+                        <p className="text-sm">
                             First publication activates logistics checkout. Prepare coverage and packed product weights before publishing.
                         </p>
                     )}
@@ -446,7 +584,7 @@ export default function ShippingRates({ centers, rates, pricingEnabled }: { cent
                                     );
                             }}
                         >
-                            Confirm
+                            {busy ? 'Saving...' : 'Confirm'}
                         </button>
                     </div>
                 </DialogContent>

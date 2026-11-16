@@ -435,7 +435,7 @@ export function NewConversation({
                                             id="conversation-body"
                                             className={cn(
                                                 inputClass,
-                                                'min-h-32 resize-y rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 sm:min-h-36',
+                                                'min-h-32 resize-none overflow-y-auto rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 sm:min-h-36',
                                             )}
                                             required
                                             maxLength={5000}

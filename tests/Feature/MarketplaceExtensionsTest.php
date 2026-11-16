@@ -43,6 +43,36 @@ function extensionPurchase($test, array $shop, array $extra = []): SellerOrder
     return SellerOrder::query()->latest('id')->firstOrFail();
 }
 
+test('buyer orders include the current product photo without exposing the product record', function (?string $imagePath) {
+    $shop = extensionShop();
+    $parcel = extensionPurchase($this, $shop);
+    $shop['product']->update(['image_path' => $imagePath, 'status' => 'hidden']);
+
+    $response = $this->get('/orders');
+
+    $response->assertInertia(fn (Assert $page) => $page
+        ->component('marketplace/orders')
+        ->has('orders.data', 1)
+        ->where('orders.data.0.id', $parcel->id)
+        ->where('orders.data.0.items.0.product_image_url', $imagePath ? Storage::disk('public')->url($imagePath) : null)
+        ->where('orders.data.0.items.0.product_name', 'Cotton shirt')
+        ->missing('orders.data.0.items.0.product'));
+})->with(['photo' => 'products/order-shirt.jpg', 'no photo' => null]);
+
+test('seller orders include product photos only for owned parcels', function (?string $imagePath) {
+    $shop = extensionShop();
+    $parcel = extensionPurchase($this, $shop);
+    $shop['product']->update(['image_path' => $imagePath]);
+    extensionPurchase($this, extensionShop());
+
+    $this->actingAs($shop['seller'])->get('/orders')->assertInertia(fn (Assert $page) => $page
+        ->component('marketplace/orders')
+        ->has('orders.data', 1)
+        ->where('orders.data.0.id', $parcel->id)
+        ->where('orders.data.0.items.0.product_image_url', $imagePath ? Storage::disk('public')->url($imagePath) : null)
+        ->missing('orders.data.0.items.0.product'));
+})->with(['photo' => 'products/seller-order-shirt.jpg', 'no photo' => null]);
+
 test('seller creates size color options with independent stocks and only owns its products', function () {
     $shop = extensionShop();
     $other = extensionShop();
@@ -264,4 +294,49 @@ test('admin moderation hides reviews from public averages and buyer edits cannot
     $this->get('/products/'.$shop['product']->id)->assertInertia(fn (Assert $page) => $page->where('product.reviews_count', 0)->has('reviews.data', 0));
     $shop['product']->update(['status' => 'hidden']);
     $this->get('/products/'.$shop['product']->id)->assertNotFound();
+});
+
+test('template vouchers require seller confirmation generate codes and remain selectable without consuming uses', function () {
+    $f = extensionShop();
+    $this->actingAs($f['seller'])->post('/seller/vouchers', ['template_id' => 'starter-10'])->assertSessionHasErrors('activation_confirmed');
+    $this->assertDatabaseCount('store_vouchers', 0);
+    $this->post('/seller/vouchers', ['template_id' => 'starter-10', 'activation_confirmed' => true])->assertRedirect()->assertSessionHasNoErrors();
+    $v = StoreVoucher::query()->sole();
+    expect($v->is_public)->toBeTrue()->and($v->amount_cents)->toBe(1000)->and($v->usage_limit)->toBe(20);
+    $this->get('/shop?store='.$f['store']->id)->assertInertia(fn (Assert $p) => $p->has('publicVouchers', 1));
+    $this->get('/products/'.$f['product']->id)->assertInertia(fn (Assert $p) => $p->has('publicVouchers', 1));
+    $this->actingAs($f['buyer'])->put('/cart/'.$f['product']->id, ['quantity' => 2])->assertRedirect();
+    $this->get('/cart')->assertInertia(fn (Assert $p) => $p->where('publicVouchers.0.eligible', true));
+    $this->post('/cart/voucher', ['voucher_code' => $v->code])->assertOk();
+    $this->assertDatabaseCount('seller_orders', 0);
+    expect($v->fresh()->redemptions()->count())->toBe(0);
+});
+
+test('custom vouchers generate codes and appear to buyers by default', function () {
+    $shop = extensionShop();
+
+    $this->actingAs($shop['seller'])->post('/seller/vouchers', ['amount' => '25', 'minimum' => '100', 'usage_limit' => 5, 'expires_at' => now()->addDay()->toIso8601String()])
+        ->assertRedirect()->assertSessionHasNoErrors();
+
+    $voucher = StoreVoucher::query()->sole();
+    expect($voucher->code)->toStartWith('SHOP-');
+    $this->actingAs($shop['buyer'])->put('/cart/'.$shop['product']->id, ['quantity' => 2])->assertRedirect();
+    $this->get('/cart')->assertInertia(fn (Assert $page) => $page->has('publicVouchers', 1)
+        ->where('publicVouchers.0.code', $voucher->code)->where('publicVouchers.0.eligible', true));
+    $this->postJson('/cart/voucher', ['voucher_code' => $voucher->code])->assertJsonPath('discount_cents', 2500);
+});
+
+test('only the owning seller can publish an existing private voucher and hide it again', function () {
+    $shop = extensionShop();
+    $other = extensionShop();
+    $voucher = extensionVoucher($shop['store'], ['is_public' => false]);
+
+    $this->actingAs($other['seller'])->patch('/seller/vouchers/'.$voucher->id, ['is_public' => true])->assertForbidden();
+    $this->assertDatabaseHas('store_vouchers', ['id' => $voucher->id, 'is_public' => false]);
+    $this->actingAs($shop['seller'])->patch('/seller/vouchers/'.$voucher->id, ['is_public' => true])->assertSessionHasNoErrors();
+    $this->actingAs($shop['buyer'])->get('/products/'.$shop['product']->id)->assertInertia(fn (Assert $page) => $page->has('publicVouchers', 1));
+    expect($voucher->fresh()->is_active)->toBeTrue();
+
+    $this->actingAs($shop['seller'])->patch('/seller/vouchers/'.$voucher->id, ['is_public' => false])->assertSessionHasNoErrors();
+    $this->actingAs($shop['buyer'])->get('/products/'.$shop['product']->id)->assertInertia(fn (Assert $page) => $page->has('publicVouchers', 0));
 });

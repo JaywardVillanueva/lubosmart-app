@@ -1,7 +1,7 @@
 import { Badge, Card, Empty, Page, buttonClass, secondaryClass } from '@/components/shared/marketplace-ui';
 import { DashboardMetric, DashboardQueues, DashboardWelcome } from '@/components/workspace/dashboard-panels';
 import { type SharedData, type UserRole } from '@/types';
-import { Link, usePage } from '@inertiajs/react';
+import { Link, usePage, usePoll } from '@inertiajs/react';
 import { CheckCheck, Clock3, Package, ShoppingBag, Store, Truck, type LucideIcon } from 'lucide-react';
 
 export interface WorkspaceDashboardProps {
@@ -27,6 +27,7 @@ export default function WorkspaceDashboard({
     companyName,
     content,
 }: WorkspaceDashboardProps & { content: WorkspaceDashboardContent }) {
+    usePoll(30000, { only: ['stats', 'records'] });
     const { auth } = usePage<SharedData>().props;
     const activityHref = ['rider', 'logistics'].includes(role) ? '/deliveries' : '/orders';
     const roleTitle = role === 'rider' ? 'Rider' : role === 'logistics' ? 'Logistics' : role === 'seller' ? 'Seller' : 'Buyer';
@@ -35,6 +36,7 @@ export default function WorkspaceDashboard({
     return (
         <Page title={content.title} description={content.description}>
             <DashboardWelcome
+                compact={role === 'buyer'}
                 label={role === 'buyer' ? 'Your local marketplace' : roleTitle + ' portal'}
                 title={'Welcome back, ' + auth.user.name.trim().split(/\s+/)[0] + '.'}
                 description={companyName ? 'Your deliveries with ' + companyName + '.' : content.description}
@@ -50,35 +52,39 @@ export default function WorkspaceDashboard({
             {role === 'seller' && storeStatus !== 'approved' && (
                 <Card>Your store is awaiting approval. Product publishing requires an approved store.</Card>
             )}
-            <section aria-label="Account overview" className="grid gap-4 sm:grid-cols-3">
+            <section aria-label="Account overview" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 {metrics.map(([label, value], index) => (
                     <DashboardMetric
+                        compact={role === 'buyer'}
                         key={label}
                         label={label}
                         value={value}
-                        hint="Current account totals"
+                        hint={label === 'Available Lubos Coins' ? 'Available wallet credits · 1 coin = ₱1' : 'Current account totals'}
+                        href={label === 'Available Lubos Coins' ? '/wallet' : activityHref}
                         icon={index === 0 ? RoleIcon : index === 1 ? Clock3 : CheckCheck}
                     />
                 ))}
             </section>
-            <section aria-label="Quick actions" className={'grid gap-4 ' + (content.links.length === 2 ? 'sm:grid-cols-2' : 'sm:grid-cols-3')}>
-                {content.links.map((item) => (
-                    <Link
-                        key={item.title}
-                        href={item.href}
-                        className="group bg-card hover:border-primary/40 flex min-w-0 items-center gap-4 rounded-2xl border p-5 transition-colors"
-                    >
-                        <span aria-hidden="true" className="bg-accent text-primary rounded-xl p-3">
-                            <item.icon className="size-5" />
-                        </span>
-                        <div className="min-w-0 flex-1">
-                            <h2 className="font-semibold">{item.title}</h2>
-                            <p className="text-muted-foreground mt-1 text-xs leading-relaxed">{item.text}</p>
-                        </div>
-                    </Link>
-                ))}
-            </section>
-            <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+            {role !== 'buyer' && (
+                <section aria-label="Quick actions" className={'grid gap-4 ' + (content.links.length === 2 ? 'sm:grid-cols-2' : 'sm:grid-cols-3')}>
+                    {content.links.map((item) => (
+                        <Link
+                            key={item.title}
+                            href={item.href}
+                            className="group bg-card hover:border-primary/40 flex min-w-0 items-center gap-4 rounded-2xl border p-5 transition-colors"
+                        >
+                            <span aria-hidden="true" className="bg-accent text-primary rounded-xl p-3">
+                                <item.icon className="size-5" />
+                            </span>
+                            <div className="min-w-0 flex-1">
+                                <h2 className="font-semibold">{item.title}</h2>
+                                <p className="text-muted-foreground mt-1 text-xs leading-relaxed">{item.text}</p>
+                            </div>
+                        </Link>
+                    ))}
+                </section>
+            )}
+            <div className={role === 'buyer' ? 'grid min-w-0 gap-6' : 'grid items-start gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]'}>
                 <Card>
                     <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
                         <h2 className="text-lg font-semibold">{role === 'rider' ? 'Recent deliveries' : 'Recent orders'}</h2>
@@ -117,26 +123,28 @@ export default function WorkspaceDashboard({
                         />
                     )}
                 </Card>
-                <div className="space-y-6">
-                    <DashboardQueues
-                        title={role === 'rider' ? 'Delivery overview' : 'Account snapshot'}
-                        description="Current totals for your account. Counts may describe overlapping groups."
-                        items={metrics.map(([label, value]) => ({ label, value, href: label === 'Products' ? '/inventory' : activityHref }))}
-                    />
-                    <Card>
-                        <h2 className="text-lg font-semibold">Your next steps</h2>
-                        <ol className="mt-5 space-y-4">
-                            {content.steps.map((step, index) => (
-                                <li key={step} className="flex items-center gap-3 text-sm leading-relaxed">
-                                    <span className="bg-accent text-primary flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold">
-                                        {index + 1}
-                                    </span>
-                                    {step}
-                                </li>
-                            ))}
-                        </ol>
-                    </Card>
-                </div>
+                {role !== 'buyer' && (
+                    <div className="space-y-6">
+                        <DashboardQueues
+                            title={role === 'rider' ? 'Delivery overview' : 'Account snapshot'}
+                            description="Current totals for your account. Counts may describe overlapping groups."
+                            items={metrics.map(([label, value]) => ({ label, value, href: label === 'Products' ? '/inventory' : activityHref }))}
+                        />
+                        <Card>
+                            <h2 className="text-lg font-semibold">Your next steps</h2>
+                            <ol className="mt-5 space-y-4">
+                                {content.steps.map((step, index) => (
+                                    <li key={step} className="flex items-center gap-3 text-sm leading-relaxed">
+                                        <span className="bg-accent text-primary flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold">
+                                            {index + 1}
+                                        </span>
+                                        {step}
+                                    </li>
+                                ))}
+                            </ol>
+                        </Card>
+                    </div>
+                )}
             </div>
         </Page>
     );

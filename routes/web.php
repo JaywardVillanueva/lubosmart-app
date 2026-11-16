@@ -23,8 +23,11 @@ use App\Http\Controllers\ParcelReturnController;
 use App\Http\Controllers\PlatformContentController;
 use App\Http\Controllers\ProductReviewController;
 use App\Http\Controllers\ProductVariantController;
+use App\Http\Controllers\RefundFundingController;
+use App\Http\Controllers\RefundOfferController;
 use App\Http\Controllers\RegistrationDocumentController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\ReturnWorkflowController;
 use App\Http\Controllers\Rider\NotificationsController;
 use App\Http\Controllers\RiderPaymentController;
 use App\Http\Controllers\RiderServiceAreaController;
@@ -32,6 +35,7 @@ use App\Http\Controllers\SellerCostController;
 use App\Http\Controllers\SellerSettlementController;
 use App\Http\Controllers\StoreVoucherController;
 use App\Http\Controllers\SupportCaseController;
+use App\Http\Controllers\WalletController;
 use App\Http\Controllers\WishlistController;
 use App\Http\Controllers\WorkspaceStatusController;
 use App\Models\Category;
@@ -47,7 +51,7 @@ Route::redirect('/email-logo.png', '/images/brand/email-logo.png', 301);
 Route::get('/', function (Request $request) {
     return Inertia::render('public/home', ['departments' => Category::query()->whereNull('parent_id')->where('is_active', true)->pluck('id', 'slug'),
         'favoriteIds' => $request->user()?->role === 'buyer' ? DB::table('product_wishlists')->where('user_id', $request->user()->id)->pluck('product_id') : [],
-        'products' => Product::query()->availableToShoppers()->where('stock', '>', 0)->whereNotNull('image_path')->with(['store:id,name', 'category:id,name', 'variants'])->withAvg('reviews', 'rating')->withCount('reviews')->latest('id')->limit(4)->get(['id', 'store_id', 'category_id', 'name', 'price', 'stock', 'description', 'image_path']),
+        'products' => Product::query()->availableToShoppers()->where('stock', '>', 0)->whereNotNull('image_path')->with(['store:id,name', 'category:id,name', 'variants'])->withAvg('reviews', 'rating')->withCount('reviews')->latest('id')->limit(16)->get(['id', 'store_id', 'category_id', 'name', 'price', 'stock', 'description', 'image_path']),
         'announcements' => DB::table('platform_contents')->where('kind', 'announcement')->where('published', true)->latest('updated_at')->limit(3)->get(['id', 'title', 'body']),
     ]);
 })->name('home');
@@ -79,6 +83,7 @@ Route::middleware(['auth'])->group(function () {
                 Route::get('/', [RiderController::class, 'index'])->name('index');
                 Route::get('create', [RiderController::class, 'create'])->name('create');
                 Route::post('/', [RiderController::class, 'store'])->middleware('throttle:10,1')->name('store');
+                Route::patch('{rider}/capability', [RiderController::class, 'capability'])->name('capability');
                 Route::post('{rider}/resend', [RiderController::class, 'resend'])->middleware('throttle:6,1')->name('resend');
             });
             Route::get('admin/conversation-options', [SupportCaseController::class, 'options'])->middleware(['role:admin', 'throttle:60,1'])->name('admin.conversation-options');
@@ -125,15 +130,29 @@ Route::middleware(['auth'])->group(function () {
             Route::get('settlements', [SellerSettlementController::class, 'index'])->middleware(['role:admin,seller', 'admin.permission:finance'])->name('settlements');
             Route::get('finance', [FinanceController::class, 'index'])->middleware(['role:admin,seller,logistics,rider', 'admin.permission:finance'])->name('finance');
             Route::get('logistics-settlements', [LogisticsSettlementController::class, 'index'])->middleware(['role:admin,logistics', 'admin.permission:finance'])->name('logistics-settlements');
+            Route::post('logistics-settlements/{parcel}/handover', [LogisticsSettlementController::class, 'handover'])->middleware(['role:logistics', 'throttle:20,1'])->name('logistics-settlements.handover');
             Route::post('logistics-settlements/{parcel}', [LogisticsSettlementController::class, 'store'])->middleware(['role:admin', 'admin.permission:finance', 'throttle:20,1'])->name('logistics-settlements.store');
             Route::post('settlements/{parcel}', [SellerSettlementController::class, 'store'])->middleware(['role:admin', 'admin.permission:finance', 'throttle:20,1'])->name('settlements.store');
             Route::get('rider-payments', [RiderPaymentController::class, 'index'])->middleware('role:logistics,rider')->name('rider-payments');
             Route::post('rider-payments', [RiderPaymentController::class, 'store'])->middleware(['role:logistics', 'throttle:20,1'])->name('rider-payments.store');
+            Route::post('rider-payments/weekly', [RiderPaymentController::class, 'weekly'])->middleware(['role:logistics', 'throttle:20,1'])->name('rider-payments.weekly');
+            Route::post('rider-payments/weekly/{payment}/pay', [RiderPaymentController::class, 'payWeekly'])->middleware(['role:logistics', 'throttle:20,1'])->name('rider-payments.weekly.pay');
             Route::post('rider-payments/{payment}/pay', [RiderPaymentController::class, 'pay'])->middleware(['role:logistics', 'throttle:20,1'])->name('rider-payments.pay');
             Route::get('seller/costs', [SellerCostController::class, 'index'])->middleware('role:seller')->name('seller.costs');
             Route::post('seller/costs', [SellerCostController::class, 'store'])->middleware(['role:seller', 'throttle:20,1'])->name('seller.costs.store');
             Route::post('seller/costs/{cost}/void', [SellerCostController::class, 'void'])->middleware('role:seller')->name('seller.costs.void');
-            Route::get('returns', [ParcelReturnController::class, 'index'])->middleware(['role:admin,buyer,seller,logistics,rider', 'admin.permission:disputes'])->name('returns');
+            Route::get('refund-funding', [RefundFundingController::class, 'index'])->middleware(['role:admin', 'admin.permission:finance'])->name('refund-funding');
+            Route::post('refund-funding', [RefundFundingController::class, 'store'])->middleware(['role:admin', 'admin.permission:finance', 'throttle:20,1'])->name('refund-funding.store');
+            Route::patch('return-settings', [ParcelReturnController::class, 'settings'])->middleware(['role:admin', 'admin.permission:disputes'])->name('returns.settings');
+            Route::post('returns/exception', [ParcelReturnController::class, 'exception'])->middleware(['role:admin', 'admin.permission:disputes'])->name('returns.exception');
+            Route::get('returns/{return}/discrepancy-evidence/{event}', [ReturnWorkflowController::class, 'discrepancyEvidence'])->middleware('role:admin,seller')->name('returns.discrepancy-evidence');
+            Route::get('returns/{return}/proof/{proof}', [ReturnWorkflowController::class, 'proof'])->middleware('role:admin,buyer,seller,logistics,rider')->name('returns.proof');
+            Route::get('returns/{return}/evidence/{index}', [ParcelReturnController::class, 'evidence'])->middleware('role:admin,buyer,seller,logistics,rider')->name('returns.evidence');
+            Route::post('wallet-adjustments', [WalletController::class, 'correct'])->middleware(['role:admin', 'admin.permission:finance', 'throttle:20,1'])->name('wallet.adjustments');
+            Route::get('wallet', [WalletController::class, 'index'])->middleware('role:buyer')->name('wallet');
+            Route::post('returns/{return}/offer', [RefundOfferController::class, 'store'])->middleware(['role:admin', 'admin.permission:finance'])->name('returns.offer');
+            Route::post('returns/{return}/accept-offer', [RefundOfferController::class, 'accept'])->middleware('role:buyer')->name('returns.accept-offer');
+            Route::get('returns', [ParcelReturnController::class, 'index'])->middleware('role:admin,buyer,seller,logistics,rider')->name('returns');
             Route::post('returns', [ParcelReturnController::class, 'store'])->middleware(['role:buyer', 'throttle:10,1'])->name('returns.store');
             Route::patch('returns/{return}', [ParcelReturnController::class, 'update'])->middleware(['role:admin,seller,logistics,rider', 'throttle:30,1'])->name('returns.update');
             Route::get('reports/export', [ReportController::class, 'export'])->middleware('role:admin')->middleware('admin.permission:reports')->name('reports.export');

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Logistics;
 
 use App\Http\Controllers\Controller;
 use App\Services\Logistics\LogisticsContacts;
+use App\Services\ParcelFinance;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -12,8 +13,8 @@ class ReportController extends Controller
     public function index(Request $request, LogisticsContacts $contacts)
     {
         [$orders, $filters] = $this->orders($request, $contacts);
-        $totals = ['Completed Parcels' => (clone $orders)->count(), 'Shipping Fees' => (clone $orders)->sum('shipping_fee'), 'COD Value' => (clone $orders)->sum('subtotal') + (clone $orders)->sum('shipping_fee')];
-        $records = $orders->with(['store:id,name', 'delivery.rider:id,name'])->latest('id')->paginate(15, ['id', 'order_id', 'store_id', 'subtotal', 'shipping_fee'])->withQueryString();
+        $totals = ['Completed Parcels' => (clone $orders)->count(), 'Shipping Fees' => (clone $orders)->sum('shipping_fee'), 'COD Value' => ParcelFinance::decimal((int) (clone $orders)->selectRaw('COALESCE(SUM(COALESCE(cod_due_cents, ROUND(subtotal * 100) + ROUND(shipping_fee * 100) - coins_redeemed_cents)), 0) as cash_total')->value('cash_total'))];
+        $records = $orders->with(['store:id,name', 'delivery.rider:id,name'])->latest('id')->paginate(15, ['id', 'order_id', 'store_id', 'subtotal', 'shipping_fee', 'cod_due_cents', 'coins_redeemed_cents'])->withQueryString();
 
         return Inertia::render('logistics/reports', compact('records', 'totals', 'filters'));
     }
@@ -28,7 +29,7 @@ class ReportController extends Controller
             fputcsv($file, ['Parcel', 'Store', 'Rider', 'Delivered At', 'Shipping Fee (PHP)', 'COD Value (PHP)'], ',', '"', '');
             foreach ($orders->lazyById(200) as $order) {
                 $safe = fn ($value) => preg_match('/^[\s]*[=+@-]/u', $value ?? '') ? "'".$value : ($value ?? '');
-                fputcsv($file, [$order->id, $safe($order->store->name), $safe($order->delivery->rider?->name), $order->delivery->delivered_at?->toIso8601String(), $order->shipping_fee, number_format((float) $order->subtotal + (float) $order->shipping_fee, 2, '.', '')], ',', '"', '');
+                fputcsv($file, [$order->id, $safe($order->store->name), $safe($order->delivery->rider?->name), $order->delivery->delivered_at?->toIso8601String(), $order->shipping_fee, ParcelFinance::decimal(ParcelFinance::expected($order))], ',', '"', '');
             }
             fclose($file);
         }, 'logistics-deliveries-'.now()->format('Y-m-d').'.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);

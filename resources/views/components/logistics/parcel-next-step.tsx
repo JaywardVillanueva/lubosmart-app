@@ -1,4 +1,4 @@
-import { secondaryClass } from '@/components/shared/marketplace-ui';
+import { buttonClass } from '@/components/shared/marketplace-ui';
 import type { Delivery } from '@/pages/marketplace/deliveries';
 import { Link } from '@inertiajs/react';
 import { ArrowRight } from 'lucide-react';
@@ -62,12 +62,17 @@ export default function ParcelNextStep({
             </p>
         );
     return (
-        <div className="bg-accent/40 mt-4 space-y-2 rounded-xl border p-4" role={compact ? undefined : 'status'}>
-            <p className="text-primary text-sm font-semibold">{title}</p>
-            {!compact && <p className="text-muted-foreground text-sm leading-relaxed">{description}</p>}
+        <div
+            className="bg-accent/40 mt-6 flex flex-wrap items-center justify-between gap-4 rounded-xl border p-4 sm:p-5"
+            role={compact ? undefined : 'status'}
+        >
+            <div className="min-w-0 flex-1 basis-64">
+                <p className="text-primary text-base font-semibold">{title}</p>
+                {!compact && <p className="text-muted-foreground text-sm leading-relaxed">{description}</p>}
+            </div>
             {!compact && scan && !scanning && (
-                <Link href="/logistics/scan" className={secondaryClass}>
-                    Scan parcel for the next action
+                <Link href="/logistics/scan" className={buttonClass}>
+                    Scan parcel for center receipt
                 </Link>
             )}
         </div>

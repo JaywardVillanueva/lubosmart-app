@@ -29,7 +29,7 @@ test('each verified active role receives its own dashboard', function (string $r
             } elseif ($role === 'seller') {
                 $page->component('seller/dashboard')->where('queues.all', 0)->has('recentOrders', 0);
             } else {
-                $page->component($role === 'admin' ? 'admin/dashboard' : 'buyer/dashboard')->where('role', $role)->has('stats', 3)->has('records', 0);
+                $page->component($role === 'admin' ? 'admin/dashboard' : 'buyer/dashboard')->where('role', $role)->has('stats', $role === 'buyer' ? 4 : 3)->has('records', 0);
             }
         });
 })->with(['buyer', 'seller', 'rider', 'logistics', 'admin']);
@@ -109,5 +109,7 @@ test('buyer dashboard omits another buyers orders', function () {
     $buyer = User::factory()->create();
     $other = User::factory()->create();
     Order::query()->create(['buyer_id' => $other->id, 'shipping_recipient_name' => 'Other buyer', 'shipping_phone' => '09171234567', 'shipping_line1' => 'Synthetic address', 'shipping_barangay' => 'Test', 'shipping_city' => 'Test City', 'shipping_province' => 'Test Province', 'shipping_region' => 'Test Region', 'shipping_zip' => '4000', 'subtotal' => '100.00', 'shipping_total' => '0.00', 'total' => '100.00']);
-    $this->actingAs($buyer)->get('/dashboard/buyer')->assertOk()->assertInertia(fn (Assert $page) => $page->where('stats.Orders', 0)->has('records', 0));
+    $this->actingAs($buyer)->get('/dashboard/buyer')->assertOk()->assertInertia(fn (Assert $page) => $page
+        ->where('stats.Orders to ship', 0)->where('stats.Orders to receive', 0)
+        ->where('stats.Completed orders', 0)->where('stats.Available Lubos Coins', 0)->has('records', 0));
 });

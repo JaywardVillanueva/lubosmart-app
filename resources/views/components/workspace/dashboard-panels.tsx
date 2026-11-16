@@ -11,6 +11,8 @@ export function DashboardWelcome({
     description,
     context,
     icon: Icon,
+    illustration = 'delivery',
+    compact = false,
     children,
 }: {
     label: string;
@@ -18,8 +20,21 @@ export function DashboardWelcome({
     description: string;
     context?: string;
     icon: LucideIcon;
+    illustration?: 'delivery' | 'store' | 'platform';
+    compact?: boolean;
     children?: ReactNode;
 }) {
+    if (compact) {
+        return (
+            <section aria-label={label} className="flex min-w-0 flex-wrap items-center justify-between gap-4">
+                <div className="min-w-0">
+                    <h2 className="text-base font-semibold break-words">{title}</h2>
+                    {context && <p className="text-muted-foreground mt-1 text-sm break-words">{context}</p>}
+                </div>
+                {children && <div className="flex flex-wrap items-center gap-3">{children}</div>}
+            </section>
+        );
+    }
     return (
         <section aria-label={label} className="workspace-welcome relative isolate overflow-hidden rounded-2xl border p-6 sm:p-8 lg:px-10">
             <div className="relative grid items-center gap-6 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
@@ -34,7 +49,7 @@ export function DashboardWelcome({
                     {children && <div className="mt-5 flex flex-wrap items-center gap-3">{children}</div>}
                 </div>
                 <div className="pointer-events-none hidden min-w-0 md:block">
-                    <WorkspaceIllustration />
+                    <WorkspaceIllustration variant={illustration} />
                 </div>
             </div>
         </section>
@@ -47,30 +62,43 @@ export function DashboardMetric({
     hint,
     icon: Icon,
     href,
+    compact = false,
 }: {
     label: string;
-    value: number;
+    value: number | string;
     hint: string;
     icon: LucideIcon;
     href?: string;
+    compact?: boolean;
 }) {
     const { auth } = usePage<SharedData>().props;
     const content = (
         <>
             <div className="flex items-center gap-4">
-                <span aria-hidden="true" className="bg-accent text-primary flex size-11 items-center justify-center rounded-xl">
+                <span
+                    aria-hidden="true"
+                    className={
+                        compact
+                            ? 'text-primary flex size-5 shrink-0 items-center justify-center'
+                            : 'bg-accent text-primary flex size-11 items-center justify-center rounded-xl'
+                    }
+                >
                     <Icon className="size-5" />
                 </span>
                 <div className="min-w-0 flex-1">
                     <h2 className="text-muted-foreground text-sm font-medium">{label}</h2>
-                    <p className="mt-1 text-2xl font-semibold tracking-tight tabular-nums">{value.toLocaleString()}</p>
+                    <p className="mt-1 text-2xl font-semibold tracking-tight break-words tabular-nums">
+                        {typeof value === 'number' ? value.toLocaleString() : value}
+                    </p>
                 </div>
                 {href && auth.user.role === 'admin' && <ArrowUpRight aria-hidden="true" className="text-primary size-4 shrink-0" />}
             </div>
-            <p className="text-muted-foreground mt-3 text-xs leading-relaxed">{hint}</p>
+            <p className={compact ? 'sr-only' : 'text-muted-foreground mt-3 text-xs leading-relaxed'}>{hint}</p>
         </>
     );
-    const className = 'workspace-card bg-card min-w-0 rounded-2xl border p-5';
+    const className = compact
+        ? 'bg-card min-w-0 rounded-xl border p-4'
+        : 'workspace-card bg-card min-w-0 rounded-2xl border border-primary/15 p-4 shadow-sm motion-safe:transition-shadow motion-safe:hover:shadow-md sm:p-5';
     return href ? (
         <Link href={href} className={`${className} hover:border-primary/40 focus-visible:outline-ring transition-colors focus-visible:outline-2`}>
             {content}

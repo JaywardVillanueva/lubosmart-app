@@ -1,8 +1,8 @@
 .shipping-label {
     overflow-wrap: anywhere;
     overflow: hidden;
-    border: 3px solid #000;
-    border-radius: 18px;
+    border: 1px solid #000;
+    border-radius: 8px;
     background: #fff;
     color: #000;
     font-size: 14px;
@@ -96,7 +96,7 @@
     border-top: 2px solid #000;
 }
 .shipping-label-qr {
-    width: 136px;
+    width: 200px;
     flex-shrink: 0;
 }
 .shipping-label-qr figure {
@@ -104,8 +104,8 @@
     padding: 0;
 }
 .shipping-label-qr svg {
-    width: 136px;
-    height: 136px;
+    width: 200px;
+    height: 200px;
 }
 .shipping-label-qr figcaption {
     font-size: 10px;
@@ -220,5 +220,37 @@
     .shipping-label-qr svg {
         width: 32mm;
         height: 32mm;
+    }
+}
+
+/* Printed labels retain the existing wordmark in monochrome. */
+.shipping-label .shipping-label-brand {
+    color: #000;
+    background: none;
+    -webkit-text-fill-color: #000;
+}
+.shipping-label-qr figcaption {
+    display: none;
+}
+.shipping-label-details {
+    border-top: 0;
+    border-bottom: 1px solid #000;
+}
+.shipping-label-heading {
+    background: #fff;
+    color: #000;
+    border-top: 1px solid #000;
+    border-bottom: 1px solid #000;
+}
+@media print {
+    .shipping-label-qr {
+        width: 38mm;
+    }
+    .shipping-label-qr svg {
+        width: 38mm;
+        height: 38mm;
+    }
+    .shipping-label-footer {
+        padding: 4px 8px;
     }
 }

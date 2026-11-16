@@ -1,13 +1,32 @@
+import { type PublicVoucher } from '@/components/marketplace/public-vouchers';
 import AddressLocationFields, { type AddressSelection } from '@/components/settings/address-location-fields';
 import { useConfirmAction } from '@/components/shared/action-feedback';
 import { Card, Empty, Field, Notice, Page, Select, buttonClass, money, secondaryClass } from '@/components/shared/marketplace-ui';
 import ValidatedForm from '@/components/shared/validated-form';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useWorkspaceStatus } from '@/components/workspace/workspace-runtime';
 import { accountApi } from '@/lib/account-api';
 import { type SharedData } from '@/types';
 import { Link, router, useForm, usePage } from '@inertiajs/react';
-import { FileText, House, ImageIcon, Info, List, MapPin, Minus, Plus, ShoppingBag, ShoppingCart, Store, Trash2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import {
+    Banknote,
+    Check,
+    Coins,
+    FileText,
+    House,
+    ImageIcon,
+    List,
+    MapPin,
+    Minus,
+    Plus,
+    ShieldCheck,
+    ShoppingBag,
+    Store,
+    TicketPercent,
+    Trash2,
+    Truck,
+} from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import '../../../css/storefront-cart.css';
 import '../../../css/storefront-catalog.css';
 import { type Product } from './catalog';
@@ -18,6 +37,8 @@ export default function Cart({
     addresses,
     shippingFee,
     logisticsPricing,
+    walletBalanceCents = 0,
+    publicVouchers = [],
 }: {
     items: {
         id: number;
@@ -29,6 +50,8 @@ export default function Cart({
     addresses: Address[];
     shippingFee: string;
     logisticsPricing: boolean;
+    walletBalanceCents?: number;
+    publicVouchers?: PublicVoucher[];
 }) {
     const { auth } = usePage<SharedData>().props;
     const confirm = useConfirmAction();
@@ -48,6 +71,7 @@ export default function Cart({
         checkout_key: checkoutKey,
         logistics_center_id: '',
         expected_shipping_total: '',
+        coins_to_redeem_cents: 0,
     });
     const address = useForm({
         label: 'Home',
@@ -73,10 +97,13 @@ export default function Cart({
     const [quotes, setQuotes] = useState<{ id: number; name: string; total: number; parcels: { weight_grams: number; fee_cents: number }[] }[]>([]);
     const [quoteAddress, setQuoteAddress] = useState('');
     const [quoteError, setQuoteError] = useState('');
-    const [quoteMessage, setQuoteMessage] = useState('');
-    const [unavailableProviders, setUnavailableProviders] = useState<{ id: number; name: string; reason: string }[]>([]);
+
     const [quoteAttempt, setQuoteAttempt] = useState(0);
     const [voucherCode, setVoucherCode] = useState('');
+    const voucherTrigger = useRef<HTMLButtonElement>(null);
+    const [voucherOpen, setVoucherOpen] = useState(false);
+    const [draftVoucher, setDraftVoucher] = useState('');
+    const [deliveryOpen, setDeliveryOpen] = useState(false);
     const [voucherBusy, setVoucherBusy] = useState(false);
     const [voucherError, setVoucherError] = useState('');
     const [voucher, setVoucher] = useState<{ code: string; discount_cents: number; cartKey: string } | null>(null);
@@ -84,6 +111,8 @@ export default function Cart({
         .map((item) => [item.id, item.quantity, item.product.price, item.product.weight_grams, item.product_variant_id].join(':'))
         .join(',');
     const voucherReady = !!voucher && voucher.cartKey === itemKey && voucher.code === voucherCode.trim().toUpperCase();
+    const [useCoins, setUseCoins] = useState(false);
+    const coins = useCoins ? Math.max(0, Math.min(walletBalanceCents, Math.round(subtotal * 100) - (voucherReady ? voucher.discount_cents : 0))) : 0;
     const discount = voucherReady ? voucher.discount_cents / 100 : 0;
     const shippingRevision = workspace?.revisions.shipping ?? '';
     const quoteKey = `${checkout.data.address_id}:${itemKey}:${shippingRevision}`;
@@ -111,8 +140,7 @@ export default function Cart({
             .then((data) => {
                 if (!controller.signal.aborted) {
                     setQuotes(data.options);
-                    setUnavailableProviders(data.unavailable ?? []);
-                    setQuoteMessage(data.message ?? 'No shipping options are available for this bag. Contact support for help.');
+
                     setQuoteAddress(quoteKey);
                     setQuoteError('');
                 }
@@ -125,6 +153,29 @@ export default function Cart({
     const quotesReady = !quoteError && quoteAddress === quoteKey;
     const selectedQuote = quotesReady ? quotes.find((quote) => quote.id.toString() === checkout.data.logistics_center_id) : undefined;
     const shipping = logisticsPricing ? (selectedQuote?.total ?? 0) : stores * Number(shippingFee);
+    const checkoutBlockedReason = !canCheckout
+        ? 'Your account must be approved and your email verified before checkout.'
+        : unavailable
+          ? 'Adjust or remove unavailable items or quantities above the available stock.'
+          : checkout.processing
+            ? 'Your order is being placed.'
+            : updating
+              ? 'Wait for your bag to finish updating.'
+              : voucherBusy
+                ? 'Wait for your voucher discount to be checked.'
+                : voucherCode.trim() && !voucherReady
+                  ? 'Your bag changed. Select the voucher again or remove it to continue.'
+                  : !checkout.data.address_id
+                    ? 'Add or choose a delivery address to continue.'
+                    : logisticsPricing && !selectedQuote
+                      ? quoteError
+                          ? 'Shipping quotes failed to load. Use Retry shipping quotes above.'
+                          : !quotesReady
+                            ? 'Wait for available shipping providers to load.'
+                            : !quotes.length
+                              ? 'Delivery is unavailable for this address. Change your address to continue.'
+                              : 'Choose a logistics provider under Delivery option to continue.'
+                      : '';
     const update = async (product: number, quantity: number, variantId?: number | null) => {
         if (updating) return;
         if (
@@ -388,182 +439,330 @@ export default function Cart({
                                 )}
                             </Card>
                         </div>
-                        <Card className="shopping-bag-panel shopping-bag-summary">
+                        <Card className="shopping-bag-panel shopping-bag-summary checkout-refined">
                             <div className="shopping-bag-section-heading">
                                 <h2>
                                     <FileText aria-hidden="true" />
-                                    Order summary
+                                    Checkout
                                 </h2>
+                                <span className="shopping-bag-store-count">
+                                    <Store aria-hidden="true" className="size-5" />
+                                    {stores} {stores === 1 ? 'store' : 'stores'}
+                                </span>
                             </div>
-                            <ValidatedForm
-                                className="shopping-bag-voucher"
-                                onSubmit={async (event) => {
-                                    event.preventDefault();
-                                    setVoucherBusy(true);
-                                    setVoucherError('');
-                                    setVoucher(null);
-                                    try {
-                                        const result = await accountApi<{ code: string; discount_cents: number }>('/cart/voucher', 'POST', {
-                                            voucher_code: voucherCode,
-                                        });
-                                        setVoucher({ ...result, cartKey: itemKey });
-                                    } catch (error) {
-                                        setVoucherError(error instanceof Error ? error.message : 'Unable to apply voucher. Try again.');
-                                    } finally {
-                                        setVoucherBusy(false);
-                                    }
-                                }}
-                            >
-                                <Field
-                                    label="Store voucher code (optional)"
-                                    placeholder="Enter voucher code"
-                                    reserveFeedback={false}
-                                    maxLength={30}
-                                    value={voucherCode}
-                                    onChange={(event) => setVoucherCode(event.target.value)}
-                                    error={voucherError || (checkout.errors as Record<string, string>).voucher_code}
-                                />
-                                <div className="shopping-bag-voucher-actions flex flex-wrap gap-2">
-                                    <button className={buttonClass} disabled={voucherBusy || updating || checkout.processing || !voucherCode.trim()}>
-                                        {voucherBusy ? 'Checking voucher…' : 'Apply voucher'}
-                                    </button>
-                                </div>
-                                {(voucherCode || voucher) && (
+                            <section className="shopping-bag-option">
+                                <div className="shopping-bag-option-heading">
+                                    <TicketPercent aria-hidden="true" className="text-primary size-6 shrink-0" />
+                                    <div className="min-w-0 flex-1">
+                                        <strong>Shop voucher</strong>
+                                        {voucherReady && (
+                                            <p className="text-success text-sm">
+                                                {money(discount)} off <span className="bg-success/10 rounded px-2 py-1 text-xs">Applied</span>
+                                            </p>
+                                        )}
+                                    </div>
                                     <button
                                         type="button"
-                                        className="shopping-bag-voucher-remove text-primary min-h-11 w-fit text-sm font-medium underline"
+                                        className={secondaryClass}
+                                        disabled={voucherBusy || checkout.processing}
+                                        ref={voucherTrigger}
                                         onClick={() => {
-                                            setVoucherCode('');
-                                            setVoucher(null);
+                                            setDraftVoucher(voucherReady ? voucher.code : '');
                                             setVoucherError('');
+                                            setVoucherOpen(true);
                                         }}
-                                        disabled={voucherBusy || checkout.processing || (!voucherCode && !voucher)}
                                     >
-                                        Remove voucher
+                                        {voucherReady ? 'Change' : 'Choose voucher'}
                                     </button>
-                                )}
-                                {voucherCode && !voucherReady && !voucherBusy && (
-                                    <p role="status" className="text-muted-foreground text-xs">
-                                        Apply this code after changing your cart to confirm the discount.
+                                </div>
+                                {(voucherError || (checkout.errors as Record<string, string>).voucher_code) && (
+                                    <p role="alert" className="text-destructive px-4 pb-3 text-sm">
+                                        {voucherError || (checkout.errors as Record<string, string>).voucher_code}
                                     </p>
                                 )}
-                                {voucherReady && (
-                                    <p role="status" className="text-success text-sm">
-                                        {voucher.code} applied: {money(discount)} off its store items.
-                                    </p>
-                                )}
-                            </ValidatedForm>
-                            <div className="shopping-bag-totals space-y-3 text-sm">
-                                <div className="flex items-start justify-between gap-4">
-                                    <span className="text-muted-foreground">Subtotal</span>
-                                    <strong className="tabular-nums">{money(subtotal)}</strong>
-                                </div>
-                                <div className="flex items-start justify-between gap-4">
-                                    <span className="text-muted-foreground">
-                                        Delivery ({stores} {stores === 1 ? 'store' : 'stores'})
-                                    </span>
-                                    <span
-                                        className={
-                                            logisticsPricing && !selectedQuote ? 'text-primary text-right font-semibold' : 'text-right tabular-nums'
-                                        }
-                                    >
-                                        {logisticsPricing && !selectedQuote ? 'Choose shipping' : money(shipping)}
-                                    </span>
-                                </div>
-                                {logisticsPricing ? (
-                                    <div className="space-y-3">
-                                        <Select
-                                            label="Logistics provider"
-                                            id="cart-logistics-provider"
-                                            value={checkout.data.logistics_center_id}
-                                            disabled={!checkout.data.address_id || !quotesReady || !quotes.length}
-                                            aria-describedby="shipping-availability"
-                                            reserveFeedback={!!checkout.errors.logistics_center_id}
-                                            onChange={(event) => checkout.setData('logistics_center_id', event.target.value)}
-                                            error={checkout.errors.logistics_center_id}
-                                        >
-                                            <option value="">{quotesReady && !quotes.length ? 'No providers available' : 'Choose a provider'}</option>
-                                            {(quotesReady ? quotes : []).map((quote) => (
-                                                <option key={quote.id} value={quote.id}>
-                                                    {quote.name} / {money(quote.total)}
-                                                </option>
-                                            ))}
-                                        </Select>
-                                        {quoteError && (
-                                            <Notice tone="error">
-                                                <p id="shipping-availability">{quoteError}</p>
-                                                <button
-                                                    type="button"
-                                                    className={`${secondaryClass} mt-3`}
-                                                    onClick={() => {
-                                                        setQuoteAddress('');
-                                                        setQuoteError('');
-                                                        setQuoteAttempt((attempt) => attempt + 1);
-                                                    }}
-                                                >
-                                                    Retry shipping quotes
-                                                </button>
-                                            </Notice>
-                                        )}
-                                        {!quoteError && (
-                                            <p id="shipping-availability" role="status" className="text-muted-foreground text-sm leading-relaxed">
-                                                {!checkout.data.address_id
-                                                    ? 'Choose a delivery address to see shipping quotes.'
-                                                    : !quotesReady
-                                                      ? 'Loading available providers...'
-                                                      : !quotes.length
-                                                        ? quoteMessage
-                                                        : 'Rates include a destination base fee and extra weight charges. Each store sends a separate parcel.'}
-                                            </p>
-                                        )}
-                                        {quotesReady && unavailableProviders.length > 0 && (
-                                            <ul aria-label="Unavailable shipping providers" className="space-y-3 text-sm leading-relaxed">
-                                                {unavailableProviders.map((provider) => (
-                                                    <li key={provider.id} className="shopping-bag-provider-note">
-                                                        <Info aria-hidden="true" className="size-5 shrink-0" />
-                                                        <span className="text-foreground">
-                                                            <strong>{provider.name}: </strong>
-                                                            {provider.reason}
-                                                        </span>
-                                                    </li>
-                                                ))}
-                                            </ul>
-                                        )}
-                                        {quotesReady && !quotes.length && (
-                                            <Link href="/support" className="text-primary inline-flex min-h-11 items-center text-sm underline">
-                                                Contact support about shipping
-                                            </Link>
-                                        )}
-                                        {selectedQuote?.parcels.map((parcel, index) => (
-                                            <p key={index} className="text-muted-foreground text-xs">
-                                                Parcel {index + 1}: {(parcel.weight_grams / 1000).toFixed(2)} kg / {money(parcel.fee_cents / 100)}
-                                            </p>
+                            </section>
+                            <Dialog open={voucherOpen} onOpenChange={setVoucherOpen}>
+                                <DialogContent
+                                    onCloseAutoFocus={(event) => {
+                                        event.preventDefault();
+                                        voucherTrigger.current?.focus();
+                                    }}
+                                    className="max-h-[85dvh] overflow-y-auto sm:max-w-lg"
+                                >
+                                    <DialogHeader>
+                                        <DialogTitle>Choose shop voucher</DialogTitle>
+                                        <DialogDescription>
+                                            Choose one voucher for its store. Only one voucher can be used per checkout.
+                                        </DialogDescription>
+                                    </DialogHeader>
+                                    <fieldset className="space-y-3" disabled={voucherBusy}>
+                                        <legend className="sr-only">Shop vouchers</legend>
+                                        {publicVouchers.map((v) => (
+                                            <label
+                                                key={v.id}
+                                                className={
+                                                    'flex items-start gap-3 rounded-xl border p-4 ' +
+                                                    (draftVoucher === v.code ? 'border-primary bg-primary/5' : 'border-border')
+                                                }
+                                            >
+                                                <input
+                                                    type="radio"
+                                                    name="shop-voucher"
+                                                    className="accent-primary mt-1 size-4"
+                                                    value={v.code}
+                                                    checked={draftVoucher === v.code}
+                                                    disabled={!v.eligible}
+                                                    onChange={() => setDraftVoucher(v.code)}
+                                                />
+                                                <span className="min-w-0 text-sm">
+                                                    <strong className="block text-base">{money(v.amount_cents / 100)} off</strong>
+                                                    <span className="block">Minimum spend {money(v.minimum_cents / 100)}</span>
+                                                    <span className="text-muted-foreground block">
+                                                        Store #{v.store_id} / Expires {new Date(v.expires_at).toLocaleDateString('en-PH')}
+                                                    </span>
+                                                    {!v.eligible && <span className="text-muted-foreground block">Not eligible for this bag</span>}
+                                                </span>
+                                            </label>
                                         ))}
+                                        {!publicVouchers.length && (
+                                            <p className="text-muted-foreground text-sm">No vouchers available for the stores in your bag.</p>
+                                        )}
+                                        <label className="flex min-h-12 items-center gap-3 rounded-xl border p-4">
+                                            <input
+                                                type="radio"
+                                                name="shop-voucher"
+                                                className="accent-primary size-4"
+                                                checked={!draftVoucher}
+                                                onChange={() => setDraftVoucher('')}
+                                            />
+                                            No voucher
+                                        </label>
+                                    </fieldset>
+                                    {voucherError && (
+                                        <p role="alert" className="text-destructive text-sm">
+                                            {voucherError}
+                                        </p>
+                                    )}
+                                    <DialogFooter>
+                                        <button type="button" className={secondaryClass} disabled={voucherBusy} onClick={() => setVoucherOpen(false)}>
+                                            Cancel
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className={buttonClass}
+                                            disabled={
+                                                voucherBusy ||
+                                                updating ||
+                                                checkout.processing ||
+                                                (!!draftVoucher && !publicVouchers.some((v) => v.code === draftVoucher && v.eligible))
+                                            }
+                                            onClick={async () => {
+                                                if (!draftVoucher) {
+                                                    setVoucher(null);
+                                                    setVoucherCode('');
+                                                    setVoucherError('');
+                                                    setVoucherOpen(false);
+                                                    return;
+                                                }
+                                                setVoucherBusy(true);
+                                                setVoucherError('');
+                                                try {
+                                                    const result = await accountApi<{ code: string; discount_cents: number }>(
+                                                        '/cart/voucher',
+                                                        'POST',
+                                                        { voucher_code: draftVoucher },
+                                                    );
+                                                    setVoucher({ ...result, cartKey: itemKey });
+                                                    setVoucherCode(result.code);
+                                                    setVoucherOpen(false);
+                                                } catch (error) {
+                                                    setVoucherError(error instanceof Error ? error.message : 'Unable to apply voucher.');
+                                                } finally {
+                                                    setVoucherBusy(false);
+                                                }
+                                            }}
+                                        >
+                                            {voucherBusy ? 'Applying...' : 'Apply voucher'}
+                                        </button>
+                                    </DialogFooter>
+                                </DialogContent>
+                            </Dialog>
+                            <section className="shopping-bag-option" aria-labelledby="cart-delivery-heading">
+                                <div className="shopping-bag-option-heading">
+                                    <span className="shopping-bag-option-icon">
+                                        <Truck aria-hidden="true" />
+                                    </span>
+                                    <div className="min-w-0 flex-1">
+                                        <h3 id="cart-delivery-heading" className="font-semibold">
+                                            Delivery option
+                                        </h3>
+                                        <p className="shopping-bag-option-description">
+                                            {logisticsPricing ? (selectedQuote?.name ?? 'Choose your logistics provider') : 'Delivery per store'}
+                                        </p>
                                     </div>
-                                ) : (
-                                    <p className="text-muted-foreground text-xs">
-                                        {money(shippingFee)} per store. Each store sends a separate parcel.
+                                    <strong className="shrink-0 text-sm tabular-nums">
+                                        {logisticsPricing && !selectedQuote ? 'Pending' : money(shipping)}
+                                    </strong>
+                                </div>
+                                <div className="shopping-bag-option-body">
+                                    {logisticsPricing && (
+                                        <button type="button" className={secondaryClass} onClick={() => setDeliveryOpen(!deliveryOpen)}>
+                                            {selectedQuote ? 'Change' : 'Choose delivery'}
+                                        </button>
+                                    )}
+                                    {logisticsPricing && deliveryOpen ? (
+                                        <div className="space-y-3">
+                                            <Select
+                                                label="Logistics provider"
+                                                id="cart-logistics-provider"
+                                                value={checkout.data.logistics_center_id}
+                                                disabled={!checkout.data.address_id || !quotesReady || !quotes.length}
+                                                aria-describedby="shipping-availability"
+                                                reserveFeedback={!!checkout.errors.logistics_center_id}
+                                                onChange={(event) => checkout.setData('logistics_center_id', event.target.value)}
+                                                error={checkout.errors.logistics_center_id}
+                                            >
+                                                <option value="">
+                                                    {quotesReady && !quotes.length ? 'No providers available' : 'Choose a provider'}
+                                                </option>
+                                                {(quotesReady ? quotes : []).map((quote) => (
+                                                    <option key={quote.id} value={quote.id}>
+                                                        {quote.name} / {money(quote.total)}
+                                                    </option>
+                                                ))}
+                                            </Select>
+                                            {quoteError && (
+                                                <Notice tone="error">
+                                                    <p id="shipping-availability">{quoteError}</p>
+                                                    <button
+                                                        type="button"
+                                                        className={`${secondaryClass} mt-3`}
+                                                        onClick={() => {
+                                                            setQuoteAddress('');
+                                                            setQuoteError('');
+                                                            setQuoteAttempt((attempt) => attempt + 1);
+                                                        }}
+                                                    >
+                                                        Retry shipping quotes
+                                                    </button>
+                                                </Notice>
+                                            )}
+                                            {!quoteError && (
+                                                <p id="shipping-availability" role="status" className="text-muted-foreground text-sm leading-relaxed">
+                                                    {!checkout.data.address_id
+                                                        ? 'Choose a delivery address to see shipping quotes.'
+                                                        : !quotesReady
+                                                          ? 'Loading available providers...'
+                                                          : !quotes.length
+                                                            ? 'Delivery is unavailable for this address. Change your address to continue.'
+                                                            : 'Choose an eligible courier for your address.'}
+                                                </p>
+                                            )}
+                                        </div>
+                                    ) : null}
+                                </div>
+                            </section>
+                            <section className="shopping-bag-option shopping-bag-coins" aria-labelledby="cart-coins-heading">
+                                <label className="shopping-bag-option-heading cursor-pointer">
+                                    <span className="shopping-bag-option-icon">
+                                        <Coins aria-hidden="true" />
+                                    </span>
+                                    <span className="min-w-0 flex-1">
+                                        <strong id="cart-coins-heading">Lubos Coins</strong>
+                                        <span className="shopping-bag-option-description">{money(walletBalanceCents / 100)} available</span>
+                                    </span>
+                                    <input
+                                        type="checkbox"
+                                        role="switch"
+                                        className="shopping-bag-coin-switch"
+                                        aria-labelledby="cart-coins-heading"
+                                        aria-describedby="cart-coins-help"
+                                        checked={useCoins}
+                                        onChange={(e) => setUseCoins(e.target.checked)}
+                                        disabled={walletBalanceCents <= 0 || subtotal <= discount || checkout.processing}
+                                    />
+                                </label>
+                                <p id="cart-coins-help" className="text-muted-foreground px-4 pb-4 text-xs leading-relaxed">
+                                    Coins apply to merchandise. Shipping is payable in cash.{' '}
+                                    <Link href="/wallet" className="text-primary underline">
+                                        View wallet
+                                    </Link>
+                                </p>
+                                {checkout.errors.coins_to_redeem_cents && (
+                                    <p role="alert" className="text-destructive px-4 pb-4 text-sm">
+                                        {checkout.errors.coins_to_redeem_cents}
                                     </p>
                                 )}
-                                <div className="flex items-start justify-between gap-4 border-t pt-4 text-lg font-semibold">
-                                    <span>Total</span>
-                                    <span
-                                        className={logisticsPricing && !selectedQuote ? 'text-primary text-right text-sm' : 'text-right tabular-nums'}
-                                    >
-                                        {logisticsPricing && !selectedQuote ? 'Choose shipping' : money(subtotal + shipping - discount)}
+                            </section>
+                            <section className="shopping-bag-option shopping-bag-cod" aria-labelledby="cart-payment-heading">
+                                <div className="shopping-bag-option-heading">
+                                    <span className="bg-primary text-primary-foreground flex size-6 shrink-0 items-center justify-center rounded-full">
+                                        <Check aria-hidden="true" className="size-4" />
                                     </span>
+                                    <Banknote aria-hidden="true" className="text-primary size-8 shrink-0" />
+                                    <div className="min-w-0">
+                                        <h3 id="cart-payment-heading" className="font-semibold">
+                                            Cash on delivery
+                                        </h3>
+                                        <p className="shopping-bag-option-description">Pay when your parcel arrives.</p>
+                                    </div>
                                 </div>
-                            </div>
+                            </section>
+                            <section className="shopping-bag-payment-details" aria-labelledby="cart-payment-details">
+                                <h3 id="cart-payment-details" className="mb-4 text-lg font-semibold">
+                                    Payment summary
+                                </h3>
+                                <dl className="space-y-3 text-sm">
+                                    <div className="flex justify-between gap-4">
+                                        <dt className="text-muted-foreground">Merchandise subtotal</dt>
+                                        <dd className="font-semibold tabular-nums">{money(subtotal)}</dd>
+                                    </div>
+                                    <div className="flex justify-between gap-4">
+                                        <dt className="text-muted-foreground">Shipping fee</dt>
+                                        <dd className="text-right font-semibold tabular-nums">
+                                            {logisticsPricing && !selectedQuote ? 'Choose shipping' : money(shipping)}
+                                        </dd>
+                                    </div>
+                                    <div className="flex justify-between gap-4">
+                                        <dt className="text-muted-foreground">Voucher discount</dt>
+                                        <dd className="font-semibold tabular-nums">
+                                            {discount > 0 ? '-' : ''}
+                                            {money(discount)}
+                                        </dd>
+                                    </div>
+                                    <div className="flex justify-between gap-4">
+                                        <dt className="text-muted-foreground">Lubos Coins applied</dt>
+                                        <dd className="font-semibold tabular-nums">
+                                            {coins > 0 ? '-' : ''}
+                                            {money(coins / 100)}
+                                        </dd>
+                                    </div>
+                                    <div className="shopping-bag-total-payment">
+                                        <dt>
+                                            <span className="block font-semibold">Total payment</span>
+                                            <span className="text-muted-foreground text-xs">Inclusive of shipping</span>
+                                        </dt>
+                                        <dd className="text-primary text-right text-xl font-bold tabular-nums">
+                                            {logisticsPricing && !selectedQuote ? (
+                                                <span className="text-sm">Choose shipping</span>
+                                            ) : (
+                                                money(subtotal + shipping - discount - coins / 100)
+                                            )}
+                                        </dd>
+                                    </div>
+                                </dl>
+                            </section>
                             <ValidatedForm
                                 confirmation={{
                                     title: 'Place this COD order?',
-                                    description: `${items.reduce((count, item) => count + item.quantity, 0)} items from ${stores} store(s). Total cash on delivery: ${money(subtotal + shipping - discount)}. Stock is deducted only when checkout succeeds.`,
+                                    description: `${items.reduce((count, item) => count + item.quantity, 0)} items from ${stores} store(s). Total cash on delivery: ${money(subtotal + shipping - discount - coins / 100)}. Stock is deducted only when checkout succeeds.`,
                                     confirmLabel: 'Place COD order',
                                 }}
                                 onSubmit={(e) => {
                                     e.preventDefault();
                                     checkout.transform((data) => ({
                                         ...data,
+                                        coins_to_redeem_cents: coins,
                                         expected_items_subtotal: subtotal.toFixed(2),
                                         expected_shipping_total: shipping.toFixed(2),
                                         voucher_code: voucherReady ? voucher.code : '',
@@ -572,27 +771,26 @@ export default function Cart({
                                     checkout.post('/checkout');
                                 }}
                             >
-                                <Select label="Payment method" value="cod" reserveFeedback={false} disabled>
-                                    <option value="cod">Cash on delivery</option>
-                                </Select>
                                 <button
-                                    className={`${buttonClass} shopping-bag-checkout mt-5 w-full`}
-                                    disabled={
-                                        !canCheckout ||
-                                        unavailable ||
-                                        checkout.processing ||
-                                        updating ||
-                                        voucherBusy ||
-                                        (!!voucherCode.trim() && !voucherReady) ||
-                                        !checkout.data.address_id ||
-                                        (logisticsPricing && !selectedQuote)
-                                    }
+                                    className={`${buttonClass} shopping-bag-checkout w-full`}
+                                    disabled={!!checkoutBlockedReason}
+                                    aria-describedby={checkoutBlockedReason ? 'checkout-blocked-reason' : undefined}
                                 >
-                                    <ShoppingCart aria-hidden="true" className="size-5" />
-                                    {checkout.processing ? 'Placing order…' : 'Place COD order'}
+                                    <ShoppingBag aria-hidden="true" className="size-5" />
+                                    {checkout.processing
+                                        ? 'Placing order…'
+                                        : 'Place order \u00b7 ' + money(subtotal + shipping - discount - coins / 100)}
                                 </button>
+                                {checkoutBlockedReason && (
+                                    <p id="checkout-blocked-reason" role="status" className="text-muted-foreground mt-3 text-sm">
+                                        {checkoutBlockedReason}
+                                    </p>
+                                )}
                             </ValidatedForm>
-                            <p className="text-muted-foreground mt-3 text-center text-xs leading-relaxed">Pay the rider when your parcel arrives.</p>
+                            <p className="shopping-bag-checkout-note">
+                                <ShieldCheck aria-hidden="true" className="text-primary size-5" />
+                                Safe and secure checkout
+                            </p>
                         </Card>
                     </div>
                 )}

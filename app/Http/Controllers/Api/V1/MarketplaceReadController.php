@@ -143,7 +143,7 @@ class MarketplaceReadController extends Controller
 
         return Delivery::query()->with('sellerOrder.order', 'sellerOrder.items', 'sellerOrder.store', 'sellerOrder.delivery')
             ->with(['sellerOrder.store.user.addresses' => fn ($q) => $q->orderByDesc('is_default')->orderBy('id')])
-            ->when($user->role === 'rider', fn ($q) => $q->where('rider_id', $user->id)->where('logistics_center_id', $user->logistics_center_id))
+            ->when($user->role === 'rider', fn ($q) => $q->forRider($user))
             ->when($user->role === 'logistics', fn ($q) => $q->whereIn('logistics_center_id', $user->logisticsCenters()->operational()->select('logistics_centers.id')));
     }
 
@@ -151,7 +151,7 @@ class MarketplaceReadController extends Controller
     {
         $centers = $request->user()->logisticsCenters()->operational()->orderBy('logistics_centers.id')->get(['logistics_centers.id', 'name']);
         $riders = User::query()->managedRiders($request->user())->where('role', 'rider')->where('status', 'approved')->whereNotNull('email_verified_at')
-            ->whereIn('logistics_center_id', $centers->pluck('id'))->orderBy('id')->get(['id', 'name', 'logistics_center_id']);
+            ->whereIn('logistics_center_id', $centers->pluck('id'))->orderBy('id')->get(['id', 'name', 'logistics_center_id', 'rider_capability']);
         $areas = DB::table('service_areas')->whereIn('logistics_center_id', $centers->pluck('id'))->where('is_active', true)
             ->orderBy('id')->get(['id', 'logistics_center_id', 'name', 'province_name', 'city_name', 'barangay_name']);
         $links = DB::table('rider_service_area')->whereIn('rider_id', $riders->pluck('id'))->whereIn('service_area_id', $areas->pluck('id'))->get()->groupBy('rider_id');
@@ -161,7 +161,7 @@ class MarketplaceReadController extends Controller
             'areas' => $areas,
             'riders' => $riders->map(fn ($rider) => [
                 'id' => $rider->id, 'name' => $rider->name, 'logistics_center_id' => $rider->logistics_center_id,
-                'service_area_ids' => ($links->get($rider->id) ?? collect())->pluck('service_area_id'),
+                'rider_capability' => $rider->rider_capability, 'service_area_ids' => ($links->get($rider->id) ?? collect())->pluck('service_area_id'),
             ]),
         ]]);
     }

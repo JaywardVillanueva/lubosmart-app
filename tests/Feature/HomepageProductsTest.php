@@ -19,6 +19,17 @@ test('homepage uses visible seller products with prices and public photos', func
         ->where('products.0.store.name', 'Sample seller')->where('products.0.image_url', fn ($url) => str_ends_with($url, '/products/sample.jpg')));
 });
 
+test('homepage provides more featured products to fill wide screens', function () {
+    foreach (range(1, 17) as $index) {
+        $this->product->replicate()->fill(['name' => 'Featured product '.$index])->save();
+    }
+
+    $this->get('/')->assertInertia(fn (Assert $page) => $page
+        ->has('products', 16)
+        ->where('products.0.name', 'Featured product 17')
+        ->where('products.15.name', 'Featured product 2'));
+});
+
 test('homepage does not advertise unavailable or unapproved products', function (string $condition) {
     match ($condition) {
         'inactive product' => $this->product->update(['status' => 'hidden']),

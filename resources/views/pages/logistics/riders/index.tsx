@@ -1,8 +1,19 @@
+import { LogisticsWorkspaceTabs } from '@/components/logistics/parcel-navigation';
 import { AccountActions } from '@/components/shared/account-actions';
+import { AccountDirectory, DirectoryIdentity } from '@/components/shared/account-directory';
 import { FilterToolbar } from '@/components/shared/filter-toolbar';
-import { Badge, Card, Empty, Field, Page, Select } from '@/components/shared/marketplace-ui';
+import { Badge, buttonClass, Card, Empty, Field, Page, secondaryClass, Select } from '@/components/shared/marketplace-ui';
 import ValidatedForm from '@/components/shared/validated-form';
-import { useInitials } from '@/hooks/use-initials';
+import {
+    Dialog,
+    DialogClose,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from '@/components/ui/dialog';
 import type { User } from '@/types';
 import { router, useForm } from '@inertiajs/react';
 import { ClipboardCheck, Send } from 'lucide-react';
@@ -16,6 +27,7 @@ export default function Riders({
         name: string;
         email: string;
         status: User['status'];
+        rider_capability: string;
         created_at: string;
         email_verified_at: string | null;
         applicationStatus: string | null;
@@ -27,7 +39,6 @@ export default function Riders({
 }) {
     const form = useForm({});
     const [openMenu, setOpenMenu] = useState<number | null>(null);
-    const getInitials = useInitials();
     const [search, setSearch] = useState('');
     const [status, setStatus] = useState('');
     const [sort, setSort] = useState('name');
@@ -46,6 +57,7 @@ export default function Riders({
 
     return (
         <Page title="Company riders" description="Review and manage rider accounts assigned to your Logistics company.">
+            <LogisticsWorkspaceTabs section="riders" />
             <Card className="!p-4">
                 <ValidatedForm
                     className="relative"
@@ -85,22 +97,55 @@ export default function Riders({
                 {filters.search || filters.status ? ' matching your filters' : ' in your Logistics company'}
             </p>
             {filteredRiders.length ? (
-                <div className="grid items-start gap-4 xl:grid-cols-2">
-                    {filteredRiders.map((rider) => (
-                        <Card key={rider.id}>
-                            <div className="flex items-start justify-between gap-3">
-                                <div className="flex min-w-0 items-center gap-3">
-                                    <span
-                                        aria-hidden="true"
-                                        className="bg-accent/70 text-primary flex size-11 shrink-0 items-center justify-center rounded-full font-semibold"
-                                    >
-                                        {getInitials(rider.name)}
-                                    </span>
-                                    <div className="min-w-0">
-                                        <h2 className="text-sm font-semibold break-words">{rider.name}</h2>
-                                        <p className="text-muted-foreground mt-1 text-xs">Rider</p>
-                                    </div>
-                                </div>
+                <AccountDirectory
+                    label="Company riders"
+                    items={filteredRiders}
+                    columns={[
+                        {
+                            label: 'Rider',
+                            render: (rider) => (
+                                <DirectoryIdentity name={rider.name}>
+                                    <p className="text-muted-foreground mt-1 text-xs">Rider</p>
+                                </DirectoryIdentity>
+                            ),
+                        },
+                        { label: 'Email', render: (rider) => <span className="text-muted-foreground break-all">{rider.email}</span> },
+                        { label: 'Capability', render: (rider) => <Capability rider={rider} /> },
+                        {
+                            label: 'Registration',
+                            render: (rider) => (
+                                <>
+                                    <p className="whitespace-nowrap">
+                                        {new Date(rider.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                    </p>
+                                    <p className="text-muted-foreground mt-1 text-xs">
+                                        {rider.applicationStatus === 'approved'
+                                            ? 'Reviewed and approved'
+                                            : rider.applicationStatus === 'rejected'
+                                              ? 'Changes requested'
+                                              : rider.pendingActivation
+                                                ? 'Awaiting activation'
+                                                : !rider.email_verified_at
+                                                  ? 'Email verification needed'
+                                                  : rider.applicationStatus === 'submitted'
+                                                    ? 'Awaiting review'
+                                                    : 'Not yet submitted'}
+                                    </p>
+                                </>
+                            ),
+                        },
+                        {
+                            label: 'Status',
+                            render: (rider) => (
+                                <Badge
+                                    status={rider.pendingActivation ? 'pending' : rider.status}
+                                    label={rider.pendingActivation ? 'Awaiting activation' : undefined}
+                                />
+                            ),
+                        },
+                        {
+                            label: 'Actions',
+                            render: (rider) => (
                                 <AccountActions
                                     account={rider}
                                     canView={rider.canManage}
@@ -125,37 +170,10 @@ export default function Riders({
                                         },
                                     ]}
                                 />
-                            </div>
-                            <div className="mt-3">
-                                <Badge
-                                    status={rider.pendingActivation ? 'pending' : rider.status}
-                                    label={rider.pendingActivation ? 'Awaiting activation' : undefined}
-                                />
-                            </div>
-                            <p className="text-muted-foreground mt-3 text-sm break-all">{rider.email}</p>
-                            <p className="text-muted-foreground mt-2 text-xs">
-                                Registered{' '}
-                                {new Date(rider.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}
-                            </p>
-                            <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t pt-3 text-xs">
-                                <span className="text-muted-foreground">Registration</span>
-                                <span className="font-medium">
-                                    {rider.applicationStatus === 'approved'
-                                        ? 'Reviewed and approved'
-                                        : rider.applicationStatus === 'rejected'
-                                          ? 'Changes requested'
-                                          : rider.pendingActivation
-                                            ? 'Awaiting activation'
-                                            : !rider.email_verified_at
-                                              ? 'Email verification needed'
-                                              : rider.applicationStatus === 'submitted'
-                                                ? 'Awaiting review'
-                                                : 'Not yet submitted'}
-                                </span>
-                            </div>
-                        </Card>
-                    ))}
-                </div>
+                            ),
+                        },
+                    ]}
+                />
             ) : (
                 <Empty
                     title={riders.length ? 'No matching riders' : 'No riders yet'}
@@ -165,5 +183,70 @@ export default function Riders({
                 />
             )}
         </Page>
+    );
+}
+
+function Capability({ rider }: { rider: { id: number; name: string; rider_capability: string } }) {
+    const form = useForm({ rider_capability: rider.rider_capability });
+    const [open, setOpen] = useState(false);
+    const labels: Record<string, string> = { pickup: 'Pickup Rider', delivery: 'Delivery Rider', both: 'Pickup and Delivery' };
+    return (
+        <Dialog
+            open={open}
+            onOpenChange={(value) => {
+                setOpen(value);
+                if (value) {
+                    form.setData('rider_capability', rider.rider_capability);
+                    form.clearErrors();
+                }
+            }}
+        >
+            <div className="flex flex-col items-start gap-1">
+                <span className="whitespace-nowrap">{labels[rider.rider_capability] ?? 'Not specified'}</span>
+                <DialogTrigger asChild>
+                    <button
+                        type="button"
+                        className="text-primary min-h-8 rounded text-xs font-medium underline-offset-4 hover:underline focus-visible:outline-2"
+                        aria-label={'Edit capability for ' + rider.name}
+                    >
+                        Edit capability
+                    </button>
+                </DialogTrigger>
+            </div>
+            <DialogContent className="motion-reduce:animate-none">
+                <DialogHeader>
+                    <DialogTitle>Edit capability</DialogTitle>
+                    <DialogDescription>Choose the rider capability for {rider.name}.</DialogDescription>
+                </DialogHeader>
+                <ValidatedForm
+                    className="space-y-4"
+                    onSubmit={(event) => {
+                        event.preventDefault();
+                        form.patch('/logistics/riders/' + rider.id + '/capability', { preserveScroll: true, onSuccess: () => setOpen(false) });
+                    }}
+                >
+                    <Select
+                        label="Rider capability"
+                        value={form.data.rider_capability}
+                        onChange={(event) => form.setData('rider_capability', event.target.value)}
+                        error={form.errors.rider_capability}
+                    >
+                        <option value="pickup">Pickup Rider</option>
+                        <option value="delivery">Delivery Rider</option>
+                        <option value="both">Pickup and Delivery</option>
+                    </Select>
+                    <DialogFooter>
+                        <DialogClose asChild>
+                            <button type="button" className={secondaryClass}>
+                                Cancel
+                            </button>
+                        </DialogClose>
+                        <button className={buttonClass} disabled={form.processing}>
+                            {form.processing ? 'Saving...' : 'Save Changes'}
+                        </button>
+                    </DialogFooter>
+                </ValidatedForm>
+            </DialogContent>
+        </Dialog>
     );
 }

@@ -1,7 +1,15 @@
 import { buttonClass, secondaryClass } from '@/components/shared/marketplace-ui';
 import { useEffect, useRef, useState } from 'react';
 
-export default function DeliveryProofCamera({ onCapture, required = true }: { onCapture: (file: File | null) => void; required?: boolean }) {
+export default function DeliveryProofCamera({
+    onCapture,
+    required = true,
+    label,
+}: {
+    onCapture: (file: File | null) => void;
+    required?: boolean;
+    label?: string;
+}) {
     const video = useRef<HTMLVideoElement>(null);
     const stream = useRef<MediaStream | null>(null);
     const [preview, setPreview] = useState('');
@@ -70,7 +78,7 @@ export default function DeliveryProofCamera({ onCapture, required = true }: { on
     return (
         <div className="grid gap-4">
             <p className="text-sm font-medium">
-                {required ? 'Proof of delivery photo (required)' : 'Supporting photo (optional; capture only when safe)'}
+                {label ?? (required ? 'Proof of delivery photo (required)' : 'Supporting photo (optional; capture only when safe)')}
             </p>
             <video
                 ref={video}

@@ -3,6 +3,7 @@
 namespace App\Services\Notifications;
 
 use App\Models\Delivery;
+use App\Services\ParcelFinance;
 use Illuminate\Support\Facades\DB;
 
 class ParcelNotifications
@@ -24,14 +25,19 @@ class ParcelNotifications
         $operators = $this->inbox->logistics($delivery->logistics_center_id);
         $send = fn ($user, $event, $title, $message, $required = false) => $this->inbox->send($user, $event, $key, $title, $message, 'delivery', $delivery->id, $required);
         $description = 'Parcel #'.$parcel->id.'.';
+        if ($action === 'submit_cod_handover') {
+            foreach ($operators as $operator) {
+                $send($operator, 'cod.handover_submitted', 'Rider submitted COD handover', $description.' Verify the cash physically received and confirm the receipt.', true);
+            }
+        }
         if ($action === 'receive' && $delivery->receipt_condition === 'damaged') {
             foreach (array_unique([...$operators, ...$this->inbox->admins('operations')]) as $reviewer) {
                 $send($reviewer, 'delivery.damaged', 'Damaged parcel requires investigation', $description.' Review the recorded receipt condition.', true);
             }
         }
-        if ($action === 'assign') {
+        if (in_array($action, ['assign', 'exception_assign'], true)) {
             $leg = $delivery->dispatch_prepared_at ? 'delivery' : 'pickup';
-            $send($delivery->rider_id, 'assignment.'.$leg, ucfirst($leg).' assignment', $description.($leg === 'delivery' ? ' Collect COD PHP '.number_format((float) $parcel->subtotal + (float) $parcel->shipping_fee, 2).'.' : ' Parcel ready for pickup.'), true);
+            $send($delivery->rider_id, 'assignment.'.$leg, ucfirst($leg).' assignment', $description.($leg === 'delivery' ? ' Collect COD PHP '.ParcelFinance::decimal(ParcelFinance::expected($parcel)).'.' : ' Parcel ready for pickup.'), true);
             if ($before['rider_id'] && $before['rider_id'] !== $delivery->rider_id) {
                 $send($before['rider_id'], 'assignment.removed', 'Assignment removed', 'Your previous assignment for '.$description.' has ended.');
             }

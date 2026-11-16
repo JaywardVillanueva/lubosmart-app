@@ -11,9 +11,12 @@ use App\Models\Order;
 use App\Models\Product;
 use App\Models\SellerOrder;
 use App\Models\Store;
+use App\Models\StoreVoucher;
 use App\Models\User;
+use App\Services\ParcelFinance;
 use Database\Seeders\MarketplaceCategorySeeder;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -336,4 +339,37 @@ it('upgrades pre-existing orders without inventing historical commission snapsho
     expect($order->sellerOrders->first()->fresh()->commission_amount)->toBeNull();
     expect($order->sellerOrders->first()->fresh()->seller_proceeds)->toBeNull();
     expect($setup['products']['Product']->fresh()->stock)->toBe(1);
+});
+
+it('allocates coins after vouchers and restores the exact wallet debit once on cancellation', function () {
+    $f = setupCheckoutCart([['store' => 'A', 'name' => 'Coin product', 'price' => '1000.00', 'stock' => 3, 'quantity' => 1]]);
+    CommerceSetting::query()->whereKey(1)->update(['shipping_fee_per_seller_order' => '80.00', 'platform_commission_basis_points' => 500]);
+    $voucher = StoreVoucher::query()->create(['store_id' => $f['stores']['A']->id, 'code' => 'COIN-VOUCHER', 'amount_cents' => 5000, 'minimum_cents' => 100000, 'usage_limit' => 10, 'expires_at' => now()->addMonth(), 'is_active' => true]);
+    // Synthetic already-backed starting credit; no configured database is used.
+    DB::table('buyer_wallets')->insert(['buyer_id' => $f['buyer']->id, 'balance_cents' => 20000]);
+    $key = (string) Str::uuid();
+    $data = ['address_id' => $f['address']->id, 'checkout_key' => $key, 'voucher_code' => $voucher->code, 'expected_discount_total' => '50.00', 'coins_to_redeem_cents' => 20000];
+    $this->actingAs($f['buyer'])->post('/checkout', $data)->assertRedirect('/orders')->assertSessionHasNoErrors();
+    $order = Order::query()->sole();
+    $parcel = $order->sellerOrders()->sole();
+    expect($parcel->subtotal)->toBe('950.00')->and($parcel->cod_due_cents)->toBe(83000)->and($parcel->merchandise_cash_cents)->toBe(75000);
+    expect(ParcelFinance::commission(95000, $parcel->commission_basis_points))->toBe(4750);
+    $this->post('/checkout', $data)->assertSessionHasNoErrors();
+    $this->assertDatabaseCount('wallet_transactions', 1);
+    $this->post('/purchases/'.$order->id.'/cancel')->assertSessionHasNoErrors();
+    expect((int) DB::table('buyer_wallets')->value('balance_cents'))->toBe(20000);
+    $this->post('/purchases/'.$order->id.'/cancel')->assertConflict();
+    $this->assertDatabaseCount('wallet_transactions', 2);
+});
+
+it('rejects insufficient coins atomically and allocates multi seller rounding deterministically', function () {
+    $f = setupCheckoutCart([['store' => 'A', 'name' => 'First', 'price' => '1.01', 'stock' => 3, 'quantity' => 1], ['store' => 'B', 'name' => 'Second', 'price' => '1.01', 'stock' => 3, 'quantity' => 1]]);
+    $data = ['address_id' => $f['address']->id, 'checkout_key' => (string) Str::uuid(), 'coins_to_redeem_cents' => 1];
+    $this->actingAs($f['buyer'])->post('/checkout', $data)->assertSessionHasErrors('coins_to_redeem_cents');
+    $this->assertDatabaseCount('orders', 0);
+    expect($f['products']['First']->fresh()->stock)->toBe(3);
+    DB::table('buyer_wallets')->insert(['buyer_id' => $f['buyer']->id, 'balance_cents' => 1]);
+    $this->post('/checkout', $data)->assertSessionHasNoErrors();
+    expect(SellerOrder::query()->orderBy('store_id')->pluck('coins_redeemed_cents')->all())->toBe([1, 0]);
+    $this->assertDatabaseCount('coin_allocations', 1);
 });

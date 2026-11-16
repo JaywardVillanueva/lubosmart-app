@@ -1,10 +1,9 @@
-﻿import { LogisticsCharts } from '@/components/logistics/logistics-charts';
-import RiderNavigation from '@/components/rider/rider-navigation';
 import { Badge, buttonClass, Card, Empty, money, Page, secondaryClass } from '@/components/shared/marketplace-ui';
+import { DashboardFinance, DashboardOverview } from '@/components/workspace/dashboard-overview';
 import { DashboardMetric, DashboardWelcome } from '@/components/workspace/dashboard-panels';
 import type { SharedData } from '@/types';
-import { Link, usePage } from '@inertiajs/react';
-import { ClipboardCheck, MapPinned, MessageCircle, PackageCheck, PackageOpen, Truck, Wallet } from 'lucide-react';
+import { Link, usePage, usePoll } from '@inertiajs/react';
+import { ClipboardCheck, MapPinned, PackageCheck, PackageOpen, Truck, Wallet } from 'lucide-react';
 
 type Parcel = {
     id: number;
@@ -15,21 +14,25 @@ type Parcel = {
     recipient: string;
     destination: string;
     cod: string;
+    codResponsibility?: boolean;
 };
 export default function RiderDashboard({
     companyName,
     queues,
     pendingCod,
-    activeCount,
     recentParcels,
+    summary,
 }: {
     companyName: string | null;
     queues: Record<string, number>;
     pendingCod: string;
     activeCount: number;
     recentParcels: Parcel[];
+    summary: { fees: string; weekly: string; paid: string; returns: number };
 }) {
+    usePoll(30000, { only: ['summary', 'queues', 'pendingCod', 'recentParcels'] });
     const { auth } = usePage<SharedData>().props;
+    const capability = auth.user.rider_capability ?? 'both';
     const cards = [
         { label: 'My pickups', value: queues.pickups, href: '/deliveries?stage=pickups', hint: 'Assigned parcels to collect', icon: PackageOpen },
         {
@@ -53,25 +56,91 @@ export default function RiderDashboard({
             hint: 'Follow up with your logistics company',
             icon: ClipboardCheck,
         },
-    ];
+    ].filter(
+        (card) =>
+            capability === 'both' ||
+            (capability === 'pickup' ? card.label === 'My pickups' || card.label === 'Delivery issues' : card.label !== 'My pickups'),
+    );
     return (
         <Page title="Rider dashboard" headerInNavbar description="Your assigned parcels, delivery proof, and COD responsibilities.">
             <DashboardWelcome
-                label="My delivery overview"
+                label="Your delivery workspace"
                 title={'Welcome back, ' + auth.user.name.trim().split(/\s+/)[0] + '.'}
-                description="Check your pickups, accept handovers, and complete each delivery with proof."
+                description="Keep your parcels moving. Review assignments, track deliveries, and stay on top of your handovers."
                 context={companyName || 'Your logistics company'}
                 icon={Truck}
             >
-                <div className="flex flex-wrap gap-3">
-                    <Link href="/deliveries" className={buttonClass}>
-                        My deliveries
-                    </Link>
-                    <Link href="/reports" className={secondaryClass}>
-                        Delivery reports
-                    </Link>
-                </div>
+                <Link href="/deliveries" className={buttonClass}>
+                    My deliveries
+                </Link>
+                <Link href="/rider-payments" className={secondaryClass}>
+                    View compensation
+                </Link>
             </DashboardWelcome>
+
+            <section aria-label="Rider summary" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <DashboardMetric
+                    label="Assigned pickups"
+                    value={queues.pickups}
+                    hint="Current assigned pickup workload"
+                    icon={PackageOpen}
+                    href="/deliveries?stage=pickups"
+                />
+                <DashboardMetric
+                    label="Assigned deliveries"
+                    value={queues.dispatch + queues.monitoring}
+                    hint="Dispatch handovers and out-for-delivery parcels"
+                    icon={Truck}
+                    href="/deliveries"
+                />
+                <DashboardMetric
+                    label="Completed deliveries"
+                    value={queues.completed}
+                    hint="All-time delivered parcels in your assignment history"
+                    icon={PackageCheck}
+                    href="/deliveries?stage=completed"
+                />
+                <DashboardMetric
+                    label="Pending COD handover"
+                    value={money(pendingCod)}
+                    hint="Collected cash awaiting handover; separate from compensation"
+                    icon={Wallet}
+                    href="/deliveries?stage=cash"
+                />
+            </section>
+            <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+                <DashboardOverview
+                    title="Assignment activity"
+                    description="Current assignment queues, shown separately. Completed deliveries are all time."
+                    items={[
+                        { label: 'Pickups', value: queues.pickups },
+                        { label: 'Dispatch', value: queues.dispatch },
+                        { label: 'Out for delivery', value: queues.monitoring },
+                        { label: 'Completed', value: queues.completed },
+                    ]}
+                />
+                <div className="space-y-6">
+                    <DashboardFinance
+                        title="Compensation overview"
+                        description="Recorded amounts only. Task fees and weekly compensation retain their existing accounting. COD is excluded."
+                        rows={[
+                            { label: 'Recorded task fees · all time', value: money(summary.fees) },
+                            { label: 'Recorded weekly compensation · all time', value: money(summary.weekly) },
+                            { label: 'Marked paid · all time', value: money(summary.paid) },
+                        ]}
+                        href="/rider-payments"
+                        action="View compensation"
+                    />
+                    <DashboardMetric
+                        label="Pending return assignments"
+                        value={summary.returns}
+                        hint="Assigned physical return tasks awaiting completion"
+                        icon={ClipboardCheck}
+                        href="/returns"
+                    />
+                </div>
+            </div>
+
             <div className="workspace-priorities bg-card rounded-xl border p-5">
                 <h3 className="text-sm font-semibold">Needs attention</h3>
                 <p className="text-muted-foreground mt-1 text-xs">Your current tasks</p>
@@ -89,19 +158,7 @@ export default function RiderDashboard({
                     ))}
                 </ul>
             </div>
-            <RiderNavigation />
-            <section aria-label="My parcel workload" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                {cards.map((card) => (
-                    <DashboardMetric key={card.label} {...card} />
-                ))}
-            </section>
-            <LogisticsCharts
-                queues={cards}
-                delivered={queues.completed}
-                active={activeCount}
-                activeDescription="Active includes all your assigned parcels awaiting delivery, including pickups and parcels with delivery issues."
-            />
-            <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+            <div className="space-y-6">
                 <Card>
                     <div className="flex flex-wrap items-center justify-between gap-3">
                         <h2 className="text-lg font-semibold">My recent parcels</h2>
@@ -124,7 +181,9 @@ export default function RiderDashboard({
                                             {parcel.store} · {parcel.recipient}
                                         </p>
                                         <p className="text-muted-foreground mt-1 text-xs break-words">{parcel.destination}</p>
-                                        <p className="mt-2 text-sm tabular-nums">Parcel COD: {money(parcel.cod)}</p>
+                                        {parcel.codResponsibility !== false && (
+                                            <p className="mt-2 text-sm tabular-nums">Parcel COD: {money(parcel.cod)}</p>
+                                        )}
                                         {parcel.exception && (
                                             <p className="text-destructive mt-2 text-sm">Issue: {parcel.exception.replaceAll('_', ' ')}</p>
                                         )}
@@ -137,34 +196,6 @@ export default function RiderDashboard({
                         <Empty title="No assigned parcels yet" description="Your logistics company will assign pickups and deliveries here." />
                     )}
                 </Card>
-                <div className="space-y-6">
-                    <Card>
-                        <div className="flex items-center gap-3">
-                            <Wallet aria-hidden="true" className="text-primary size-5" />
-                            <h2 className="text-lg font-semibold">COD to hand over</h2>
-                        </div>
-                        <p className="mt-4 text-3xl font-semibold tabular-nums">{money(pendingCod)}</p>
-                        <p className="text-muted-foreground mt-2 text-sm">
-                            Collected cash awaiting confirmation of receipt by your logistics company.
-                        </p>
-                        <Link href="/deliveries?stage=cash" className={`${secondaryClass} mt-5`}>
-                            Review COD parcels
-                        </Link>
-                    </Card>
-                    <Card>
-                        <h2 className="text-lg font-semibold">Delivery checklist</h2>
-                        <ol className="text-muted-foreground mt-4 list-inside list-decimal space-y-3 text-sm leading-relaxed">
-                            <li>Check parcel identity and confirm pickup.</li>
-                            <li>Accept the prepared dispatch handover.</li>
-                            <li>Confirm recipient, upload proof, and record the full COD collected.</li>
-                            <li>Report failed attempts and arrange cash handover with Logistics.</li>
-                        </ol>
-                        <Link href="/support?kind=message" className={`${secondaryClass} mt-5`}>
-                            <MessageCircle aria-hidden="true" className="size-4" />
-                            Open messages
-                        </Link>
-                    </Card>
-                </div>
             </div>
         </Page>
     );

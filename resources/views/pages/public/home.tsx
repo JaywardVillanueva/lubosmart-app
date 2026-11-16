@@ -37,7 +37,7 @@ function HeroTagline({ bottom = false }: { bottom?: boolean }) {
     const labels = ['Local finds', 'Everyday favorites', 'Shop local', 'Pay on delivery'];
 
     return (
-        <aside className={'home-hero-tagline' + (bottom ? ' home-hero-tagline-bottom' : '')} aria-hidden="true">
+        <aside className="home-hero-tagline" aria-hidden="true">
             <div className="home-tagline-track">
                 {[0, 1].map((copy) => (
                     <div className="home-tagline-group" key={copy}>

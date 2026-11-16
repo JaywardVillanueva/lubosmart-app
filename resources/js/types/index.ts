@@ -44,6 +44,7 @@ export interface SharedData {
 }
 
 export interface User {
+    rider_capability?: string;
     id: number;
     name: string;
     email: string;

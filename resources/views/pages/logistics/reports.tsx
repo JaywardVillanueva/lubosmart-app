@@ -1,8 +1,9 @@
+import { FinanceRecord, FinanceTable } from '@/components/finance/finance-ui';
 import AutoFilterForm from '@/components/shared/auto-filter-form';
 import { FilterToolbar } from '@/components/shared/filter-toolbar';
 import { Card, Empty, Field, Page, Pager, type Pagination, money, secondaryClass } from '@/components/shared/marketplace-ui';
 import { useForm } from '@inertiajs/react';
-import { Download, PackageCheck } from 'lucide-react';
+import { Download } from 'lucide-react';
 
 type Record = {
     id: number;
@@ -79,32 +80,34 @@ export default function LogisticsReports({
             {records.data.length ? (
                 <Card>
                     <h2 className="font-semibold">Completed Deliveries</h2>
-                    <div className="mt-5 divide-y">
+                    <FinanceTable label="Completed deliveries" headers={['Parcel', 'Store', 'Rider', 'Delivered on', 'Shipping fee', 'COD value']}>
                         {records.data.map((record) => (
-                            <div key={record.id} className="grid gap-3 py-4 sm:grid-cols-[1fr_auto_auto]">
-                                <div>
-                                    <p className="flex items-center gap-2 text-sm font-medium">
-                                        <PackageCheck className="text-primary size-4" />
-                                        Parcel #{record.id} · {record.store.name}
-                                    </p>
-                                    <p className="text-muted-foreground mt-1 text-xs">
-                                        {record.delivery.rider?.name ?? 'Unassigned rider'} ·{' '}
-                                        {record.delivery.delivered_at
-                                            ? new Date(record.delivery.delivered_at).toLocaleDateString('en-PH', { dateStyle: 'medium' })
-                                            : 'Date unavailable'}
-                                    </p>
-                                </div>
-                                <div>
-                                    <p className="text-muted-foreground text-xs">Shipping Fee</p>
-                                    <p className="mt-1 text-sm font-semibold">{money(record.shipping_fee)}</p>
-                                </div>
-                                <div>
-                                    <p className="text-muted-foreground text-xs">COD Value</p>
-                                    <p className="mt-1 text-sm font-semibold">{money(Number(record.subtotal) + Number(record.shipping_fee))}</p>
-                                </div>
-                            </div>
+                            <FinanceRecord
+                                key={record.id}
+                                title={'Delivered parcel #' + record.id}
+                                cells={[
+                                    'Parcel #' + record.id,
+                                    record.store.name,
+                                    record.delivery.rider?.name ?? 'Unassigned rider',
+                                    record.delivery.delivered_at
+                                        ? new Date(record.delivery.delivered_at).toLocaleDateString('en-PH', { dateStyle: 'medium' })
+                                        : 'Date unavailable',
+                                    money(record.shipping_fee),
+                                    money(Number(record.subtotal) + Number(record.shipping_fee)),
+                                ]}
+                            >
+                                <h3 className="font-semibold">{record.store.name}</h3>
+                                <p>Assigned rider: {record.delivery.rider?.name ?? 'Unassigned rider'}</p>
+                                <p>
+                                    Delivery completed:{' '}
+                                    {record.delivery.delivered_at ? new Date(record.delivery.delivered_at).toLocaleString('en-PH') : 'Not recorded'}
+                                </p>
+                                <p className="tabular-nums">Shipping fee: {money(record.shipping_fee)}</p>
+                                <p className="tabular-nums">COD value: {money(Number(record.subtotal) + Number(record.shipping_fee))}</p>
+                                <p className="text-muted-foreground text-sm">Delivery completion does not confirm cash handover or rider earnings.</p>
+                            </FinanceRecord>
                         ))}
-                    </div>
+                    </FinanceTable>
                     <p className="text-muted-foreground mt-5 border-t pt-4 text-xs leading-relaxed">
                         Shipping fees are order snapshots. COD value includes products and shipping; these totals do not confirm rider earnings or
                         cash handover.
