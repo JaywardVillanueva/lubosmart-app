@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\URL;
 use Inertia\Testing\AssertableInertia as Assert;
 
 test('role settings provide expiring private document links only for the signed in owner', function (string $role) {
+    $this->freezeTime();
     Storage::fake('local');
     $user = User::factory()->create(['role' => $role]);
     if ($role === 'rider') {
