@@ -9,6 +9,6 @@ class PipelineDemoTest extends TestCase
     public function test_pipeline_message(): void
     {
         $message = 'LubosMart pipeline OK';
-        $this->assertSame('LubosMart pipeline OK', $message);
+        $this->assertSame('WRONG MESSAGE', $message);
     }
 }
